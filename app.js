@@ -81,6 +81,7 @@ let activeRecognition = null;
 let speechSilenceTimer = null;
 let notificationInterval = null;
 
+
 function applyTheme(theme) {
   const nextTheme = theme === 'light' ? 'light' : 'dark';
   state.theme = nextTheme;
@@ -167,24 +168,24 @@ async function loadDashboardData() {
     checkDueNotifications();
     renderLayout();
 
-  } catch (error) {
-    console.error('Dashboard load failed:', error);
+ } catch (error) {
+  console.error('Dashboard load failed:', error);
 
-    // IMPORTANT:
-    // Do NOT logout the user for every server/database error.
-    // apiRequest() already handles a genuine 401.
+  /*
+   * apiRequest() already handles HTTP 401
+   * by clearing authentication and redirecting
+   * to /login.
+   *
+   * Other server/network errors should NOT
+   * destroy the user's authentication session.
+   */
 
-    if (error?.message) {
-      console.warn('Dashboard error:', error.message);
-    }
-
-    state.data = {
-      ...EMPTY_DATA,
-    };
-
-    renderLayout();
+  if (state.data && !state.data.events) {
+    state.data = { ...EMPTY_DATA };
   }
-}
+
+  renderLayout();
+ }}
 
 
 async function loadProgressData(renderWhenDone = true) {
@@ -298,6 +299,8 @@ async function enableNotifications() {
 async function loadSelectedDateData(dateString) {
   if (!localStorage.getItem('sahraToken') || state.calendarCache.has(dateString)) return;
 
+state.calendarCache.add(dateString);
+
   try {
     const payload = await apiRequest(`/api/calendar/${dateString}`);
     state.calendarCache.add(dateString);
@@ -317,7 +320,8 @@ async function loadSelectedDateData(dateString) {
       ...state.data.moods.filter((mood) => mood.date !== dateString),
       ...nextMoods,
     ];
-  } catch (error) {
+  }catch (error) {
+    state.calendarCache.delete(dateString); // Allow retry if failed
     console.warn('Selected day data refresh failed:', error.message);
   }
 }
@@ -446,6 +450,102 @@ function closeEntryModal() {
   state.entryModalOpen = false;
   state.entryDraft = null;
   renderLayout();
+}
+
+function renderProfileModal() {
+  if (!state.profileModalOpen) return '';
+  const user = state.user || {};
+  const profile = user.profile || {};
+  const draft = state.profileDraft || {
+    name: user.name || '',
+    dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : '',
+  };
+  const isEditing = Boolean(state.profileEditing);
+  const successMessage = state.profileSuccessMessage || '';
+
+  const formattedDob = profile.dateOfBirth
+    ? new Date(profile.dateOfBirth).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Not set';
+
+  const hasPhone = Boolean(profile.phone);
+
+  return `
+    <div class="entry-modal-backdrop visible" style="z-index: 2000;">
+      <div class="entry-modal" style="width: min(100%, 390px); background: var(--panel-bg); border-color: var(--panel-border); padding: 20px;">
+        <div class="entry-modal-header" style="margin-bottom: 14px;">
+          <h3 style="font-size: 1.2rem; color: var(--text);">User Profile</h3>
+          <button class="entry-close" type="button" data-action="close-profile-modal">✕</button>
+        </div>
+
+        ${successMessage ? `<div style="background: rgba(97, 245, 176, 0.15); color: #61f5b0; padding: 8px 12px; border-radius: 10px; font-size: 0.85rem; margin-bottom: 12px; text-align: center;">${successMessage}</div>` : ''}
+
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div class="profile-avatar large" style="width: 64px; height: 64px; font-size: 1.8rem; margin: 0; background: linear-gradient(135deg, var(--purple), var(--cyan)); color: white; display: grid; place-items: center; border-radius: 20px; font-weight: 800;">
+            ${(user.name || 'S').charAt(0).toUpperCase()}
+          </div>
+          <div style="overflow: hidden;">
+            <strong style="display: block; font-size: 1.2rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.name || 'Sahra User'}</strong>
+            <span style="color: var(--muted); font-size: 0.82rem; word-break: break-all;">${user.email || ''}</span>
+          </div>
+        </div>
+
+        ${isEditing ? `
+          <div style="display: grid; gap: 12px;">
+            <label style="color: var(--muted); font-size: 0.82rem; display: grid; gap: 6px;">
+              Full Name
+              <input class="profile-input" data-field="name" value="${(draft.name || '').replace(/"/g, '&quot;')}" style="width: 100%; border: 1px solid rgba(160, 177, 255, 0.2); background: rgba(255,255,255,0.04); border-radius: 12px; padding: 11px 12px; color: var(--text);" />
+            </label>
+
+            <label style="color: var(--muted); font-size: 0.82rem; display: grid; gap: 6px;">
+              Date of Birth
+              <input class="profile-input" data-field="dateOfBirth" type="date" value="${draft.dateOfBirth || ''}" style="width: 100%; border: 1px solid rgba(160, 177, 255, 0.2); background: rgba(255,255,255,0.04); border-radius: 12px; padding: 11px 12px; color: var(--text);" />
+            </label>
+
+            <label style="color: var(--muted); font-size: 0.82rem; display: grid; gap: 6px; opacity: 0.75;">
+              Email (Cannot be edited)
+              <input type="email" disabled value="${user.email || ''}" style="width: 100%; border: 1px solid rgba(160, 177, 255, 0.1); background: rgba(255,255,255,0.02); border-radius: 12px; padding: 11px 12px; color: var(--muted); cursor: not-allowed;" />
+            </label>
+
+            ${hasPhone ? `
+              <label style="color: var(--muted); font-size: 0.82rem; display: grid; gap: 6px; opacity: 0.75;">
+                Phone Number (Cannot be edited)
+                <input type="text" disabled value="${profile.phone}" style="width: 100%; border: 1px solid rgba(160, 177, 255, 0.1); background: rgba(255,255,255,0.02); border-radius: 12px; padding: 11px 12px; color: var(--muted); cursor: not-allowed;" />
+              </label>
+            ` : ''}
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+              <button class="secondary-btn" type="button" data-action="profile-cancel-edit" style="padding: 10px 14px; border-radius: 12px; border: none; background: rgba(255,255,255,0.06); color: var(--text); cursor: pointer;">Cancel</button>
+              <button class="primary-btn compact-btn" type="button" data-action="profile-save" style="padding: 10px 16px; border-radius: 12px; border: none; background: linear-gradient(135deg, #9d82ff, #68d5ff); color: white; font-weight: 700; cursor: pointer;">Save</button>
+            </div>
+          </div>
+        ` : `
+          <div style="display: grid; gap: 8px; margin-bottom: 16px;">
+            <div class="profile-row" style="display: flex; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 12px; color: var(--muted); font-size: 0.88rem;">
+              <span>Date of Birth</span>
+              <strong style="color: var(--text);">${formattedDob}</strong>
+            </div>
+
+            <div class="profile-row" style="display: flex; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 12px; color: var(--muted); font-size: 0.88rem;">
+              <span>Email</span>
+              <strong style="color: var(--text);">${user.email || 'Not set'}</strong>
+            </div>
+
+            ${hasPhone ? `
+              <div class="profile-row" style="display: flex; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 12px; color: var(--muted); font-size: 0.88rem;">
+                <span>Phone</span>
+                <strong style="color: var(--text);">${profile.phone}</strong>
+              </div>
+            ` : ''}
+          </div>
+
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="secondary-btn" type="button" data-action="close-profile-modal" style="padding: 10px 14px; border-radius: 12px; border: none; background: rgba(255,255,255,0.06); color: var(--text); cursor: pointer;">Close</button>
+            <button class="primary-btn compact-btn" type="button" data-action="profile-start-edit" style="padding: 10px 16px; border-radius: 12px; border: none; background: linear-gradient(135deg, #9d82ff, #68d5ff); color: white; font-weight: 700; cursor: pointer;">Edit Profile</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
 }
 
 function renderEntryModal() {
@@ -862,134 +962,400 @@ function renderProgressPage() {
   const events = Array.isArray(state.data.events) ? state.data.events : [];
   const habits = Array.isArray(state.data.habits) ? state.data.habits : [];
   const goals = Array.isArray(state.data.goals) ? state.data.goals : [];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const currentMonthName = months[state.currentMonth] || months[new Date().getMonth()];
+
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ];
+
+  const currentMonthName =
+    months[state.currentMonth] || months[new Date().getMonth()];
+
   const todayIso = formatDateKey(new Date());
+
+  /*
+   * ---------------------------------------------------------
+   * MONTH TASKS
+   * ---------------------------------------------------------
+   */
 
   const monthTasks = tasks.filter((task) => {
     if (!task.date) return false;
-    const parts = String(task.date).slice(0, 10).split('-');
+
+    const parts = String(task.date)
+      .slice(0, 10)
+      .split('-');
+
     if (parts.length < 3) return false;
+
     const taskYear = Number(parts[0]);
     const taskMonth = Number(parts[1]) - 1;
-    return taskYear === state.currentYear && taskMonth === state.currentMonth;
+
+    return (
+      taskYear === Number(state.currentYear) &&
+      taskMonth === Number(state.currentMonth)
+    );
   });
 
-  const fallbackCompletedTasks = monthTasks.filter((task) => task.completed || task.status === 'Completed').length;
-  const fallbackPendingTasks = monthTasks.filter((task) => !task.completed && task.status !== 'Completed').length;
+  const fallbackCompletedTasks = monthTasks.filter(
+    (task) =>
+      task.completed ||
+      task.status === 'Completed'
+  ).length;
+
+  const fallbackPendingTasks = monthTasks.filter(
+    (task) =>
+      !task.completed &&
+      task.status !== 'Completed'
+  ).length;
+
   const fallbackOverdueTasks = monthTasks.filter((task) => {
-    const isDone = task.completed || task.status === 'Completed';
-    if (isDone) return false;
-    return task.status === 'Overdue' || (task.date && task.date < todayIso);
+    const completed =
+      task.completed ||
+      task.status === 'Completed';
+
+    if (completed) return false;
+
+    return (
+      task.status === 'Overdue' ||
+      (task.date && String(task.date).slice(0, 10) < todayIso)
+    );
   }).length;
+
   const fallbackTotalTasks = monthTasks.length;
+
+  /*
+   * ---------------------------------------------------------
+   * MONTH EVENTS
+   * ---------------------------------------------------------
+   */
 
   const monthEvents = events.filter((event) => {
     if (!event.date) return false;
-    const parts = String(event.date).slice(0, 10).split('-');
+
+    const parts = String(event.date)
+      .slice(0, 10)
+      .split('-');
+
     if (parts.length < 3) return false;
+
     const eventYear = Number(parts[0]);
     const eventMonth = Number(parts[1]) - 1;
-    return eventYear === state.currentYear && eventMonth === state.currentMonth;
+
+    return (
+      eventYear === Number(state.currentYear) &&
+      eventMonth === Number(state.currentMonth)
+    );
   });
+
+  /*
+   * ---------------------------------------------------------
+   * FALLBACK ACTIVITY
+   * ---------------------------------------------------------
+   */
 
   const fallbackActivity = [
     ...monthTasks.map((task) => ({
-      type: task.completed || task.status === 'Completed' ? 'task-complete' : 'task-pending',
-      label: `${task.completed || task.status === 'Completed' ? 'Completed task' : 'Task'} “${task.title}”`,
-      timeLabel: task.date ? formatFriendlyDate(task.date) : 'This month',
+      type:
+        task.completed || task.status === 'Completed'
+          ? 'task-complete'
+          : 'task-pending',
+
+      label:
+        task.completed || task.status === 'Completed'
+          ? `Completed task “${task.title}”`
+          : `Task “${task.title}”`,
+
+      timeLabel: task.date
+        ? formatFriendlyDate(task.date)
+        : 'This month'
     })),
+
     ...monthEvents.map((event) => ({
       type: 'event',
       label: `Event “${event.title}”`,
-      timeLabel: event.date ? formatFriendlyDate(event.date) : 'This month',
+      timeLabel: event.date
+        ? formatFriendlyDate(event.date)
+        : 'This month'
     })),
+
     ...habits.slice(0, 2).map((habit) => ({
       type: 'habit',
       label: `Habit “${habit.name}”`,
-      timeLabel: habit.frequency || 'Daily',
+      timeLabel: habit.frequency || 'Daily'
     })),
+
     ...goals.slice(0, 2).map((goal) => ({
       type: 'goal',
       label: `Goal “${goal.title}”`,
-      timeLabel: goal.status || 'Active',
-    })),
+      timeLabel: goal.status || 'Active'
+    }))
   ];
-  const selectedProgress = state.progressData?.period?.year === state.currentYear
-    && state.progressData?.period?.month === state.currentMonth + 1
-    ? state.progressData
-    : null;
+
+  /*
+   * ---------------------------------------------------------
+   * USE REAL BACKEND PROGRESS DATA WHEN AVAILABLE
+   * ---------------------------------------------------------
+   */
+
+  const selectedProgress =
+    state.progressData?.period?.year === Number(state.currentYear) &&
+    state.progressData?.period?.month === Number(state.currentMonth) + 1
+      ? state.progressData
+      : null;
+
   const stats = selectedProgress?.stats || {
     totalTasks: fallbackTotalTasks,
     completedTasks: fallbackCompletedTasks,
     pendingTasks: fallbackPendingTasks,
     overdueTasks: fallbackOverdueTasks,
-    completionPercent: fallbackTotalTasks ? Math.round((fallbackCompletedTasks / fallbackTotalTasks) * 100) : 0,
-  };
-  const totalTasks = stats.totalTasks;
-  const completedTasks = stats.completedTasks;
-  const pendingTasks = stats.pendingTasks;
-  const overdueTasks = stats.overdueTasks;
-  const completionPercent = stats.completionPercent;
-  const activityItems = (selectedProgress?.activity || fallbackActivity).map((item) => ({
-    ...item,
-    timeLabel: item.timeLabel || formatActivityTime(item.occurredAt),
-  })).slice(0, state.showAllActivity ? 20 : 5);
 
-  const pickerOpenClass = state.progressPickerOpen ? 'open' : '';
+    completionPercent:
+      fallbackTotalTasks > 0
+        ? Math.round(
+            (fallbackCompletedTasks / fallbackTotalTasks) * 100
+          )
+        : 0
+  };
+
+  const totalTasks = Number(stats.totalTasks || 0);
+  const completedTasks = Number(stats.completedTasks || 0);
+  const pendingTasks = Number(stats.pendingTasks || 0);
+  const overdueTasks = Number(stats.overdueTasks || 0);
+
+  const completionPercent = Math.max(
+    0,
+    Math.min(
+      100,
+      Number(stats.completionPercent || 0)
+    )
+  );
+
+  const activityItems = (
+    selectedProgress?.activity || fallbackActivity
+  )
+    .map((item) => ({
+      ...item,
+      timeLabel:
+        item.timeLabel ||
+        formatActivityTime(item.occurredAt)
+    }))
+    .slice(
+      0,
+      state.showAllActivity ? 20 : 5
+    );
+
+  /*
+   * ---------------------------------------------------------
+   * MONTH PICKER
+   * ---------------------------------------------------------
+   */
+
+  const pickerOpenClass =
+    state.progressPickerOpen ? 'open' : '';
 
   return `
     <section class="screen dashboard-screen">
+
+      <!-- TOP BAR -->
+
       <header class="dashboard-topbar">
-        <button class="back-button" type="button" data-action="back-home">← Back</button>
+
+        <button
+          class="back-button"
+          type="button"
+          data-action="back-home"
+        >
+          ← Back
+        </button>
+
         <div class="brand-panel">
-          <div class="brand-icon">${renderSahraLogo(52)}</div>
+          <div class="brand-icon">
+            ${renderSahraLogo(52)}
+          </div>
+
           <div class="brand-copy">
             <h1>Sahra</h1>
             <span>LIFE CALENDAR</span>
           </div>
         </div>
 
+        <!-- MONTH SELECTOR -->
+
         <div class="month-picker-wrapper ${pickerOpenClass}">
-          <button class="month-picker" type="button" data-action="toggle-progress-picker" aria-label="Select month and year" aria-expanded="${state.progressPickerOpen ? 'true' : 'false'}">
-            <span class="picker-icon">🗓️</span>
-            <span class="picker-label">
-              <span class="picker-month">${currentMonthName}</span>
-              <span class="picker-year">${state.currentYear}</span>
+
+          <button
+            class="month-picker"
+            type="button"
+            data-action="toggle-progress-picker"
+            aria-label="Select month and year"
+            aria-expanded="${
+              state.progressPickerOpen
+                ? 'true'
+                : 'false'
+            }"
+          >
+
+            <span class="picker-icon">
+              🗓️
             </span>
-            <span class="caret">⌄</span>
+
+            <span class="picker-label">
+
+              <span class="picker-month">
+                ${currentMonthName}
+              </span>
+
+              <span class="picker-year">
+                ${state.currentYear}
+              </span>
+
+            </span>
+
+            <span class="caret">
+              ⌄
+            </span>
+
           </button>
 
-          <div class="month-picker-backdrop ${pickerOpenClass}" data-action="close-progress-picker"></div>
+          <!-- BACKDROP -->
 
-          <div class="month-picker-popover ${pickerOpenClass}" role="dialog" aria-modal="true" aria-label="Month and year picker">
+          <div
+            class="month-picker-backdrop ${pickerOpenClass}"
+            data-action="close-progress-picker"
+          ></div>
+
+          <!-- PICKER -->
+
+          <div
+            class="month-picker-popover ${pickerOpenClass}"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Month and year picker"
+          >
+
             <div class="month-picker-header">
-              <button class="month-picker-nav prev-year" type="button" data-action="progress-year-change" data-direction="-1" aria-label="Previous year">‹</button>
+
+              <button
+                class="month-picker-nav"
+                type="button"
+                data-action="progress-year-change"
+                data-direction="-1"
+                aria-label="Previous year"
+              >
+                ‹
+              </button>
+
               <div class="year-selector-row">
-                <button class="year-chip" type="button" data-action="progress-year-set" data-year="${state.currentYear - 1}" aria-label="Year ${state.currentYear - 1}">${state.currentYear - 1}</button>
-                <span class="year-chip active" aria-current="true" aria-label="Current Year ${state.currentYear}">${state.currentYear}</span>
-                <button class="year-chip" type="button" data-action="progress-year-set" data-year="${state.currentYear + 1}" aria-label="Year ${state.currentYear + 1}">${state.currentYear + 1}</button>
-              </div>
-              <button class="month-picker-nav next-year" type="button" data-action="progress-year-change" data-direction="1" aria-label="Next year">›</button>
-            </div>
-            <div class="month-picker-grid">
-              ${months.map((month, index) => `
+
                 <button
-                  class="month-option ${index === state.currentMonth ? 'active' : ''}"
+                  class="year-chip"
                   type="button"
-                  data-progress-month="${index}"
-                  aria-pressed="${index === state.currentMonth ? 'true' : 'false'}"
-                >${month}</button>
-              `).join('')}
+                  data-action="progress-year-set"
+                  data-year="${state.currentYear - 1}"
+                >
+                  ${state.currentYear - 1}
+                </button>
+
+                <span
+                  class="year-chip active"
+                  aria-current="true"
+                >
+                  ${state.currentYear}
+                </span>
+
+                <button
+                  class="year-chip"
+                  type="button"
+                  data-action="progress-year-set"
+                  data-year="${state.currentYear + 1}"
+                >
+                  ${state.currentYear + 1}
+                </button>
+
+              </div>
+
+              <button
+                class="month-picker-nav"
+                type="button"
+                data-action="progress-year-change"
+                data-direction="1"
+                aria-label="Next year"
+              >
+                ›
+              </button>
+
             </div>
+
+            <div class="month-picker-grid">
+
+              ${months
+                .map(
+                  (month, index) => `
+                    <button
+                      class="month-option ${
+                        index === state.currentMonth
+                          ? 'active'
+                          : ''
+                      }"
+                      type="button"
+                      data-progress-month="${index}"
+                      aria-pressed="${
+                        index === state.currentMonth
+                          ? 'true'
+                          : 'false'
+                      }"
+                    >
+                      ${month}
+                    </button>
+                  `
+                )
+                .join('')}
+
+            </div>
+
           </div>
+
         </div>
+
       </header>
 
+      <!-- HERO -->
+
       <section class="glass-card dashboard-hero">
+
         <div class="hero-copy-block">
-          <h2>${totalTasks > 0 ? (completionPercent >= 80 ? 'You\'re doing great! <span class="rocket">🚀</span>' : completionPercent >= 50 ? 'Steady progress! <span class="rocket">✨</span>' : 'Keep going! <span class="rocket">💪</span>') : `Ready for ${currentMonthName}! <span class="rocket">🎯</span>`}</h2>
-          <p>${totalTasks > 0 ? `${completionPercent}% of your tasks are complete.` : `No tasks logged for ${currentMonthName} ${state.currentYear} yet.`}</p>
+
+          <h2>
+            ${
+              totalTasks > 0
+                ? completionPercent >= 80
+                  ? `You're doing great! <span class="rocket">🚀</span>`
+                  : completionPercent >= 50
+                    ? `Steady progress! <span class="rocket">✨</span>`
+                    : `Keep going! <span class="rocket">💪</span>`
+                : `Ready for ${currentMonthName}! <span class="rocket">🎯</span>`
+            }
+          </h2>
+
+          <p>
+            ${
+              totalTasks > 0
+                ? `${completionPercent}% of your tasks are complete.`
+                : `No tasks logged for ${currentMonthName} ${state.currentYear} yet.`
+            }
+          </p>
+
         </div>
 
         <div class="hero-quote">
@@ -997,74 +1363,243 @@ function renderProgressPage() {
           every day lead<br>
           to big results.”
         </div>
+
       </section>
 
+      <!-- OVERALL PROGRESS -->
+
       <section class="glass-card progress-panel">
+
         <div class="panel-header">
-          <h3>Overall Progress</h3>
-          <button class="panel-select" type="button" data-action="toggle-progress-picker">${currentMonthName} ${state.currentYear} <span>⌄</span></button>
+
+          <h3>
+            Overall Progress
+          </h3>
+
+          <button
+            class="panel-select"
+            type="button"
+            data-action="toggle-progress-picker"
+          >
+            ${currentMonthName}
+            ${state.currentYear}
+            <span>⌄</span>
+          </button>
+
         </div>
 
         <div class="progress-grid">
+
           <div class="donut-wrap">
-            <div class="donut-chart" style="background: conic-gradient(from 220deg, #7ad8ff 0 ${completionPercent}%, #9f7cff ${completionPercent}% 100%, rgba(255,255,255,0.08) 100% 100%);">
+
+            <div
+              class="donut-chart"
+              style="
+                background:
+                  conic-gradient(
+                    from 220deg,
+                    #7ad8ff 0 ${completionPercent}%,
+                    #9f7cff ${completionPercent}% 100%
+                  );
+              "
+            >
+
               <div class="donut-center">
-                <strong>${completionPercent}%</strong>
-                <span>Completed</span>
+
+                <strong>
+                  ${completionPercent}%
+                </strong>
+
+                <span>
+                  Completed
+                </span>
+
               </div>
+
             </div>
+
           </div>
 
           <div class="progress-metrics">
+
             <div class="metric-item">
-              <span class="metric-icon success">✓</span>
-              <span class="metric-label">Tasks Completed</span>
-              <strong>${completedTasks}</strong>
+
+              <span class="metric-icon success">
+                ✓
+              </span>
+
+              <span class="metric-label">
+                Tasks Completed
+              </span>
+
+              <strong>
+                ${completedTasks}
+              </strong>
+
             </div>
+
             <div class="metric-item">
-              <span class="metric-icon pending">◔</span>
-              <span class="metric-label">Pending</span>
-              <strong>${pendingTasks}</strong>
+
+              <span class="metric-icon pending">
+                ◔
+              </span>
+
+              <span class="metric-label">
+                Pending
+              </span>
+
+              <strong>
+                ${pendingTasks}
+              </strong>
+
             </div>
+
             <div class="metric-item">
-              <span class="metric-icon overdue">•</span>
-              <span class="metric-label">Overdue</span>
-              <strong>${overdueTasks}</strong>
+
+              <span class="metric-icon overdue">
+                •
+              </span>
+
+              <span class="metric-label">
+                Overdue
+              </span>
+
+              <strong>
+                ${overdueTasks}
+              </strong>
+
             </div>
+
           </div>
 
           <div class="focus-card">
+
             <div class="focus-row">
-              <span class="focus-icon">◎</span>
-              <span>Stay<br>Consistent!</span>
+
+              <span class="focus-icon">
+                ◎
+              </span>
+
+              <span>
+                Stay<br>
+                Consistent!
+              </span>
+
             </div>
-            <p>${pendingTasks > 0 ? `${pendingTasks} task(s) still pending. Keep going!` : totalTasks > 0 ? 'Everything is complete. Great job!' : 'No tasks scheduled yet. Plan ahead!'}</p>
+
+            <p>
+              ${
+                pendingTasks > 0
+                  ? `${pendingTasks} task(s) still pending. Keep going!`
+                  : totalTasks > 0
+                    ? 'Everything is complete. Great job!'
+                    : 'No tasks scheduled yet. Plan ahead!'
+              }
+            </p>
+
           </div>
+
         </div>
+
       </section>
 
+      <!-- RECENT ACTIVITY -->
+
       <section class="glass-card activity-panel">
+
         <div class="panel-header">
-          <h3>Recent Activity</h3>
-          <button class="panel-link" type="button" data-action="toggle-all-activity">${state.showAllActivity ? 'Show less' : 'View all'} &gt;</button>
+
+          <h3>
+            Recent Activity
+          </h3>
+
+          <button
+            class="panel-link"
+            type="button"
+            data-action="toggle-all-activity"
+          >
+            ${
+              state.showAllActivity
+                ? 'Show less'
+                : 'View all'
+            }
+            &gt;
+          </button>
+
         </div>
 
         <div class="activity-list">
-          ${activityItems.length ? activityItems.map((item) => `
-            <div class="activity-item">
-              <span class="activity-dot ${item.type.includes('task') ? 'blue' : item.type === 'event' ? 'purple' : item.type === 'habit' ? 'green' : 'red'}">${item.type === 'task-complete' ? '✓' : item.type === 'event' ? '▣' : item.type === 'habit' ? '◌' : '◎'}</span>
 
-              <span class="activity-text">${escapeHtml(item.label)}</span>
-              <span class="activity-time">${escapeHtml(item.timeLabel)}</span>
-            </div>
-          `).join('') : `<div class="activity-item"><span class="activity-text">No activity recorded for ${currentMonthName} ${state.currentYear} yet.</span></div>`}
+          ${
+            activityItems.length
+              ? activityItems
+                  .map(
+                    (item) => `
+                      <div class="activity-item">
+
+                        <span
+                          class="
+                            activity-dot
+                            ${
+                              item.type.includes('task')
+                                ? 'blue'
+                                : item.type === 'event'
+                                  ? 'purple'
+                                  : item.type === 'habit'
+                                    ? 'green'
+                                    : 'red'
+                            }
+                          "
+                        >
+                          ${
+                            item.type === 'task-complete'
+                              ? '✓'
+                              : item.type === 'event'
+                                ? '▣'
+                                : item.type === 'habit'
+                                  ? '◌'
+                                  : '◎'
+                          }
+                        </span>
+
+                        <span class="activity-text">
+                          ${escapeHtml(item.label)}
+                        </span>
+
+                        <span class="activity-time">
+                          ${escapeHtml(item.timeLabel)}
+                        </span>
+
+                      </div>
+                    `
+                  )
+                  .join('')
+              : `
+                <div class="activity-item">
+
+                  <span class="activity-text">
+                    No activity recorded for
+                    ${currentMonthName}
+                    ${state.currentYear} yet.
+                  </span>
+
+                </div>
+              `
+          }
+
         </div>
+
       </section>
+
     </section>
   `;
 }
 
+let isRendering = false;
+
 function renderLayout() {
+  if (isRendering) return; // Prevent overlapping render cycles
+  isRendering = true;
   const app = document.getElementById('app');
 
   if (state.view === 'calendar' && localStorage.getItem('sahraToken') && !state.calendarCache.has(state.selectedDate)) {
@@ -1087,12 +1622,12 @@ function renderLayout() {
     content = renderAssistantPage(state);
   } else if (state.view === 'progress' || state.view === 'more') {
     content = renderProgressPage();
-  } else if (state.view === 'profile') {
-    content = renderProfilePage();
   }
 
-  app.innerHTML = content + renderEntryModal();
+  // Appends active modals over the main content
+  app.innerHTML = content + renderEntryModal() + renderProfileModal();
 
+  // Highlight active bottom navigation button
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.classList.toggle('active', button.dataset.view === state.view);
   });
@@ -1100,7 +1635,7 @@ function renderLayout() {
   document.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (button.dataset.view === 'home' || button.dataset.view === 'calendar' || button.dataset.view === 'assistant' || button.dataset.view === 'more' || button.dataset.view === 'progress' || button.dataset.view === 'tasks' || button.dataset.view === 'habits' || button.dataset.view === 'goals' || button.dataset.view === 'mood') {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
@@ -1108,6 +1643,90 @@ function renderLayout() {
       }
     });
   });
+
+  // Month Picker toggle
+  document.querySelectorAll('[data-action="toggle-progress-picker"]').forEach((button) => {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation(); 
+      state.progressPickerOpen = !state.progressPickerOpen;
+      renderLayout();
+    });
+  });
+
+  // Profile Modal close
+  // Profile Modal Event Bindings
+  document.querySelectorAll('[data-action="close-profile-modal"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.profileModalOpen = false;
+      state.profileEditing = false;
+      state.profileDraft = null;
+      state.profileSuccessMessage = '';
+      renderLayout();
+    });
+  });
+
+  document.querySelectorAll('[data-action="profile-start-edit"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.profileEditing = true;
+      state.profileSuccessMessage = '';
+      const profile = state.user?.profile || {};
+      state.profileDraft = {
+        name: state.user?.name || '',
+        dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : '',
+      };
+      renderLayout();
+    });
+  });
+
+  document.querySelectorAll('[data-action="profile-cancel-edit"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.profileEditing = false;
+      state.profileSuccessMessage = '';
+      renderLayout();
+    });
+  });
+
+  document.querySelectorAll('[data-action="profile-save"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const draft = state.profileDraft || {};
+      const payload = {
+        name: draft.name,
+        dateOfBirth: draft.dateOfBirth || null,
+      };
+
+      try {
+        const response = await apiRequest('/api/profile', {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+
+        state.user = response.user || state.user;
+        localStorage.setItem('sahraUser', JSON.stringify(state.user));
+        state.profileEditing = false;
+        state.profileSuccessMessage = 'Profile updated successfully!';
+        renderLayout();
+
+        setTimeout(() => {
+          if (state.profileSuccessMessage) {
+            state.profileSuccessMessage = '';
+            renderLayout();
+          }
+        }, 3000);
+      } catch (error) {
+        window.alert(error.message || 'Unable to save profile');
+      }
+    });
+  });
+
+  document.querySelectorAll('.profile-input').forEach((input) => {
+    input.addEventListener('input', (event) => {
+      const field = event.target.dataset.field;
+      const value = event.target.value;
+      state.profileDraft = state.profileDraft || {};
+      state.profileDraft[field] = value;
+    });
+  });
+
 
   document.querySelectorAll('[data-action="prev-month"]').forEach((button) => {
     button.addEventListener('click', () => shiftMonth(-1));
@@ -1428,14 +2047,10 @@ function renderLayout() {
     });
   }
 
-  document.querySelectorAll('[data-menu-action]').forEach((button) => {
+document.querySelectorAll('[data-menu-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const action = button.dataset.menuAction;
       state.menuOpen = false;
-      if (menuPanel) {
-        menuPanel.classList.add('hidden');
-        menuPanel.classList.remove('open');
-      }
 
       if (action === 'light-theme') {
         applyTheme('light');
@@ -1450,9 +2065,13 @@ function renderLayout() {
       }
 
       if (action === 'profile') {
-        state.view = 'profile';
+        state.profileModalOpen = true; 
         state.profileEditing = false;
-        state.profileDraft = null;
+        state.profileSuccessMessage = '';
+        state.profileDraft = {
+          name: state.user?.name || '',
+          dateOfBirth: state.user?.profile?.dateOfBirth ? new Date(state.user.profile.dateOfBirth).toISOString().slice(0, 10) : '',
+        };
         renderLayout();
         return;
       }
@@ -1469,32 +2088,10 @@ function renderLayout() {
 
   document.querySelectorAll('[data-action="back-home"]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.profileEditing = false;
+      state.profileModalOpen = false;
       state.profileDraft = null;
       closeEntryModal();
       goBackFromView();
-    });
-  });
-
-  document.querySelectorAll('[data-action="profile-edit"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      state.profileEditing = true;
-      state.profileDraft = {
-        name: state.user?.name || '',
-        email: state.user?.email || '',
-        dateOfBirth: state.user?.profile?.dateOfBirth ? new Date(state.user.profile.dateOfBirth).toISOString().slice(0, 10) : '',
-        location: state.user?.profile?.location || '',
-        gender: state.user?.profile?.gender || '',
-      };
-      renderLayout();
-    });
-  });
-
-  document.querySelectorAll('[data-action="profile-cancel"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      state.profileEditing = false;
-      state.profileDraft = null;
-      renderLayout();
     });
   });
 
@@ -1504,9 +2101,6 @@ function renderLayout() {
       const payload = {
         name: draft.name,
         email: draft.email,
-        dateOfBirth: draft.dateOfBirth || null,
-        location: draft.location || null,
-        gender: draft.gender || null,
       };
 
       try {
@@ -1517,7 +2111,7 @@ function renderLayout() {
 
         state.user = response.user || state.user;
         localStorage.setItem('sahraUser', JSON.stringify(state.user));
-        state.profileEditing = false;
+        state.profileModalOpen = false;
         state.profileDraft = null;
         if (response.user?.preferences?.theme) {
           applyTheme(response.user.preferences.theme);
@@ -1580,11 +2174,17 @@ function renderLayout() {
     });
   });
 
-  document.querySelectorAll('[data-action="toggle-progress-picker"]').forEach((button) => {
-    button.addEventListener('click', (event) => {
+  document.querySelectorAll('[data-progress-month]').forEach((button) => {
+    button.addEventListener('click', async (event) => {
       event.stopPropagation();
-      state.progressPickerOpen = !state.progressPickerOpen;
+      const month = Number(button.dataset.progressMonth);
+      if (!Number.isInteger(month) || month < 0 || month > 11) return;
+
+      state.currentMonth = month;
+      state.progressPickerOpen = false;
+      state.progressLoading = true;
       renderLayout();
+      await loadProgressData(true);
     });
   });
 
@@ -1596,65 +2196,31 @@ function renderLayout() {
     });
   });
 
- document.querySelectorAll('[data-progress-month]').forEach((button) => {
-  button.addEventListener('click', async (event) => {
-    event.stopPropagation();
+  document.querySelectorAll('[data-action="progress-year-change"]').forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const direction = Number(button.dataset.direction || 0);
+      if (!direction) return;
 
-    const month = Number(button.dataset.progressMonth);
-
-    if (!Number.isInteger(month) || month < 0 || month > 11) {
-      return;
-    }
-
-    state.currentMonth = month;
-    state.progressPickerOpen = false;
-    state.progressLoading = true;
-
-    renderLayout();
-
-    await loadProgressData(true);
+      state.currentYear += direction;
+      state.progressData = null;
+      renderLayout();
+      await loadProgressData(true);
+    });
   });
-});
 
- document.querySelectorAll('[data-action="progress-year-change"]').forEach((button) => {
-  button.addEventListener('click', async (event) => {
-    event.stopPropagation();
+  document.querySelectorAll('[data-action="progress-year-set"]').forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const targetYear = Number(button.dataset.year);
+      if (!Number.isInteger(targetYear) || targetYear < 1900 || targetYear > 2200) return;
 
-    const direction = Number(button.dataset.direction || 0);
-
-    if (![-1, 1].includes(direction)) {
-      return;
-    }
-
-    state.currentYear += direction;
-    state.progressPickerOpen = true;
-    state.progressLoading = true;
-
-    renderLayout();
-
-    await loadProgressData(true);
+      state.currentYear = targetYear;
+      state.progressData = null;
+      renderLayout();
+      await loadProgressData(true);
+    });
   });
-});
-
-document.querySelectorAll('[data-action="progress-year-set"]').forEach((button) => {
-  button.addEventListener('click', async (event) => {
-    event.stopPropagation();
-
-    const targetYear = Number(button.dataset.year);
-
-    if (!Number.isInteger(targetYear)) {
-      return;
-    }
-
-    state.currentYear = targetYear;
-    state.progressPickerOpen = true;
-    state.progressLoading = true;
-
-    renderLayout();
-
-    await loadProgressData(true);
-  });
-});
 
   document.querySelectorAll('.assistant-input').forEach((input) => {
     input.addEventListener('keydown', (event) => {
@@ -1684,21 +2250,23 @@ document.querySelectorAll('[data-action="progress-year-set"]').forEach((button) 
       recognition.start();
     });
   });
+  setTimeout(() => {
+    isRendering = false;
+  }, 50);
 }
-
 function bindBottomNav() {
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.addEventListener('click', async () => {
       const view = button.dataset.view;
-
       if (!view) return;
 
+      // Close open modals when switching tabs
       state.entryModalOpen = false;
       state.entryDraft = null;
       state.progressPickerOpen = false;
+      state.profileModalOpen = false; 
 
       state.view = view;
-
       renderLayout();
 
       if (view === 'progress') {
@@ -1715,16 +2283,13 @@ function bindGlobalListeners() {
 
   document.addEventListener('click', (event) => {
     const clickedMonthPicker = event.target.closest('.month-picker-wrapper');
-    const clickedMenu = event.target.closest('.menu-button') || event.target.closest('.menu-panel');
+    const clickedMenu = event.target.closest('.menu-wrap');
 
     let needsRender = false;
+    
     if (!clickedMenu && state.menuOpen) {
       state.menuOpen = false;
-      const menuPanelEl = document.querySelector('.menu-panel');
-      if (menuPanelEl) {
-        menuPanelEl.classList.add('hidden');
-        menuPanelEl.classList.remove('open');
-      }
+      needsRender = true;
     }
 
     if (state.progressPickerOpen && !clickedMonthPicker) {
@@ -1738,9 +2303,17 @@ function bindGlobalListeners() {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && state.progressPickerOpen) {
-      state.progressPickerOpen = false;
-      renderLayout();
+    if (event.key === 'Escape') {
+      let changed = false;
+      if (state.progressPickerOpen) {
+        state.progressPickerOpen = false;
+        changed = true;
+      }
+      if (state.menuOpen) {
+        state.menuOpen = false;
+        changed = true;
+      }
+      if (changed) renderLayout();
     }
   });
 }
@@ -1748,6 +2321,7 @@ function bindGlobalListeners() {
 applyTheme(getStoredTheme());
 bindBottomNav();
 bindGlobalListeners();
+
 if (!localStorage.getItem('sahraToken')) {
   window.location.href = '/login';
 } else {

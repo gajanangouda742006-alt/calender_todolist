@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
       gender: { type: String, default: null },
       location: { type: String, default: null },
       profileImage: { type: String, default: null },
+      phone: { type: String, default: null },
     },
     preferences: {
       theme: { type: String, default: 'dark' },

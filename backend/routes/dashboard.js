@@ -249,7 +249,7 @@ router.get('/profile', verifyToken, async (req, res) => {
 
 router.put('/profile', verifyToken, async (req, res) => {
   try {
-    const { name, dateOfBirth, location, gender, profileImage } = req.body;
+    const { name, dateOfBirth } = req.body;
     const update = {};
 
     if (name !== undefined) {
@@ -260,21 +260,15 @@ router.put('/profile', verifyToken, async (req, res) => {
       update.name = nextName;
     }
 
-    if (dateOfBirth !== undefined) update['profile.dateOfBirth'] = dateOfBirth || null;
-    if (location !== undefined) update['profile.location'] = location ? String(location).trim() : null;
-    if (gender !== undefined) update['profile.gender'] = gender ? String(gender).trim() : null;
-    if (profileImage !== undefined) {
-      const image = profileImage || null;
-      const validImage = !image || (typeof image === 'string' && (
-        /^https?:\/\//i.test(image) || /^data:image\/(png|jpe?g|webp);base64,/i.test(image)
-      ) && image.length <= 350000);
-      if (!validImage) {
-        return res.status(400).json({ message: 'Please use a PNG, JPEG, WebP, or HTTPS profile image under 350 KB.' });
-      }
-      update['profile.profileImage'] = image;
+    if (dateOfBirth !== undefined) {
+      update['profile.dateOfBirth'] = dateOfBirth || null;
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, { $set: update }, { new: true }).select('name email profile preferences');
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: update },
+      { new: true }
+    ).select('name email profile preferences');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });

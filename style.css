@@ -66,19 +66,31 @@ button, input, textarea {
 
 .mobile-frame {
   width: min(100%, 430px);
-  min-height: 900px;
+  height: 90vh; /* Forces constrained height so scrolling works */
+  min-height: 700px;
+  max-height: 900px;
   background: linear-gradient(180deg, rgba(8, 12, 26, 0.85), rgba(9, 16, 33, 0.94));
   border: 1px solid rgba(173, 186, 255, 0.22);
   border-radius: 32px;
-  overflow: hidden;
+  overflow: hidden; /* Hides overflow extending past the frame rounded corners */
   box-shadow: var(--shadow);
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 #app {
+  flex: 1;
   padding: 0 16px 22px;
-  min-height: 760px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
 }
+
+#app::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome/Safari to maintain clean UI */
+}
+
 
 .screen {
   display: flex;
@@ -1361,13 +1373,13 @@ button, input, textarea {
 }
 
 .entry-modal-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
   background: rgba(6, 10, 20, 0.7);
-  z-index: 50;
+  z-index: 2000;
   padding: 20px;
 }
 
@@ -1700,7 +1712,7 @@ button, input, textarea {
 }
 
 .month-picker-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(5, 10, 25, 0.55);
   backdrop-filter: blur(6px);
@@ -2320,10 +2332,11 @@ body.theme-light .month-option.active {
   bottom: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  background: rgba(14, 24, 42, 0.96);
-  border-top: 1px solid rgba(165, 179, 255, 0.14);
-  padding: 14px 12px 18px;
+  gap: 10px;
+  background: rgba(11, 18, 32, 0.82);
+  border-top: 1px solid rgba(165, 179, 255, 0.18);
+  padding: 12px 14px 16px;
+  backdrop-filter: blur(18px);
   z-index: 1000;
 }
 
@@ -2770,4 +2783,36 @@ body.theme-light .profile-row strong {
     min-height: 100vh;
     border-radius: 0;
   }
+}
+
+.hero.glass-card, 
+.hero-top, 
+.menu-wrap {
+  overflow: visible !important;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  width: 180px;
+  background: rgba(18, 30, 58, 0.96);
+  border: 1px solid rgba(163, 180, 255, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(16px);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.menu-panel.hidden {
+  display: none !important;
+}
+
+.menu-panel.open {
+  display: flex !important;
 }
