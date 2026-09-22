@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sahra Life Calendar</title>
+    <meta
+      name="description"
+      content="Sahra Life Calendar — a futuristic personal life management dashboard."
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="mobile-frame">
+      <main id="app" aria-live="polite"></main>
+
+      <nav class="bottom-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="home" type="button">
+          <span class="icon">🏠</span>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" data-view="tasks" type="button">
+          <span class="icon">✅</span>
+          <span>To Do</span>
+        </button>
+        <button class="nav-item" data-view="assistant" type="button">
+          <span class="icon">🤖</span>
+          <span>Assistant</span>
+        </button>
+        <button class="nav-item" data-view="progress" type="button">
+          <span class="icon">📈</span>
+          <span>Progress</span>
+        </button>
+      </nav>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

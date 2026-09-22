@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sahra Login</title>
+    <style>
+      :root {
+        --bg-1: #090f1b;
+        --bg-2: #121d38;
+        --card: rgba(18, 30, 58, 0.9);
+        --text: #edf4ff;
+        --muted: #a5b4d8;
+        --purple: #8e72ff;
+        --cyan: #63d6ff;
+        --green: #6ee7b7;
+        --danger: #ff7c9a;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #1a244a, #090f1b 55%);
+        color: var(--text);
+        font-family: Arial, sans-serif;
+      }
+
+      .auth-shell {
+        width: min(420px, 92vw);
+        background: linear-gradient(180deg, rgba(19, 28, 48, 0.95), rgba(9, 16, 30, 0.98));
+        border: 1px solid rgba(163, 180, 255, 0.2);
+        border-radius: 28px;
+        padding: 24px 20px 18px;
+        box-shadow: 0 24px 50px rgba(0,0,0,0.35);
+      }
+
+      .brand {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .logo {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 14px;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 2.8rem);
+      }
+
+      .subtitle {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .tab-row {
+        display: flex;
+        gap: 8px;
+        background: rgba(255,255,255,0.04);
+        padding: 6px;
+        border-radius: 14px;
+        margin-bottom: 18px;
+      }
+
+      .tab {
+        flex: 1;
+        padding: 10px;
+        border-radius: 12px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .tab.active {
+        background: linear-gradient(135deg, rgba(142,114,255,0.3), rgba(99,214,255,0.2));
+        color: var(--text);
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid rgba(160, 177, 255, 0.18);
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        padding: 13px 12px;
+        color: var(--text);
+        font-size: 1rem;
+      }
+
+      .primary-btn {
+        border: none;
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-top: 8px;
+        cursor: pointer;
+        font-weight: 800;
+        color: white;
+        background: linear-gradient(135deg, #9d82ff, #68d5ff);
+        box-shadow: 0 12px 25px rgba(111, 94, 255, 0.4);
+      }
+
+      .status {
+        min-height: 18px;
+        margin-top: 8px;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .status.error { color: var(--danger); }
+      .status.success { color: var(--green); }
+    </style>
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="brand">
+        <div class="logo">
+          <img class="sahra-logo" src="/assets/sahra.png" alt="Sahra logo" width="72" height="72" />
+        </div>
+        <h1>SAHRA</h1>
+        <p class="subtitle">Your Life Calendar</p>
+      </div>
+
+      <div class="tab-row">
+        <button class="tab active" type="button" data-mode="login">Login</button>
+        <button class="tab" type="button" data-mode="signup">Sign Up</button>
+      </div>
+
+      <form id="loginForm">
+        <label>
+          Email
+          <input name="email" type="email" placeholder="you@example.com" required />
+        </label>
+
+        <label>
+          Password
+          <input name="password" type="password" placeholder="••••••••" required />
+        </label>
+
+        <button class="primary-btn" type="submit">Login</button>
+      </form>
+
+      <form id="signupForm" style="display:none;">
+        <label>
+          Full Name
+          <input name="name" type="text" placeholder="Gajanan" required />
+        </label>
+
+        <label>
+          Email
+          <input name="email" type="email" placeholder="you@example.com" required />
+        </label>
+
+        <label>
+          Password
+          <input name="password" type="password" placeholder="••••••••" required />
+        </label>
+
+        <label>
+          Date of Birth
+          <input name="dateOfBirth" type="date" />
+        </label>
+
+        <button class="primary-btn" type="submit">Create Account</button>
+      </form>
+
+      <div id="status" class="status" aria-live="polite"></div>
+    </div>
+
+    <script>
+      const tabs = document.querySelectorAll('.tab');
+      const loginForm = document.getElementById('loginForm');
+      const signupForm = document.getElementById('signupForm');
+      const statusBox = document.getElementById('status');
+
+      function setStatus(message, type = '') {
+        statusBox.textContent = message;
+        statusBox.className = 'status';
+        if (type) statusBox.classList.add(type);
+      }
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          tabs.forEach((item) => item.classList.toggle('active', item === tab));
+          const mode = tab.dataset.mode;
+          loginForm.style.display = mode === 'login' ? 'grid' : 'none';
+          signupForm.style.display = mode === 'signup' ? 'grid' : 'none';
+          setStatus('');
+        });
+      });
+
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(loginForm);
+        const payload = {
+          email: formData.get('email'),
+          password: formData.get('password')
+        };
+
+        try {
+          setStatus('Logging in...');
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'Login failed');
+
+          localStorage.setItem('sahraToken', data.token);
+          localStorage.setItem('sahraUser', JSON.stringify(data.user));
+          setStatus('Login successful. Redirecting...', 'success');
+          setTimeout(() => window.location.href = '/dashboard', 800);
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+
+      signupForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(signupForm);
+        const payload = {
+          name: formData.get('name'),
+          email: formData.get('email'),
+          password: formData.get('password'),
+          dateOfBirth: formData.get('dateOfBirth') || null
+        };
+
+        try {
+          setStatus('Creating account...');
+          const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'Registration failed');
+
+          localStorage.setItem('sahraToken', data.token);
+          localStorage.setItem('sahraUser', JSON.stringify(data.user));
+          setStatus('Account created. Redirecting...', 'success');
+          setTimeout(() => window.location.href = '/dashboard', 800);
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+    </script>
+  </body>
+</html>

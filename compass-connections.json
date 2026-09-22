@@ -1,0 +1,25 @@
+{
+  "type": "Compass Connections",
+  "version": {
+    "$numberInt": "1"
+  },
+  "connections": [
+    {
+      "id": "8b0eb39b-13ab-4c0b-b343-0336a60dec97",
+      "lastUsed": {
+        "$date": {
+          "$numberLong": "1789824200396"
+        }
+      },
+      "favorite": {
+        "name": "Calender",
+        "color": "color1"
+      },
+      "savedConnectionType": "recent",
+      "connectionOptions": {
+        "connectionString": "mongodb://localhost:27017/",
+        "oidc": {}
+      }
+    }
+  ]
+}
