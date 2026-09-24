@@ -15,6 +15,9 @@ const EMPTY_DATA = {
   reminders: [],
   notes: [],
   habitLogs: [],
+  expenses: [],
+  subscriptions: [],
+  assets: [],
 };
 
 function formatDateKey(date) {
@@ -60,6 +63,7 @@ const state = {
   menuOpen: false,
   profileEditing: false,
   profileDraft: null,
+  moreMenuOpen: false,
   entryModalOpen: false,
   entryDraft: null,
   todoFilter: 'All',
@@ -92,6 +96,63 @@ function applyTheme(theme) {
   localStorage.setItem('theme', nextTheme);
 }
 
+// ==========================================
+// 📱 NATIVE APP UI UTILS (Replaces window.*)
+// ==========================================
+function showToast(message) {
+  const existing = document.querySelector('.app-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'app-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => toast.classList.add('show'), 10);
+  
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function showAppConfirm(message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);';
+  
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--panel-bg, #1a1a2e); padding:24px; border-radius:16px; width:80%; max-width:320px; text-align:center; border:1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5);';
+  
+  const text = document.createElement('p');
+  text.textContent = message;
+  text.style.cssText = 'color:white; margin-bottom:24px; font-size:1.05rem; font-weight: 500;';
+  
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex; gap:12px; justify-content:center;';
+  
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.className = 'secondary-btn';
+  cancelBtn.style.flex = '1';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = 'Delete';
+  confirmBtn.className = 'primary-btn compact-btn';
+  confirmBtn.style.cssText = 'flex: 1; background: #ff4757; color: white; border: none; font-weight: bold;'; 
+  
+  cancelBtn.onclick = () => overlay.remove();
+  confirmBtn.onclick = () => {
+    overlay.remove();
+    onConfirm();
+  };
+  
+  btnRow.append(cancelBtn, confirmBtn);
+  box.append(text, btnRow);
+  overlay.append(box);
+  document.body.appendChild(overlay);
+}
+// ==========================================
+
 function getStoredTheme() {
   return localStorage.getItem('theme') || 'dark';
 }
@@ -122,6 +183,236 @@ async function apiRequest(path, options = {}) {
   }
 
   return payload;
+}
+
+function renderVaultPage() {
+  const assets = state.data.assets || [];
+  
+  return `
+    <section class="screen vault-screen">
+      <!-- FIXED HEADER: Uses flexbox and white-space: nowrap to prevent squishing -->
+      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 1.4rem; white-space: nowrap;">Notepad (Vault)</h2>
+        <button class="primary-btn compact-btn" type="button" data-action="open-add-entry" data-type="asset" style="padding: 8px 16px; flex-shrink: 0;">+ New Note</button>
+      </div>
+
+      <div class="glass-card layout-card">
+        <div class="card-header compact">
+          <h3>Saved Notes & Snippets</h3>
+        </div>
+        
+        <div class="vault-grid" style="display: grid; gap: 16px; margin-top: 12px;">
+          ${assets.length ? assets.map(asset => `
+            <div class="vault-item" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div>
+                  <h4 style="margin: 0; color: var(--text);">${escapeHtml(asset.title)}</h4>
+                  <span style="font-size: 0.75rem; color: var(--cyan);">${escapeHtml(asset.tags || '#note')}</span>
+                </div>
+                <button class="ghost-btn" type="button" data-action="copy-asset" data-content="${escapeAttribute(asset.content)}" style="font-size: 0.8rem;">Copy</button>
+              </div>
+              <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: var(--muted); max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${escapeHtml(asset.content)}</div>
+            </div>
+          `).join('') : `
+            <div class="empty-state" style="text-align: center; padding: 30px 10px; color: var(--muted);">
+              <p>No notes saved yet.</p>
+              <span style="font-size: 0.85rem;">Store your ideas, code snippets, and prompts here.</span>
+            </div>
+          `}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderFinancePage() {
+  const expenses = state.data.expenses || [];
+  const subscriptions = state.data.subscriptions || [];
+
+  const totalExpenses = expenses.reduce(
+    (sum, exp) => sum + Number(exp.amount || 0),
+    0
+  );
+
+  const totalSubs = subscriptions.reduce(
+    (sum, sub) => sum + Number(sub.amount || 0),
+    0
+  );
+
+  const burnRate = totalExpenses + totalSubs;
+
+  return `
+    <section class="screen finance-screen">
+
+      <div class="page-header">
+        <h2>Finance Manager</h2>
+
+        <div style="display: flex; gap: 8px;">
+          <button
+            class="secondary-btn compact-btn"
+            type="button"
+            data-action="open-add-entry"
+            data-type="subscription"
+          >
+            + Sub
+          </button>
+
+          <button
+            class="primary-btn compact-btn"
+            type="button"
+            data-action="open-add-entry"
+            data-type="expense"
+          >
+            + Expense
+          </button>
+        </div>
+      </div>
+
+
+      <div
+        class="glass-card progress-panel"
+        style="margin-bottom: 20px;"
+      >
+        <div class="panel-header">
+          <h3>Monthly Burn Rate</h3>
+        </div>
+
+        <div
+          style="
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text);
+            text-align: center;
+            padding: 20px 0;
+          "
+        >
+          $${burnRate.toFixed(2)}
+        </div>
+
+        <div
+          style="
+            display: flex;
+            justify-content: space-around;
+            color: var(--muted);
+            font-size: 0.85rem;
+          "
+        >
+          <span>
+            Expenses: $${totalExpenses.toFixed(2)}
+          </span>
+
+          <span>
+            Subs: $${totalSubs.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+
+      <div style="display: grid; gap: 20px;">
+
+        <div class="glass-card layout-card">
+
+          <div class="card-header compact">
+            <h3>Active Subscriptions</h3>
+          </div>
+
+          <div
+            style="
+              margin-top: 12px;
+              display: grid;
+              gap: 8px;
+            "
+          >
+
+            ${
+              subscriptions.length
+                ? subscriptions
+                    .map(
+                      (sub) => `
+              <div
+                class="mini-row"
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  background: rgba(255,255,255,0.02);
+                  padding: 12px;
+                  border-radius: 8px;
+                "
+              >
+
+                <div>
+
+                  <strong
+                    style="
+                      display: block;
+                      color: var(--text);
+                    "
+                  >
+                    ${escapeHtml(sub.title)}
+                  </strong>
+
+                  <span
+                    style="
+                      font-size: 0.8rem;
+                      color: var(--muted);
+                    "
+                  >
+                    Renews: ${escapeHtml(sub.renewalDate || "N/A")}
+                  </span>
+
+                </div>
+
+                <strong style="color: var(--cyan);">
+                  $${Number(sub.amount || 0).toFixed(2)}
+                </strong>
+
+              </div>
+            `
+                    )
+                    .join("")
+                : `
+              <p class="mini-empty">
+                No subscriptions logged.
+              </p>
+            `
+            }
+
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+  `;
+}
+
+function renderMoreMenu() {
+  if (!state.moreMenuOpen) return '';
+  
+  return `
+    <div class="more-menu-backdrop" data-action="close-more-menu" style="position: fixed; inset: 0; z-index: 1000;"></div>
+    
+    <!-- Added height: fit-content; and min-height: 0; to remove the empty space -->
+    <div class="more-menu-panel" style="position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 1001; width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); height: fit-content; min-height: 0;">
+      
+      <button class="menu-item" type="button" data-view="tasks" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
+        ✅ To Do List
+      </button>
+
+      <button class="menu-item" type="button" data-view="vault" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
+        📝 Notepad (Vault)
+      </button>
+      
+      <button class="menu-item" type="button" data-view="finance" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
+        💰 Expense Tracker
+      </button>
+      
+      <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
+        📈 Progress & Stats
+      </button>
+      
+    </div>
+  `;
 }
 
 async function updateThemeInDatabase(theme) {
@@ -212,7 +503,11 @@ async function createResource(type, body) {
     mood: '/api/moods',
     habit: '/api/habits',
     goal: '/api/goals',
+    expense: '/api/expenses',           // NEW
+    subscription: '/api/subscriptions', // NEW
+    asset: '/api/assets',               // NEW
   };
+  // ... rest of the function remains the same
 
   const endpoint = endpoints[type];
   if (!endpoint) return;
@@ -403,8 +698,9 @@ function openEntryModal(type = 'event') {
     return;
   }
 
-  if (type === 'event' && isPastDate(state.selectedDate)) {
-    window.alert('Events can only be added for today or future dates.');
+  // Block both events and tasks for past dates
+  if ((type === 'event' || type === 'task') && isPastDate(state.selectedDate)) {
+    window.alert('Tasks and events can only be added for today or future dates.');
     return;
   }
 
@@ -428,21 +724,32 @@ function openEntryModal(type = 'event') {
     current: 0,
     duration: '30 days',
     time: '19:00',
+    amount: '',
+    renewalDate: state.selectedDate,
+    content: '',
+    tags: '',
   };
   renderLayout();
 }
 
 function setView(nextView) {
+  // Prevent pushing duplicate consecutive views onto history
   if (state.view !== nextView) {
-    state.navigationHistory.push(state.view);
+    if (state.view && state.view !== 'home') {
+      state.navigationHistory.push(state.view);
+    }
     state.view = nextView;
   }
   renderLayout();
 }
 
 function goBackFromView() {
-  const previousView = state.navigationHistory.pop();
-  state.view = previousView || 'home';
+  // Always pop the last valid history item, or fallback directly to 'home'
+  if (state.navigationHistory.length > 0) {
+    state.view = state.navigationHistory.pop();
+  } else {
+    state.view = 'home';
+  }
   renderLayout();
 }
 
@@ -567,11 +874,11 @@ function renderEntryModal() {
           ${draft.type === 'task' ? `
             <label class="entry-field">
               <span>Task Name</span>
-              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="Study JavaScript" />
+              <input type="text" data-entry-field="title"  value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="Study JavaScript" />
             </label>
             <label class="entry-field">
               <span>Date</span>
-              <input type="date" data-entry-field="date" value="${draft.date || state.selectedDate}" />
+              <input type="date" data-entry-field="date" min="${formatDateKey(new Date())}"value="${draft.date || state.selectedDate}" />
             </label>
             <div class="entry-inline-grid">
               <label class="entry-field">
@@ -590,7 +897,7 @@ function renderEntryModal() {
           ` : `
             <label class="entry-field">
               <span>Date</span>
-              <input type="date" data-entry-field="date" value="${draft.date || state.selectedDate}" />
+              <input type="date" data-entry-field="date" min="${formatDateKey(new Date())}" value="${draft.date || state.selectedDate}" />
             </label>
 
             <label class="entry-field">
@@ -649,6 +956,43 @@ function renderEntryModal() {
               <input type="text" data-entry-field="duration" value="${(draft.duration || '30 days').replace(/"/g, '&quot;')}" placeholder="30 days" />
             </label>
           ` : ''}
+
+         ${draft.type === 'asset' ? `
+            <label class="entry-field">
+              <span>Title / Name</span>
+              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="e.g., Round Robin Scheduling Snippet" />
+            </label>
+            <label class="entry-field">
+              <span>Content / Code / Prompt</span>
+              <textarea rows="6" data-entry-field="content" placeholder="Paste your reference material here...">${(draft.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            </label>
+            <label class="entry-field">
+              <span>Tags</span>
+              <input type="text" data-entry-field="tags" value="${(draft.tags || '').replace(/"/g, '&quot;')}" placeholder="e.g., #code, #prompts, #3D" />
+            </label>
+          ` : ''}
+
+          ${draft.type === 'expense' || draft.type === 'subscription' ? `
+            <label class="entry-field">
+              <span>${draft.type === 'expense' ? 'Expense Name' : 'Service Name'}</span>
+              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="e.g., Server Hosting" />
+            </label>
+            <div class="entry-inline-grid">
+              <label class="entry-field">
+                <span>Amount ($)</span>
+                <input type="number" step="0.01" min="0" data-entry-field="amount" value="${draft.amount || ''}" placeholder="0.00" />
+              </label>
+              <label class="entry-field">
+                <span>${draft.type === 'expense' ? 'Date' : 'Next Renewal'}</span>
+                <input type="date" data-entry-field="${draft.type === 'expense' ? 'date' : 'renewalDate'}" value="${draft.type === 'expense' ? (draft.date || state.selectedDate) : (draft.renewalDate || state.selectedDate)}" />
+              </label>
+            </div>
+            <label class="entry-field">
+              <span>Category</span>
+              <input type="text" data-entry-field="category" value="${(draft.category || '').replace(/"/g, '&quot;')}" placeholder="e.g., Software, Logistics" />
+            </label>
+          ` : ''}
+
 
           ${draft.type === 'mood' ? `
             <div class="mood-picker-wrap">
@@ -1376,15 +1720,7 @@ function renderProgressPage() {
             Overall Progress
           </h3>
 
-          <button
-            class="panel-select"
-            type="button"
-            data-action="toggle-progress-picker"
-          >
-            ${currentMonthName}
-            ${state.currentYear}
-            <span>⌄</span>
-          </button>
+      
 
         </div>
 
@@ -1594,7 +1930,6 @@ function renderProgressPage() {
     </section>
   `;
 }
-
 let isRendering = false;
 
 function renderLayout() {
@@ -1610,6 +1945,10 @@ function renderLayout() {
 
   if (state.view === 'calendar') {
     content = renderCalendarPage(state);
+  } else if (state.view === 'finance') {
+    content = renderFinancePage();       
+  } else if (state.view === 'vault') {   
+    content = renderVaultPage();         
   } else if (state.view === 'mood') {
     content = renderMoodPage(state);
   } else if (state.view === 'tasks') {
@@ -1624,21 +1963,46 @@ function renderLayout() {
     content = renderProgressPage();
   }
 
-  // Appends active modals over the main content
-  app.innerHTML = content + renderEntryModal() + renderProfileModal();
+  // Appends active modals and menus over the main content
+  app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
+  
+  // 🚀 FORCE SCROLL TO TOP IMMEDIATELY AFTER DRAWING NEW HTML
+  window.scrollTo(0, 0);
 
   // Highlight active bottom navigation button
-  document.querySelectorAll('.nav-item').forEach((button) => {
-    button.classList.toggle('active', button.dataset.view === state.view);
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals'];
+
+
+
+  document.querySelectorAll('.bottom-nav .nav-item').forEach((button) => {
+    const isMenuButton = button.dataset.action === 'toggle-more-menu';
+
+    if (isMenuButton) {
+      button.classList.toggle('active', state.moreMenuOpen || menuSubPages.includes(state.view));
+    } else {
+      button.classList.toggle('active', button.dataset.view === state.view && !state.moreMenuOpen);
+    }
   });
+
+  // --- NEW: Hardware-accelerated smooth slide ---
+  requestAnimationFrame(() => {
+    const indicator = document.querySelector('.nav-indicator');
+    const activeBtn = document.querySelector('.bottom-nav .nav-item.active');
+    
+    if (indicator && activeBtn) {
+      indicator.style.width = `${activeBtn.offsetWidth}px`;
+      indicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
+    }
+  }); // Small delay ensures DOM calculates sizes correctly
 
   document.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
+        state.moreMenuOpen = false;
         renderLayout();
       }
     });
@@ -1653,7 +2017,6 @@ function renderLayout() {
     });
   });
 
-  // Profile Modal close
   // Profile Modal Event Bindings
   document.querySelectorAll('[data-action="close-profile-modal"]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1727,7 +2090,6 @@ function renderLayout() {
     });
   });
 
-
   document.querySelectorAll('[data-action="prev-month"]').forEach((button) => {
     button.addEventListener('click', () => shiftMonth(-1));
   });
@@ -1752,15 +2114,6 @@ function renderLayout() {
     button.addEventListener('click', () => setSelectedDate(dateValue));
   });
 
-  document.querySelectorAll('[data-create]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const type = button.dataset.create;
-      if (type) {
-        openEntryModal(type);
-      }
-    });
-  });
-
   document.querySelectorAll('[data-action="open-add-entry"]').forEach((button) => {
     button.addEventListener('click', () => {
       openEntryModal(button.dataset.type || 'event');
@@ -1769,8 +2122,7 @@ function renderLayout() {
 
   document.querySelectorAll('[data-action="show-selected-day"]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.view = 'calendar';
-      renderLayout();
+      setView('calendar');
     });
   });
 
@@ -1794,30 +2146,27 @@ function renderLayout() {
       if (!mood) return;
 
       state.moodPickerOpen = false;
+      renderLayout(); 
+
+      const existingMood = state.data.moods.find((m) => m.date === state.selectedDate);
+
       try {
-        await createResource('mood', {
-          date: state.selectedDate,
-          mood,
-          energy: 80,
-          note: '',
-        });
+        if (existingMood) {
+          await apiRequest(`/api/moods/${existingMood.id || existingMood._id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ mood, energy: 80, note: existingMood.note || '' }),
+          });
+          await loadDashboardData();
+        } else {
+          await createResource('mood', {
+            date: state.selectedDate,
+            mood,
+            energy: 80,
+            note: '',
+          });
+        }
       } catch (error) {
         window.alert(error.message || 'Unable to save mood');
-      }
-    });
-  });
-
-  document.querySelectorAll('[data-action="open-task-modal"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      openEntryModal('task');
-    });
-  });
-
-  document.querySelectorAll('.task-input-row').forEach((row) => {
-    row.addEventListener('click', (event) => {
-      const clicked = event.target;
-      if (clicked instanceof HTMLElement && (clicked.closest('button') || clicked.closest('input'))) {
-        openEntryModal('task');
       }
     });
   });
@@ -1843,16 +2192,21 @@ function renderLayout() {
     });
   });
 
-  document.querySelectorAll('[data-action="delete-task"]').forEach((button) => {
-    button.addEventListener('click', async () => {
+ document.querySelectorAll('[data-action="delete-task"]').forEach((button) => {
+    button.addEventListener('click', () => {
       const taskId = button.dataset.taskId;
-      if (!taskId || !window.confirm('Delete this task?')) return;
-      try {
-        await apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' });
-        await loadDashboardData();
-      } catch (error) {
-        window.alert(error.message || 'Unable to delete task');
-      }
+      if (!taskId) return;
+      
+      // Replaces window.confirm with our custom Native App Modal
+      showAppConfirm('Are you sure you want to delete this task?', async () => {
+        try {
+          await apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' });
+          await loadDashboardData();
+          showToast('Task deleted successfully');
+        } catch (error) {
+          showToast(error.message || 'Unable to delete task');
+        }
+      });
     });
   });
 
@@ -1884,6 +2238,15 @@ function renderLayout() {
     });
   });
 
+  document.querySelectorAll('[data-action="copy-asset"]').forEach((button) => {
+    button.addEventListener('click', (e) => {
+      const content = button.dataset.content || '';
+      navigator.clipboard.writeText(content);
+      button.textContent = 'Copied!';
+      setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+    });
+  });
+
   document.querySelectorAll('[data-action="close-entry-modal"]').forEach((button) => {
     button.addEventListener('click', () => {
       closeEntryModal();
@@ -1892,21 +2255,26 @@ function renderLayout() {
 
   document.querySelectorAll('[data-action="save-entry"]').forEach((button) => {
     button.addEventListener('click', async () => {
+      document.querySelectorAll('[data-entry-field]').forEach((field) => {
+        const fieldName = field.dataset.entryField;
+        if (fieldName) {
+          state.entryDraft[fieldName] = field.type === 'checkbox' ? field.checked : field.value;
+        }
+      });
+
       const draft = state.entryDraft || {};
       const type = draft.type || 'event';
       const date = draft.date || state.selectedDate;
 
+      if ((type === 'event' || type === 'task') && isPastDate(date)) {
+        window.alert('Tasks and events can only be added for today or future dates.');
+        return;
+      }
+
       try {
         if (type === 'event') {
           const title = (draft.title || '').trim();
-          if (!title) {
-            window.alert('Please enter an event title.');
-            return;
-          }
-          if (isPastDate(date)) {
-            window.alert('Events can only be added for today or future dates.');
-            return;
-          }
+          if (!title) { window.alert('Please enter an event title.'); return; }
           await createResource('event', {
             title,
             description: draft.description || '',
@@ -1917,10 +2285,7 @@ function renderLayout() {
           });
         } else if (type === 'task') {
           const title = (draft.title || '').trim();
-          if (!title) {
-            window.alert('Please enter a task title.');
-            return;
-          }
+          if (!title) { window.alert('Please enter a task title.'); return; }
           const taskPayload = {
             title,
             description: draft.description || '',
@@ -1943,10 +2308,7 @@ function renderLayout() {
           }
         } else if (type === 'habit') {
           const name = (draft.title || '').trim();
-          if (!name) {
-            window.alert('Please enter a habit name.');
-            return;
-          }
+          if (!name) { window.alert('Please enter a habit name.'); return; }
           await createResource('habit', {
             name,
             description: draft.description || '',
@@ -1956,10 +2318,7 @@ function renderLayout() {
           });
         } else if (type === 'goal') {
           const title = (draft.title || '').trim();
-          if (!title) {
-            window.alert('Please enter a goal title.');
-            return;
-          }
+          if (!title) { window.alert('Please enter a goal title.'); return; }
           await createResource('goal', {
             title,
             description: draft.description || '',
@@ -1977,11 +2336,31 @@ function renderLayout() {
             energy: 80,
             note: draft.note || '',
           });
+        } else if (type === 'asset') {
+          const title = (draft.title || '').trim();
+          if (!title) { window.alert('Please enter an asset title.'); return; }
+          await createResource('asset', {
+            title,
+            content: draft.content || '',
+            tags: draft.tags || '',
+          });
+        } else if (type === 'expense' || type === 'subscription') {
+          const title = (draft.title || '').trim();
+          if (!title || !draft.amount) { window.alert('Please enter a title and amount.'); return; }
+          await createResource(type, {
+            title,
+            amount: Number(draft.amount),
+            date: draft.date || state.selectedDate,
+            renewalDate: draft.renewalDate || state.selectedDate,
+            category: draft.category || 'General',
+          });
         }
 
-        closeEntryModal();
+       closeEntryModal(); 
+        showToast('Saved successfully!');
+
       } catch (error) {
-        window.alert(error.message || 'Unable to save item');
+        showToast(error.message || 'Unable to save item');
       }
     });
   });
@@ -2006,35 +2385,6 @@ function renderLayout() {
     field.addEventListener('change', () => updateDraft(field));
   });
 
-  document.querySelectorAll('[data-entry-value]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const value = button.dataset.entryValue;
-      state.entryDraft = {
-        ...(state.entryDraft || {}),
-        mood: value,
-      };
-      document.querySelectorAll('[data-entry-value]').forEach((item) => item.classList.toggle('selected', item.dataset.entryValue === value));
-    });
-  });
-
-  document.querySelectorAll('.mood-pill').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const mood = button.textContent.trim();
-      if (!mood) return;
-
-      try {
-        await createResource('mood', {
-          date: state.selectedDate,
-          mood,
-          energy: 80,
-          note: '',
-        });
-      } catch (error) {
-        window.alert(error.message || 'Unable to save mood');
-      }
-    });
-  });
-
   const menuButton = document.querySelector('.menu-button');
   const menuPanel = document.querySelector('.menu-panel');
 
@@ -2047,7 +2397,7 @@ function renderLayout() {
     });
   }
 
-document.querySelectorAll('[data-menu-action]').forEach((button) => {
+  document.querySelectorAll('[data-menu-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const action = button.dataset.menuAction;
       state.menuOpen = false;
@@ -2090,55 +2440,11 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
     button.addEventListener('click', () => {
       state.profileModalOpen = false;
       state.profileDraft = null;
-      closeEntryModal();
-      goBackFromView();
-    });
-  });
+      state.entryModalOpen = false;
+      state.entryDraft = null;
 
-  document.querySelectorAll('[data-action="profile-save"]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const draft = state.profileDraft || {};
-      const payload = {
-        name: draft.name,
-        email: draft.email,
-      };
-
-      try {
-        const response = await apiRequest('/api/profile', {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-
-        state.user = response.user || state.user;
-        localStorage.setItem('sahraUser', JSON.stringify(state.user));
-        state.profileModalOpen = false;
-        state.profileDraft = null;
-        if (response.user?.preferences?.theme) {
-          applyTheme(response.user.preferences.theme);
-        }
-        renderLayout();
-      } catch (error) {
-        window.alert(error.message || 'Unable to save profile');
-      }
-    });
-  });
-
-  document.querySelectorAll('.profile-input').forEach((input) => {
-    input.addEventListener('input', (event) => {
-      const field = event.target.dataset.field;
-      const value = event.target.value;
-      state.profileDraft = state.profileDraft || {};
-      state.profileDraft[field] = value;
-    });
-  });
-
-  document.querySelectorAll('[data-action="clear-assistant-chat"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      state.assistantMessages = [{
-        role: 'assistant',
-        text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress.",
-      }];
-      state.assistantLoading = false;
+      const previousView = state.navigationHistory.length > 0 ? state.navigationHistory.pop() : 'home';
+      state.view = previousView;
       renderLayout();
     });
   });
@@ -2154,19 +2460,101 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
       if (input) input.value = '';
       renderLayout();
 
+      const lower = message.toLowerCase();
+      const isTask = lower.includes('add task');
+      const isEvent = lower.includes('add event');
+
+      if (isTask || isEvent) {
+        try {
+          const type = isTask ? 'task' : 'event';
+          let date = formatDateKey(new Date());
+          if (lower.includes('tomorrow')) {
+            const tmrw = new Date();
+            tmrw.setDate(tmrw.getDate() + 1);
+            date = formatDateKey(tmrw);
+          } else {
+            const dateMatch = message.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+            if (dateMatch) {
+              date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+            }
+          }
+
+          let time = '09:00'; 
+          const timeMatch = message.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) || message.match(/(\d{2}):(\d{2})/);
+          if (timeMatch) {
+             if (timeMatch[3]) {
+                 let hours = parseInt(timeMatch[1], 10);
+                 const mins = timeMatch[2] || '00';
+                 const ampm = timeMatch[3].toLowerCase();
+                 if (ampm === 'pm' && hours < 12) hours += 12;
+                 if (ampm === 'am' && hours === 12) hours = 0;
+                 time = `${hours.toString().padStart(2, '0')}:${mins}`;
+             } else {
+                 time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+             }
+          }
+
+          let title = message
+            .replace(/hi+?\s*/i, '')
+            .replace(/add task(?: of| on| to)?\s*/i, '')
+            .replace(/add event(?: of| on| to)?\s*/i, '')
+            .replace(new RegExp(`(?:at |by )?${timeMatch ? timeMatch[0] : ''}\\s*`, 'i'), '')
+            .replace(/today|tomorrow/i, '')
+            .replace(/\d{4}[\/\-]\d{2}[\/\-]\d{2}/, '')
+            .replace(/\s+(at|by|on)\s*$/i, '')
+            .trim();
+            
+          title = title || 'New Entry';
+
+          if (type === 'event') {
+            await createResource('event', {
+              title,
+              description: 'Scheduled by Sahra Assistant',
+              date,
+              startTime: time,
+              endTime: time,
+              category: 'Assistant',
+            });
+          } else {
+            await createResource('task', {
+              title,
+              description: 'Added by Sahra Assistant',
+              date,
+              time,
+              priority: 'Normal',
+              status: 'Pending',
+              completed: false,
+              category: 'Assistant',
+            });
+          }
+
+          state.assistantMessages.push({ 
+            role: 'assistant', 
+            text: `Got it! I have successfully added the ${type} "**${title}**" for **${date}** at **${time}**.` 
+          });
+
+        } catch (err) {
+          state.assistantMessages.push({ role: 'assistant', text: 'I tried to add that, but something went wrong.' });
+        } finally {
+          state.assistantLoading = false;
+          renderLayout();
+        }
+        return;
+      }
+
       try {
         const response = await apiRequest('/api/assistant/chat', {
           method: 'POST',
           body: JSON.stringify({ message }),
         });
 
-        state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable. Please try again.' });
+        state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
 
         if (response.action === 'createTask' || response.action === 'createEvent') {
           await loadDashboardData();
         }
       } catch (error) {
-        state.assistantMessages.push({ role: 'assistant', text: 'Sahra is temporarily unavailable. Please try again.' });
+        state.assistantMessages.push({ role: 'assistant', text: 'Sahra is temporarily unavailable.' });
       } finally {
         state.assistantLoading = false;
         renderLayout();
@@ -2240,31 +2628,75 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
         return;
       }
 
+      button.style.color = '#ff4757'; 
+
       const recognition = new SpeechRecognition();
       recognition.lang = 'en-US';
+      recognition.interimResults = false;
+
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         const input = document.querySelector('.assistant-input');
-        if (input) input.value = transcript;
+        const sendButton = document.querySelector('.composer-send');
+        
+        if (input) {
+          input.value = transcript; 
+        }
+
+        if (sendButton) {
+          sendButton.click(); 
+        }
       };
+
+      recognition.onend = () => {
+        button.style.color = ''; 
+      };
+
       recognition.start();
     });
   });
+
+  document.querySelectorAll('[data-action="toggle-more-menu"]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.moreMenuOpen = !state.moreMenuOpen;
+      renderLayout();
+    });
+  });
+
+  document.querySelectorAll('[data-action="close-more-menu"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.moreMenuOpen = false;
+      renderLayout();
+    });
+  });
+
   setTimeout(() => {
     isRendering = false;
   }, 50);
 }
+
 function bindBottomNav() {
-  document.querySelectorAll('.nav-item').forEach((button) => {
-    button.addEventListener('click', async () => {
+  document.querySelectorAll('.bottom-nav .nav-item').forEach((button) => {
+    button.addEventListener('click', async (e) => {
+      // 1. If it's the Menu button, just toggle the popup
+      if (button.dataset.action === 'toggle-more-menu') {
+        e.stopPropagation();
+        state.moreMenuOpen = !state.moreMenuOpen;
+        renderLayout();
+        return;
+      }
+
+      // 2. If it's Home or Assistant
       const view = button.dataset.view;
       if (!view) return;
 
-      // Close open modals when switching tabs
+      // 3. Force close ALL popups before switching pages (Fixes the highlight bug)
       state.entryModalOpen = false;
       state.entryDraft = null;
       state.progressPickerOpen = false;
       state.profileModalOpen = false; 
+      state.moreMenuOpen = false; 
 
       state.view = view;
       renderLayout();
@@ -2284,6 +2716,7 @@ function bindGlobalListeners() {
   document.addEventListener('click', (event) => {
     const clickedMonthPicker = event.target.closest('.month-picker-wrapper');
     const clickedMenu = event.target.closest('.menu-wrap');
+    const clickedMoodPicker = event.target.closest('.mood-selector-wrap');
 
     let needsRender = false;
     
@@ -2294,6 +2727,11 @@ function bindGlobalListeners() {
 
     if (state.progressPickerOpen && !clickedMonthPicker) {
       state.progressPickerOpen = false;
+      needsRender = true;
+    }
+
+    if (state.moodPickerOpen && !clickedMoodPicker) {
+      state.moodPickerOpen = false;
       needsRender = true;
     }
 
@@ -2311,6 +2749,10 @@ function bindGlobalListeners() {
       }
       if (state.menuOpen) {
         state.menuOpen = false;
+        changed = true;
+      }
+      if (state.moodPickerOpen) {
+        state.moodPickerOpen = false;
         changed = true;
       }
       if (changed) renderLayout();

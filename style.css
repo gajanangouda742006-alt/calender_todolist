@@ -53,11 +53,12 @@ html, body {
 }
 
 body {
+  margin: 0;
+  padding: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: center; /* Centers the app on desktop screens */
+  background-color: #0b0f19; /* The dark space outside the app on desktop */
   min-height: 100vh;
-  padding: 20px;
 }
 
 button, input, textarea {
@@ -79,12 +80,14 @@ button, input, textarea {
   flex-direction: column;
 }
 
-#app {
-  flex: 1;
-  padding: 0 16px 22px;
-  overflow-y: auto;
+#app { 
+  width: 100%;
+  max-width: 450px; /* Change this if your app uses a different max-width */
+  margin: 0 auto;
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 80px; /* Keeps content from hiding behind the nav bar */
   overflow-x: hidden;
-  scrollbar-width: none; /* Hide scrollbar for Firefox */
 }
 
 #app::-webkit-scrollbar {
@@ -240,6 +243,266 @@ button, input, textarea {
 
 .menu-item.active {
   background: rgba(255,255,255,0.03);
+}
+
+.more-menu-icon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    display: block;
+    margin-bottom: 2px;
+    border-radius: 4px;
+}
+
+/* =========================================
+   CENTER MENU
+========================================= */
+
+.more-menu-panel {
+    position: fixed;
+
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    width: 220px;
+    height: auto;
+    min-height: 0;
+
+    padding: 12px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+
+    z-index: 1001;
+}
+
+
+/* Header */
+
+.more-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 2px 2px 16px;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.more-menu-header h3 {
+    margin: 0;
+
+    color: var(--text);
+
+    font-size: 1.2rem;
+    font-weight: 750;
+}
+
+.more-menu-header p {
+    margin: 4px 0 0;
+
+    color: var(--muted);
+
+    font-size: 0.75rem;
+}
+
+
+/* Close button */
+
+.more-menu-close {
+    width: 34px;
+    height: 34px;
+
+    display: grid;
+    place-items: center;
+
+    border: none;
+    border-radius: 11px;
+
+    background: rgba(255, 255, 255, 0.06);
+
+    color: var(--muted);
+
+    font-size: 0.9rem;
+
+    cursor: pointer;
+
+    transition: 0.2s ease;
+}
+
+.more-menu-close:hover {
+    background: rgba(255, 255, 255, 0.11);
+    color: var(--text);
+}
+
+.more-menu-close:active {
+    transform: scale(0.92);
+}
+
+
+/* Options container */
+
+.more-menu-options {
+    display: grid;
+
+    gap: 8px;
+
+    margin-top: 14px;
+}
+
+
+/* Individual option */
+
+.more-menu-option {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 11px;
+
+    border: 1px solid transparent;
+
+    border-radius: 16px;
+
+    background: rgba(255, 255, 255, 0.035);
+
+    color: var(--text);
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease;
+}
+
+.more-menu-option:hover {
+    background: rgba(132, 112, 255, 0.12);
+
+    border-color: rgba(145, 125, 255, 0.2);
+
+    transform: translateX(2px);
+}
+
+.more-menu-option:active {
+    transform: scale(0.98);
+}
+
+
+/* Icon */
+
+.more-menu-icon-box {
+    width: 42px;
+    height: 42px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 13px;
+
+    font-size: 1.15rem;
+    font-weight: 800;
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+
+/* Different icon backgrounds */
+
+.tasks-icon {
+    background: rgba(103, 214, 255, 0.12);
+    color: var(--cyan);
+}
+
+.vault-icon {
+    background: rgba(141, 113, 255, 0.14);
+    color: #b29cff;
+}
+
+.finance-icon {
+    background: rgba(97, 245, 176, 0.12);
+    color: var(--green);
+}
+
+.progress-icon {
+    background: rgba(255, 220, 122, 0.12);
+    color: var(--yellow);
+}
+
+
+/* Text */
+
+.more-menu-text {
+    min-width: 0;
+
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 3px;
+}
+
+.more-menu-text strong {
+    color: var(--text);
+
+    font-size: 0.9rem;
+
+    font-weight: 700;
+}
+
+.more-menu-text span {
+    color: var(--muted);
+
+    font-size: 0.7rem;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* Arrow */
+
+.more-menu-arrow {
+    color: var(--muted);
+
+    font-size: 1.4rem;
+
+    line-height: 1;
+
+    padding-right: 3px;
+}
+
+
+/* Animation */
+
+@keyframes menuPop {
+
+    from {
+        opacity: 0;
+        transform: translate(-50%, -47%) scale(0.94);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
 }
 
 .checkmark {
@@ -1308,34 +1571,28 @@ button, input, textarea {
   font-size: 0.7rem;
 }
 
-.bottom-nav {
-  position: sticky;
-  bottom: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  background: rgba(11, 18, 32, 0.82);
-  border-top: 1px solid rgba(165, 179, 255, 0.18);
-  padding: 12px 14px 16px;
-  backdrop-filter: blur(18px);
+.nav-indicator {
+  position: absolute;
+  top: 8px; /* Matches your bottom-nav padding */
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  left: 0;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  z-index: 0; /* Keeps it behind the buttons */
+  pointer-events: none; /* Prevents it from blocking clicks */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.nav-item {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 0;
-  border-radius: 12px;
-  cursor: pointer;
-}
+
+
 
 .nav-item.active {
   color: var(--text);
   background: rgba(135, 155, 255, 0.12);
+  color: #0a74ed;
+  background: transparent !important; 
+  box-shadow: none !important;
 }
 
 .nav-item .icon {
@@ -2327,33 +2584,111 @@ body.theme-light .month-option.active {
   white-space: nowrap;
 }
 
+/* Container for the bottom buttons */
 .bottom-nav {
-  position: sticky;
-  bottom: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  background: rgba(11, 18, 32, 0.82);
-  border-top: 1px solid rgba(165, 179, 255, 0.18);
-  padding: 12px 14px 16px;
-  backdrop-filter: blur(18px);
-  z-index: 1000;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+
+  width: auto;
+  max-width: none;
+
+  height: 72px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+
+  padding: 6px;
+  padding-bottom: 6px;
+
+ .nav-itembackground {
+    background: rgba(18, 30, 58, 0.94);
+}
+  border: 1px solid rgba(160, 180, 255, 0.16);
+  border-radius: 22px;
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  z-index: 999;
 }
 
 .nav-item {
+  flex: 1;
+  height: 60px;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 4px 8px;
-  border-radius: 14px;
-  background: transparent;
+ position: relative;
+  z-index: 1;
+  gap: 3px;
+
+  padding: 6px 8px;
+
   border: none;
-  color: rgba(196, 210, 238, 0.8);
-  font-size: 0.75rem;
+  border-radius: 16px;
+
+  background: transparent;
+
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+
   cursor: pointer;
   user-select: none;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+.nav-item span:first-child {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.nav-item span:last-child {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-item:active {
+  transform: scale(0.96);
+}
+
+.nav-item.active {
+  background: linear-gradient(
+    135deg,
+    #8668ed,
+    #7659e8
+  );
+
+  color: white;
+
+  box-shadow:
+    0 8px 20px rgba(125, 91, 235, 0.35);
+}
+
+/* Active state */
+.nav-item.active {
+  color: var(--cyan, #68d5ff);
+}
+
+.nav-item span {
+  font-size: 1.4rem;             /* Icon size */
 }
 
 .nav-item * {
@@ -2815,4 +3150,46 @@ body.theme-light .profile-row strong {
 
 .menu-panel.open {
   display: flex !important;
+}
+
+/* Shade and fade effects for popup Menu items */
+.more-menu-panel .menu-item {
+  transition: background-color 0.2s ease, opacity 0.1s ease !important;
+}
+
+.more-menu-panel .menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.12) !important; /* Lighter shade on hover */
+}
+
+.more-menu-panel .menu-item:active {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  opacity: 0.5 !important; /* Fades out on click */
+}
+
+/* App-style Toast Notification */
+.app-toast {
+  position: fixed;
+  bottom: 90px; /* Sits just above the bottom navigation */
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--panel-bg, rgba(30, 30, 46, 0.95));
+  border: 1px solid var(--cyan, #68d5ff);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  text-align: center;
+  width: max-content;
+  max-width: 90%;
+}
+
+.app-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

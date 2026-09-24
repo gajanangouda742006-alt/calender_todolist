@@ -24,3 +24,7 @@ http://localhost:8000
 - `pages/` – page-specific renderers
 - `data/defaultData.js` – seed data and local storage helpers
 - `assets/` – design assets
+
+
+
+notepad

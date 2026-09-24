@@ -4,11 +4,12 @@ function formatDateKey(date) {
 }
 
 export function renderCalendarPage(state) {
-  const monthName = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthName = `${monthNames[state.currentMonth]} ${state.currentYear}`;
+  
   const selectedDate = new Date(`${state.selectedDate}T00:00:00`);
   const firstDayOfMonth = new Date(state.currentYear, state.currentMonth, 1);
   const weekdayOffset = (firstDayOfMonth.getDay() + 6) % 7;
@@ -55,9 +56,12 @@ export function renderCalendarPage(state) {
   const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return `
-    <section class="screen">
-      <div class="page-header">
-        <h2>Calendar</h2>
+    <section class="screen calendar-screen">
+      <div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="back-button" type="button" data-action="back-home">← Back</button>
+          <h2>Calendar</h2>
+        </div>
         <button class="ghost-btn" type="button" data-action="today">Today</button>
       </div>
 
@@ -90,8 +94,7 @@ export function renderCalendarPage(state) {
                 data-date="${iso}"
                 ${day.blank ? 'disabled' : ''}
               >
-                <span>${day.value}</span>
-                ${indicators.length ? `<span class="calendar-indicators">${indicators.join('')}</span>` : ''}
+                <span>${day.value}</span>${indicators.length ? `<span class="calendar-indicators">${indicators.join('')}</span>` : ''}
               </button>
             `;
           }).join('')}

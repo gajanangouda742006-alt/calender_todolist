@@ -9,29 +9,34 @@
       content="Sahra Life Calendar — a futuristic personal life management dashboard."
     />
     <link rel="stylesheet" href="./style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   </head>
   <body>
     <div class="mobile-frame">
       <main id="app" aria-live="polite"></main>
 
       <nav class="bottom-nav" aria-label="Main navigation">
-        <button class="nav-item active" data-view="home" type="button">
-          <span class="icon">🏠</span>
-          <span>Home</span>
-        </button>
-        <button class="nav-item" data-view="tasks" type="button">
-          <span class="icon">✅</span>
-          <span>To Do</span>
-        </button>
-        <button class="nav-item" data-view="assistant" type="button">
-          <span class="icon">🤖</span>
-          <span>Assistant</span>
-        </button>
-        <button class="nav-item" data-view="progress" type="button">
-          <span class="icon">📈</span>
-          <span>Progress</span>
-        </button>
-      </nav>
+  <div class="nav-indicator"></div>
+  <button class="nav-item active" type="button" data-view="home">
+    <span>🏠</span>
+    <span>Home</span>
+  </button>
+
+  <button class="nav-item" type="button" data-view="assistant">
+    <span>🤖</span>
+    <span>Assistant</span>
+  </button>
+
+  <!-- The Menu button is now the final item on the right -->
+<button class="nav-item" type="button" data-action="toggle-more-menu">
+    <img
+        src="menubars.png"
+        alt="Menu"
+        style="width: 33px; height: 33px; object-fit: contain; margin-bottom: 3px; border-radius: 4px;"
+    >
+    <span>Menu</span>
+</button>
+</nav>
     </div>
 
     <script type="module" src="./app.js"></script>
