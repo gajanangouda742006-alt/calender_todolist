@@ -3998,40 +3998,12 @@ body.theme-light .profile-row strong {
    NOTES GRID
 --------------------------------------------------------- */
 
-.notepad-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-items: start;
-}
-
 
 /* ---------------------------------------------------------
    STICKY NOTE
 --------------------------------------------------------- */
 
-.sticky-note {
-  position: relative;
-  min-width: 0;
-  border-radius: 12px;
-  padding: 11px 10px 10px;
-  min-height: 128px;
-  box-shadow:
-    0 7px 16px rgba(0, 0, 0, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.30);
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-  overflow: hidden;
-}
 
-.sticky-note:nth-child(3n) {
-  min-height: 150px;
-}
-
-.sticky-note:nth-child(4n) {
-  min-height: 116px;
-}
 
 .sticky-note:hover {
   transform: translateY(-2px);
@@ -4260,24 +4232,23 @@ body.theme-light .profile-row strong {
 --------------------------------------------------------- */
 
 @media (max-width: 380px) {
-
   .notepad-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .sticky-note {
     min-height: 120px;
-    padding: 9px 8px;
-    border-radius: 10px;
+    padding: 12px;
+    border-radius: 12px;
   }
 
   .sticky-note h3 {
-    font-size: 0.76rem;
+    font-size: 0.86rem;
   }
 
   .sticky-note p {
-    font-size: 0.64rem;
+    font-size: 0.70rem;
   }
 
   .notepad-fab {
@@ -4306,123 +4277,6 @@ body.theme-light .profile-row strong {
 
 }
 
-/* ==========================================
-   ➕ FLOATING ADD BUTTON (FAB) FIX
-   ========================================== */
-
-.notepad-fab, .fab-add {
-  position: fixed;
-  bottom: 90px; /* Forces it to sit 90px above the bottom, clearing the menu */
-  right: 20px;  /* Keeps it pinned to the right side */
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background-color: #007bff; /* Adjust to match your app's main blue */
-  color: #ffffff;
-  font-size: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
-  cursor: pointer;
-  z-index: 100; /* Ensures it floats above the notes but stays under popups */
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Press animation */
-.notepad-fab:active, .fab-add:active {
-  transform: scale(0.92);
-  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
-}
-
-.notepad-fab, .fab-add {
-  position: fixed;
-  bottom: 220px;
-  
-  /* 🚀 THE FIX: Center it, then push it to the right side of the app box */
-  left: 50%; 
-  margin-left: 120px; /* Adjust this number (e.g., 120px - 160px) if it is too far left or right */
-  
-  /* Make sure to DELETE the old "right: 20px;" if it is still there! */
-
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background-color: #007bff; /* Primary Blue */
-  color: #ffffff;
-  font-size: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
-  cursor: pointer;
-  z-index: 100;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Press animation */
-.notepad-fab:active, .fab-add:active {
-  transform: scale(0.92);
-  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
-}
-
-/* ==========================================
-   📝 3D NOTEPAD MASONRY GRID
-   ========================================== */
-
-/* 1. Force the grid into two columns */
-.notepad-grid {
-  column-count: 2;
-  column-gap: 12px;
-  padding: 10px;
-  padding-bottom: 110px; /* Leaves room for the bottom nav and + button */
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 2. 3D Card Styling for the Notes */
-.sticky-note {
-  break-inside: avoid; /* CRITICAL: Stops cards from splitting across columns */
-  page-break-inside: avoid;
-  display: inline-block; /* Required for break-inside to work properly */
-  width: 100%;
-  box-sizing: border-box;
-  
-  margin-bottom: 12px;
-  border-radius: 16px;
-  padding: 14px;
-  color: #333333;
-  position: relative;
-  
-  /* The 3D Shadow & Highlight Effect */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15), 
-              0 2px 4px rgba(0, 0, 0, 0.12),
-              inset 0 2px 0 rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* 3. Hover/Tap Animation */
-.sticky-note:active {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-/* 4. Ensure Text Fits Nicely */
-.sticky-note h3 {
-  margin: 0 0 8px 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.sticky-note p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  font-weight: 500;
-}
 
 /* =========================================================
    PREMIUM NOTEPAD HEADER
@@ -5255,7 +5109,368 @@ body.theme-light .profile-row strong {
   stroke-linecap: round;
 }
 
+/* =========================================================
+   NOTEPAD NOTE GRID
+========================================================= */
 
+.notepad-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  width: 100%;
+  padding: 4px 0 20px;
+}
+
+
+/* =========================================================
+   3D NOTE BOX
+========================================================= */
+
+.sticky-note-3d {
+  position: relative;
+  width: 100%;
+  min-height: 160px;
+
+  padding: 18px;
+  border-radius: 20px;
+
+  overflow: hidden;
+
+  /* 3D depth */
+  transform: perspective(900px) translateZ(0);
+
+  box-shadow:
+    0 14px 25px rgba(0, 0, 0, 0.22),
+    0 5px 10px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+
+/* 3D lift */
+
+.sticky-note-3d:hover {
+  transform:
+    perspective(900px)
+    translateY(-4px)
+    rotateX(1.5deg)
+    rotateY(-1.5deg);
+
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.28),
+    0 8px 14px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+
+/* Mobile touch */
+
+.sticky-note-3d:active {
+  transform: scale(0.985);
+}
+
+
+/* =========================================================
+   3D LIGHT EFFECT
+========================================================= */
+
+.sticky-note-3d::before {
+  content: "";
+  position: absolute;
+
+  top: -70px;
+  right: -50px;
+
+  width: 180px;
+  height: 180px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.22);
+
+  filter: blur(12px);
+
+  pointer-events: none;
+}
+
+
+/* Bottom depth */
+
+.sticky-note-3d::after {
+  content: "";
+
+  position: absolute;
+
+  left: 10px;
+  right: 10px;
+  bottom: -7px;
+
+  height: 12px;
+
+  border-radius: 50%;
+
+  background: rgba(0, 0, 0, 0.16);
+
+  filter: blur(7px);
+
+  z-index: -1;
+}
+
+
+/* =========================================================
+   NOTE COLORS
+========================================================= */
+
+.note-yellow {
+  background:
+    linear-gradient(
+      145deg,
+      #e5f6ac,
+      #cfe898
+    );
+
+  color: #26311a;
+}
+
+
+.note-blue {
+  background:
+    linear-gradient(
+      145deg,
+      #c9ebfa,
+      #afd8ef
+    );
+
+  color: #193440;
+}
+
+
+.note-pink {
+  background:
+    linear-gradient(
+      145deg,
+      #ffd2dc,
+      #f2b6c5
+    );
+
+  color: #49242d;
+}
+
+
+.note-green {
+  background:
+    linear-gradient(
+      145deg,
+      #c9eed9,
+      #a9ddc1
+    );
+
+  color: #1d4031;
+}
+
+
+.note-purple {
+  background:
+    linear-gradient(
+      145deg,
+      #ddd2ff,
+      #c4b8f2
+    );
+
+  color: #30275c;
+}
+
+
+.note-orange {
+  background:
+    linear-gradient(
+      145deg,
+      #ffe4b4,
+      #f3cd94
+    );
+
+  color: #4a311a;
+}
+
+
+/* =========================================================
+   NOTE CONTENT
+========================================================= */
+
+.sticky-note-3d .sticky-note-title {
+  position: relative;
+  z-index: 2;
+
+  margin: 0 0 10px;
+
+  font-size: 1.08rem;
+  line-height: 1.2;
+  font-weight: 800;
+
+  letter-spacing: -0.02em;
+}
+
+
+.sticky-note-3d .sticky-note-content {
+  position: relative;
+  z-index: 2;
+
+  margin: 0;
+
+  font-size: 0.88rem;
+  line-height: 1.55;
+
+  opacity: 0.80;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   ACTION AREA
+========================================================= */
+
+.sticky-note-3d .sticky-note-actions {
+  position: relative;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+
+.sticky-note-3d .sticky-note-action {
+  width: 34px;
+  height: 34px;
+
+  border: none;
+  border-radius: 50%;
+
+  display: grid;
+  place-items: center;
+
+  background: rgba(255,255,255,0.62);
+
+  cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+
+
+.sticky-note-3d .sticky-note-action:hover {
+  transform: scale(1.08);
+}
+
+
+.sticky-note-3d .sticky-note-action:active {
+  transform: scale(0.90);
+}
+
+
+.sticky-note-3d .sticky-note-action svg {
+  width: 17px;
+  height: 17px;
+
+  fill: none;
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+.sticky-note-3d .sticky-note-action.edit {
+  color: #2865dc;
+}
+
+
+.sticky-note-3d .sticky-note-action.delete {
+  color: #d62f4b;
+}
+
+
+/* =========================================================
+   DATE
+========================================================= */
+
+.sticky-note-3d .sticky-note-date {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  margin-top: 14px;
+
+  font-size: 0.68rem;
+  font-weight: 650;
+
+  opacity: 0.55;
+}
+
+
+.sticky-note-3d .sticky-note-date svg {
+  width: 15px;
+  height: 15px;
+
+  fill: none;
+  stroke: currentColor;
+
+  stroke-width: 1.8;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 380px) {
+
+  .notepad-grid {
+    gap: 12px;
+  }
+
+  .sticky-note-3d {
+    min-height: 145px;
+    padding: 15px;
+    border-radius: 17px;
+  }
+
+  .sticky-note-3d .sticky-note-title {
+    font-size: 0.98rem;
+  }
+
+  .sticky-note-3d .sticky-note-content {
+    font-size: 0.82rem;
+  }
+
+  .sticky-note-3d .sticky-note-action {
+    width: 31px;
+    height: 31px;
+  }
+
+}
 /* =========================================================
    MOBILE SAFE AREA
 ========================================================= */
@@ -5289,3 +5504,4 @@ body.theme-light .profile-row strong {
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
+

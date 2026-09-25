@@ -75,7 +75,6 @@ export function renderTasksPage(state) {
           </div>
         </div>
 
-        <button class="more-menu" type="button">⋮</button>
       </div>
 
       <div class="filter-row">

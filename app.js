@@ -763,10 +763,6 @@ function renderEntryModal() {
               <span>Content / Code / Prompt</span>
               <textarea rows="6" data-entry-field="content" placeholder="Paste your reference material here...">${(draft.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
             </label>
-            <label class="entry-field">
-              <span>Tags</span>
-              <input type="text" data-entry-field="tags" value="${(draft.tags || '').replace(/"/g, '&quot;')}" placeholder="e.g., #code, #prompts, #3D" />
-            </label>
           ` : ''}
 
           <!-- 5. EXPENSE FORM -->
@@ -1602,31 +1598,6 @@ function renderProgressPage() {
             </div>
 
           </div>
-
-          <div class="focus-card">
-
-            <div class="focus-row">
-
-              <span class="focus-icon">
-                ◎
-              </span>
-
-              <span>
-                Stay<br>
-                Consistent!
-              </span>
-
-            </div>
-
-            <p>
-              ${
-                pendingTasks > 0
-                  ? `${pendingTasks} task(s) still pending. Keep going!`
-                  : totalTasks > 0
-                    ? 'Everything is complete. Great job!'
-                    : 'No tasks scheduled yet. Plan ahead!'
-              }
-            </p>
 
           </div>
 
