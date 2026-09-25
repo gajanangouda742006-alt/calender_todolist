@@ -1,6 +1,6 @@
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
-const { User, Event, Task, Mood, Habit, HabitLog, Goal, Reminder, Note } = require('../models');
+const { User, Event, Task, Mood, Habit, HabitLog, Goal, Reminder, Asset } = require('../models');
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const [user, events, tasks, moods, habits, goals, reminders, notes, habitLogs] = await Promise.all([
+    const [user, events, tasks, moods, habits, goals, reminders, assets, habitLogs] = await Promise.all([
       User.findById(userId).select('name email profile preferences createdAt'),
       Event.find({ userId }).sort({ date: 1, startTime: 1 }),
       Task.find({ userId }).sort({ date: 1, createdAt: -1 }),
@@ -16,7 +16,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
       Habit.find({ userId }).sort({ createdAt: -1 }),
       Goal.find({ userId }).sort({ createdAt: -1 }),
       Reminder.find({ userId }).sort({ date: 1, time: 1 }),
-      Note.find({ userId }).sort({ createdAt: -1 }),
+      Asset.find({ userId }).sort({ createdAt: -1 }),
       HabitLog.find({ userId }).sort({ date: 1 }),
     ]);
 
@@ -39,7 +39,8 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         habits: habits.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         goals: goals.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         reminders: reminders.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
-        notes: notes.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
+        notes: assets.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
+        assets: assets.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         habitLogs: habitLogs.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
       },
     });
@@ -685,7 +686,7 @@ async function handleAssistantIntent(userId, message) {
 
   if (/mark.*complete|complete.*task|done.*task/.test(lower)) {
     const taskTitle = String(message).replace(/^(mark|complete|done|finish)\s+/i, '').replace(/\s+as\s+complete.*$/i, '').trim() || 'task';
-    const task = await Task.findOne({ userId, title: { $regex: taskTitle, $options: 'i' } }).sort({ createdAt: -1 });
+    const task = await Task.findOne({ userId, title: { $regex: taskTitle,$options: 'i' } }).sort({ createdAt: -1 });
     if (!task) {
       return { action: 'completeTask', message: "I couldn't find that task to mark complete." };
     }
@@ -698,13 +699,13 @@ async function handleAssistantIntent(userId, message) {
 
   if (/delete|remove/.test(lower) && /task|event/.test(lower)) {
     const title = extractTitleFromMessage(message).replace(/^(delete|remove)\s+/i, '').trim() || 'task';
-    const task = await Task.findOne({ userId, title: { $regex: title, $options: 'i' } }).sort({ createdAt: -1 });
+    const task = await Task.findOne({ userId, title: { $regex: title,$options: 'i' } }).sort({ createdAt: -1 });
     if (task) {
       await task.deleteOne();
       return { action: 'deleteTask', message: `Deleted "${task.title}".` };
     }
 
-    const event = await Event.findOne({ userId, title: { $regex: title, $options: 'i' } }).sort({ createdAt: -1 });
+    const event = await Event.findOne({ userId, title: { $regex: title,$options: 'i' } }).sort({ createdAt: -1 });
     if (event) {
       await event.deleteOne();
       return { action: 'deleteEvent', message: `Deleted "${event.title}".` };
@@ -1105,7 +1106,7 @@ router.post('/reminders', verifyToken, async (req, res) => {
 
 router.get('/notes', verifyToken, async (req, res) => {
   try {
-    const items = await Note.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    const items = await Asset.find({ userId: req.user.id }).sort({ createdAt: -1 });
     return res.status(200).json({ notes: items.map((item) => ({ ...item.toObject(), id: item._id.toString() })) });
   } catch (error) {
     return res.status(500).json({ message: 'Unable to load notes' });
@@ -1119,7 +1120,7 @@ router.post('/notes', verifyToken, async (req, res) => {
       return res.status(400).json({ message: 'Note content is required' });
     }
 
-    const item = await Note.create({ userId: req.user.id, title, content, date });
+    const item = await Asset.create({ userId: req.user.id, title, content, tags: 'Note', date });
     return res.status(201).json({ message: 'Note created', note: { ...item.toObject(), id: item._id.toString() } });
   } catch (error) {
     return res.status(500).json({ message: 'Unable to create note' });
@@ -1151,6 +1152,98 @@ router.post('/habit-logs', verifyToken, async (req, res) => {
     return res.status(201).json({ message: 'Habit log saved', habitLog: { ...item.toObject(), id: item._id.toString() } });
   } catch (error) {
     return res.status(500).json({ message: 'Unable to save habit log' });
+  }
+});
+
+// UPDATE NOTE
+router.put('/assets/:id', verifyToken, async (req, res) => {
+  try {
+    const { title, content, tags } = req.body;
+
+    const item = await Asset.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user.id
+      },
+      {
+        $set: {
+          title: String(title || '').trim(),
+          content: String(content || '').trim(),
+          tags: String(tags || 'Note').trim() || 'Note'
+        }
+      },
+      { new: true }
+    );
+
+    if (!item) {
+      return res.status(404).json({
+        message: 'Note not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Note updated',
+      data: serialize(item)
+    });
+
+  } catch (error) {
+    console.error('Update note error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to update note'
+    });
+  }
+});
+
+
+// DELETE NOTE
+router.delete('/assets/:id', verifyToken, async (req, res) => {
+  try {
+    const item = await Asset.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        message: 'Note not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Note deleted'
+    });
+
+  } catch (error) {
+    console.error('Delete note error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to delete note'
+    });
+  }
+});
+
+// ==========================================
+// CREATE A NEW ASSET/NOTE
+// ==========================================
+router.post('/assets', verifyToken, async (req, res) => {
+  try {
+    const { title = 'Note', content = '', description = '', tags = 'Note' } = req.body;
+    
+    const item = await Asset.create({
+      userId: req.user.id,
+      title: String(title).trim(),
+      content: String(content || description).trim(),
+      tags: String(tags).trim() || 'Note'
+    });
+
+    return res.status(201).json({
+      message: 'Asset created',
+      data: { ...item.toObject(), id: item._id.toString() }
+    });
+  } catch (error) {
+    console.error('Asset creation error:', error);
+    return res.status(500).json({ message: 'Unable to create asset' });
   }
 });
 

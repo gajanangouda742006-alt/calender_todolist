@@ -1,10 +1,14 @@
-
+// frontend/app.js
 import { renderCalendarPage } from './pages/calendar.js';
 import { renderMoodPage } from './pages/mood.js';
 import { renderTasksPage } from './pages/tasks.js';
 import { renderHabitsPage } from './pages/habits.js';
 import { renderGoalsPage } from './pages/goals.js';
 import { renderAssistantPage } from './pages/assistant.js';
+import { renderVaultPage } from './pages/notepad.js';
+import { renderFinancePage } from './pages/expenses.js';
+
+
 
 const EMPTY_DATA = {
   events: [],
@@ -19,6 +23,8 @@ const EMPTY_DATA = {
   subscriptions: [],
   assets: [],
 };
+
+let notepadEventsBound = false;
 
 function formatDateKey(date) {
   const normalized = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
@@ -65,6 +71,8 @@ const state = {
   profileDraft: null,
   moreMenuOpen: false,
   entryModalOpen: false,
+  notepadSearchOpen: false,
+noteSearchQuery: '',
   entryDraft: null,
   todoFilter: 'All',
   moodPickerOpen: false,
@@ -115,6 +123,12 @@ function showToast(message) {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
+
+// 🚀 ADD THIS RIGHT BELOW IT: 
+// This forces all default browser popups to use your custom banner instead!
+window.alert = function(message) {
+  showToast(message);
+};
 
 function showAppConfirm(message, onConfirm) {
   const overlay = document.createElement('div');
@@ -185,206 +199,6 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
-function renderVaultPage() {
-  const assets = state.data.assets || [];
-  
-  return `
-    <section class="screen vault-screen">
-      <!-- FIXED HEADER: Uses flexbox and white-space: nowrap to prevent squishing -->
-      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="margin: 0; font-size: 1.4rem; white-space: nowrap;">Notepad (Vault)</h2>
-        <button class="primary-btn compact-btn" type="button" data-action="open-add-entry" data-type="asset" style="padding: 8px 16px; flex-shrink: 0;">+ New Note</button>
-      </div>
-
-      <div class="glass-card layout-card">
-        <div class="card-header compact">
-          <h3>Saved Notes & Snippets</h3>
-        </div>
-        
-        <div class="vault-grid" style="display: grid; gap: 16px; margin-top: 12px;">
-          ${assets.length ? assets.map(asset => `
-            <div class="vault-item" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                <div>
-                  <h4 style="margin: 0; color: var(--text);">${escapeHtml(asset.title)}</h4>
-                  <span style="font-size: 0.75rem; color: var(--cyan);">${escapeHtml(asset.tags || '#note')}</span>
-                </div>
-                <button class="ghost-btn" type="button" data-action="copy-asset" data-content="${escapeAttribute(asset.content)}" style="font-size: 0.8rem;">Copy</button>
-              </div>
-              <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: var(--muted); max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${escapeHtml(asset.content)}</div>
-            </div>
-          `).join('') : `
-            <div class="empty-state" style="text-align: center; padding: 30px 10px; color: var(--muted);">
-              <p>No notes saved yet.</p>
-              <span style="font-size: 0.85rem;">Store your ideas, code snippets, and prompts here.</span>
-            </div>
-          `}
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderFinancePage() {
-  const expenses = state.data.expenses || [];
-  const subscriptions = state.data.subscriptions || [];
-
-  const totalExpenses = expenses.reduce(
-    (sum, exp) => sum + Number(exp.amount || 0),
-    0
-  );
-
-  const totalSubs = subscriptions.reduce(
-    (sum, sub) => sum + Number(sub.amount || 0),
-    0
-  );
-
-  const burnRate = totalExpenses + totalSubs;
-
-  return `
-    <section class="screen finance-screen">
-
-      <div class="page-header">
-        <h2>Finance Manager</h2>
-
-        <div style="display: flex; gap: 8px;">
-          <button
-            class="secondary-btn compact-btn"
-            type="button"
-            data-action="open-add-entry"
-            data-type="subscription"
-          >
-            + Sub
-          </button>
-
-          <button
-            class="primary-btn compact-btn"
-            type="button"
-            data-action="open-add-entry"
-            data-type="expense"
-          >
-            + Expense
-          </button>
-        </div>
-      </div>
-
-
-      <div
-        class="glass-card progress-panel"
-        style="margin-bottom: 20px;"
-      >
-        <div class="panel-header">
-          <h3>Monthly Burn Rate</h3>
-        </div>
-
-        <div
-          style="
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: var(--text);
-            text-align: center;
-            padding: 20px 0;
-          "
-        >
-          $${burnRate.toFixed(2)}
-        </div>
-
-        <div
-          style="
-            display: flex;
-            justify-content: space-around;
-            color: var(--muted);
-            font-size: 0.85rem;
-          "
-        >
-          <span>
-            Expenses: $${totalExpenses.toFixed(2)}
-          </span>
-
-          <span>
-            Subs: $${totalSubs.toFixed(2)}
-          </span>
-        </div>
-      </div>
-
-
-      <div style="display: grid; gap: 20px;">
-
-        <div class="glass-card layout-card">
-
-          <div class="card-header compact">
-            <h3>Active Subscriptions</h3>
-          </div>
-
-          <div
-            style="
-              margin-top: 12px;
-              display: grid;
-              gap: 8px;
-            "
-          >
-
-            ${
-              subscriptions.length
-                ? subscriptions
-                    .map(
-                      (sub) => `
-              <div
-                class="mini-row"
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  background: rgba(255,255,255,0.02);
-                  padding: 12px;
-                  border-radius: 8px;
-                "
-              >
-
-                <div>
-
-                  <strong
-                    style="
-                      display: block;
-                      color: var(--text);
-                    "
-                  >
-                    ${escapeHtml(sub.title)}
-                  </strong>
-
-                  <span
-                    style="
-                      font-size: 0.8rem;
-                      color: var(--muted);
-                    "
-                  >
-                    Renews: ${escapeHtml(sub.renewalDate || "N/A")}
-                  </span>
-
-                </div>
-
-                <strong style="color: var(--cyan);">
-                  $${Number(sub.amount || 0).toFixed(2)}
-                </strong>
-
-              </div>
-            `
-                    )
-                    .join("")
-                : `
-              <p class="mini-empty">
-                No subscriptions logged.
-              </p>
-            `
-            }
-
-          </div>
-        </div>
-
-      </div>
-
-    </section>
-  `;
-}
 
 function renderMoreMenu() {
   if (!state.moreMenuOpen) return '';
@@ -540,8 +354,8 @@ async function showSahraNotification(resource, item) {
   const time = resource === 'event' ? item.startTime : item.time;
   const options = {
     body: `${resource === 'event' ? 'Event' : 'Task'}: ${item.title}${time ? ` • ${time}` : ''}`,
-    icon: '/assets/sahra.png',
-    badge: '/assets/sahra.png',
+    icon: '/images/sahra.png',
+    badge: '/images/sahra.png',
     tag: `sahra-${resource}-${item.id || item._id}`,
     data: { date: item.date, resource, id: item.id || item._id },
   };
@@ -684,7 +498,7 @@ function renderSahraLogo(size = 52) {
   return `
     <img
       class="sahra-logo"
-      src="/assets/sahra.png"
+      src="/images/sahra.png"
       alt="Sahra logo"
       width="${size}"
       height="${size}"
@@ -854,13 +668,12 @@ function renderProfileModal() {
     </div>
   `;
 }
-
 function renderEntryModal() {
   if (!state.entryModalOpen || !state.entryDraft) return '';
 
   const moodOptions = ['😊', '😐', '😢', '😡', '😴', '🔥', '😍'];
   const draft = state.entryDraft;
-  const modalTitle = draft.type === 'task' ? 'Add Task' : draft.type === 'mood' ? 'Add Mood' : 'Add Event';
+  const modalTitle = draft.type === 'task' ? 'Add Task' : draft.type === 'mood' ? 'Add Mood' : draft.type === 'note' ? 'Add Note' : 'Add Event';
 
   return `
     <div class="entry-modal-backdrop visible">
@@ -871,14 +684,28 @@ function renderEntryModal() {
         </div>
 
         <div class="entry-form">
+
+          <!-- 1. STRICTLY NOTE FORM (Only Title & Description) -->
+          ${draft.type === 'note' ? `
+            <label class="entry-field">
+              <span>Title</span>
+              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="e.g., My Grocery List" />
+            </label>
+            <label class="entry-field">
+              <span>Description</span>
+              <textarea rows="6" data-entry-field="description" placeholder="Type your note, password, or list here...">${(draft.description || draft.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            </label>
+          ` : ''}
+
+          <!-- 2. TASK FORM -->
           ${draft.type === 'task' ? `
             <label class="entry-field">
               <span>Task Name</span>
-              <input type="text" data-entry-field="title"  value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="Study JavaScript" />
+              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="Study JavaScript" />
             </label>
             <label class="entry-field">
               <span>Date</span>
-              <input type="date" data-entry-field="date" min="${formatDateKey(new Date())}"value="${draft.date || state.selectedDate}" />
+              <input type="date" data-entry-field="date" min="${formatDateKey(new Date())}" value="${draft.date || state.selectedDate}" />
             </label>
             <div class="entry-inline-grid">
               <label class="entry-field">
@@ -894,19 +721,18 @@ function renderEntryModal() {
                 </select>
               </label>
             </div>
-          ` : `
+          ` : ''}
+
+          <!-- 3. EVENT FORM -->
+          ${draft.type === 'event' ? `
             <label class="entry-field">
               <span>Date</span>
               <input type="date" data-entry-field="date" min="${formatDateKey(new Date())}" value="${draft.date || state.selectedDate}" />
             </label>
-
             <label class="entry-field">
               <span>Title</span>
               <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="Enter title here" />
             </label>
-          `}
-
-          ${draft.type === 'event' ? `
             <div class="entry-inline-grid">
               <label class="entry-field">
                 <span>Start</span>
@@ -921,46 +747,17 @@ function renderEntryModal() {
               <span>Category</span>
               <input type="text" data-entry-field="category" value="${(draft.category || 'General').replace(/"/g, '&quot;')}" placeholder="General" />
             </label>
-          ` : ''}
-
-          ${draft.type === 'habit' ? `
-            <div class="entry-inline-grid">
-              <label class="entry-field">
-                <span>Goal</span>
-                <input type="number" min="1" data-entry-field="goal" value="${draft.goal || 1}" />
-              </label>
-              <label class="entry-field">
-                <span>Frequency</span>
-                <select data-entry-field="frequency">
-                  <option value="Daily" ${draft.frequency === 'Daily' ? 'selected' : ''}>Daily</option>
-                  <option value="Weekly" ${draft.frequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
-                  <option value="Monthly" ${draft.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
-                </select>
-              </label>
-            </div>
-          ` : ''}
-
-          ${draft.type === 'goal' ? `
-            <div class="entry-inline-grid">
-              <label class="entry-field">
-                <span>Current</span>
-                <input type="number" min="0" data-entry-field="current" value="${draft.current || 0}" />
-              </label>
-              <label class="entry-field">
-                <span>Target</span>
-                <input type="number" min="1" data-entry-field="target" value="${draft.target || 30}" />
-              </label>
-            </div>
             <label class="entry-field">
-              <span>Duration</span>
-              <input type="text" data-entry-field="duration" value="${(draft.duration || '30 days').replace(/"/g, '&quot;')}" placeholder="30 days" />
+              <span>Description</span>
+              <textarea rows="3" data-entry-field="description" placeholder="Add details">${(draft.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
             </label>
           ` : ''}
 
-         ${draft.type === 'asset' ? `
+          <!-- 4. ASSET FORM -->
+          ${draft.type === 'asset' ? `
             <label class="entry-field">
               <span>Title / Name</span>
-              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="e.g., Round Robin Scheduling Snippet" />
+              <input type="text" data-entry-field="title" value="${(draft.title || '').replace(/"/g, '&quot;')}" placeholder="e.g., Round Robin Snippet" />
             </label>
             <label class="entry-field">
               <span>Content / Code / Prompt</span>
@@ -972,6 +769,7 @@ function renderEntryModal() {
             </label>
           ` : ''}
 
+          <!-- 5. EXPENSE FORM -->
           ${draft.type === 'expense' || draft.type === 'subscription' ? `
             <label class="entry-field">
               <span>${draft.type === 'expense' ? 'Expense Name' : 'Service Name'}</span>
@@ -989,11 +787,15 @@ function renderEntryModal() {
             </div>
             <label class="entry-field">
               <span>Category</span>
-              <input type="text" data-entry-field="category" value="${(draft.category || '').replace(/"/g, '&quot;')}" placeholder="e.g., Software, Logistics" />
+              <input type="text" data-entry-field="category" value="${(draft.category || '').replace(/"/g, '&quot;')}" placeholder="e.g., Software" />
+            </label>
+            <label class="entry-field">
+              <span>Description</span>
+              <textarea rows="3" data-entry-field="description" placeholder="Add details">${(draft.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
             </label>
           ` : ''}
 
-
+          <!-- 6. MOOD & HABIT & GOALS (Abbreviated to keep it clean) -->
           ${draft.type === 'mood' ? `
             <div class="mood-picker-wrap">
               <span class="mood-picker-label">Mood</span>
@@ -1006,13 +808,6 @@ function renderEntryModal() {
             <label class="entry-field">
               <span>Note</span>
               <textarea rows="3" data-entry-field="note" placeholder="Add a quick note">${(draft.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
-            </label>
-          ` : ''}
-
-          ${draft.type !== 'task' && draft.type !== 'mood' ? `
-            <label class="entry-field">
-              <span>Description</span>
-              <textarea rows="3" data-entry-field="description" placeholder="Add details">${(draft.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
             </label>
           ` : ''}
 
@@ -1943,25 +1738,33 @@ function renderLayout() {
 
   let content = renderHomePage();
 
-  if (state.view === 'calendar') {
-    content = renderCalendarPage(state);
-  } else if (state.view === 'finance') {
-    content = renderFinancePage();       
-  } else if (state.view === 'vault') {   
-    content = renderVaultPage();         
-  } else if (state.view === 'mood') {
-    content = renderMoodPage(state);
-  } else if (state.view === 'tasks') {
-    content = renderTasksPage(state);
-  } else if (state.view === 'habits') {
-    content = renderHabitsPage(state);
-  } else if (state.view === 'goals') {
-    content = renderGoalsPage(state);
-  } else if (state.view === 'assistant') {
-    content = renderAssistantPage(state);
-  } else if (state.view === 'progress' || state.view === 'more') {
-    content = renderProgressPage();
-  }
+ if (state.view === 'calendar') {
+  content = renderCalendarPage(state);
+
+} else if (state.view === 'finance') {
+  content = renderFinancePage(state);
+
+} else if (state.view === 'vault') {
+  content = renderVaultPage(state);
+
+} else if (state.view === 'mood') {
+  content = renderMoodPage(state);
+
+} else if (state.view === 'tasks') {
+  content = renderTasksPage(state);
+
+} else if (state.view === 'habits') {
+  content = renderHabitsPage(state);
+
+} else if (state.view === 'goals') {
+  content = renderGoalsPage(state);
+
+} else if (state.view === 'assistant') {
+  content = renderAssistantPage(state);
+
+} else if (state.view === 'progress' || state.view === 'more') {
+  content = renderProgressPage();
+}
 
   // Appends active modals and menus over the main content
   app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
@@ -2007,6 +1810,119 @@ function renderLayout() {
       }
     });
   });
+
+  // --- NATIVE APP & BROWSER SMART MICROPHONE ---
+let webRecognition;
+let idleTimer;
+let pauseTimer;
+
+// Detect if the app is running as a compiled Native APK/iOS app via Capacitor
+const isNativeApp = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+
+// Setup Web Fallback (For when you test on your computer browser)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition && !isNativeApp) {
+  webRecognition = new SpeechRecognition();
+  webRecognition.continuous = true;      
+  webRecognition.interimResults = true;  
+}
+
+document.querySelectorAll('[data-action="toggle-mic"]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const micImg = document.getElementById('chat-mic-img');
+    const chatInput = document.querySelector('input[placeholder*="speak"]'); 
+    
+    if (!micImg) return;
+
+    if (!isNativeApp && !webRecognition) {
+      showToast("Voice recognition isn't supported on this browser.");
+      return;
+    }
+
+    const isListening = micImg.classList.contains('listening');
+
+    if (isListening) {
+      stopListening();
+    } else {
+      // If Native App, we must ask the phone for microphone permission first
+      if (isNativeApp) {
+        const { speechRecognition } = await Capacitor.Plugins.SpeechRecognition.checkPermissions();
+        if (speechRecognition !== 'granted') {
+          await Capacitor.Plugins.SpeechRecognition.requestPermissions();
+        }
+      }
+      startListening(micImg, chatInput);
+    }
+  });
+});
+
+function startListening(micImg, chatInput) {
+  micImg.classList.add('listening');
+  if (chatInput) chatInput.value = ''; 
+
+  // 1. RULE: Turn off if NO input after 5 seconds
+  idleTimer = setTimeout(() => {
+    stopListening();
+    showToast("Microphone turned off (no speech detected)");
+  }, 5000);
+
+  if (isNativeApp) {
+    // --- NATIVE APP LOGIC (Capacitor Plugin) ---
+    Capacitor.Plugins.SpeechRecognition.start({
+      language: "en-US",
+      partialResults: true,
+      popup: false
+    });
+
+    Capacitor.Plugins.SpeechRecognition.addListener('partialResults', (data) => {
+      handleSpeechResult(data.matches[0], chatInput);
+    });
+  } else {
+    // --- WEB BROWSER LOGIC ---
+    webRecognition.start();
+    webRecognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      handleSpeechResult(transcript, chatInput);
+    };
+  }
+}
+
+function handleSpeechResult(transcript, chatInput) {
+  clearTimeout(idleTimer);  
+  clearTimeout(pauseTimer); 
+
+  if (chatInput) chatInput.value = transcript;
+
+  // 2. RULE: Auto-send if they pause for 3 seconds
+  pauseTimer = setTimeout(() => {
+    stopListening(); 
+  }, 3000);
+}
+
+async function stopListening() {
+  clearTimeout(idleTimer);
+  clearTimeout(pauseTimer);
+  
+  const micImg = document.getElementById('chat-mic-img');
+  if (micImg) micImg.classList.remove('listening');
+
+  if (isNativeApp) {
+    await Capacitor.Plugins.SpeechRecognition.stop();
+    Capacitor.Plugins.SpeechRecognition.removeAllListeners();
+  } else if (webRecognition) {
+    webRecognition.stop();
+  }
+
+  // Automatically trigger the SEND button
+  const chatInput = document.querySelector('input[placeholder*="speak"]');
+  if (chatInput && chatInput.value.trim() !== '') {
+    const sendBtn = chatInput.nextElementSibling; 
+    if (sendBtn) sendBtn.click();
+  }
+}
 
   // Month Picker toggle
   document.querySelectorAll('[data-action="toggle-progress-picker"]').forEach((button) => {
@@ -2113,6 +2029,311 @@ function renderLayout() {
     if (!dateValue) return;
     button.addEventListener('click', () => setSelectedDate(dateValue));
   });
+
+  /* =====================================================
+   CALENDAR ITEM DETAILS
+===================================================== */
+
+document.querySelectorAll('[data-action="show-calendar-event"]').forEach((row) => {
+
+  row.addEventListener('click', (event) => {
+
+    // Don't open details when clicking the trash button
+    if (event.target.closest('[data-action="delete-calendar-event"]')) {
+      return;
+    }
+
+    const eventId = row.dataset.eventId;
+
+    const calendarEvent = state.data.events.find(
+      (item) =>
+        String(item.id || item._id) === String(eventId)
+    );
+
+    if (!calendarEvent) return;
+
+    state.calendarDetail = {
+      type: 'event',
+      item: calendarEvent,
+    };
+
+    renderLayout();
+  });
+
+
+  row.addEventListener('keydown', (event) => {
+
+    if (
+      event.key !== 'Enter' &&
+      event.key !== ' '
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const eventId = row.dataset.eventId;
+
+    const calendarEvent = state.data.events.find(
+      (item) =>
+        String(item.id || item._id) === String(eventId)
+    );
+
+    if (!calendarEvent) return;
+
+    state.calendarDetail = {
+      type: 'event',
+      item: calendarEvent,
+    };
+
+    renderLayout();
+
+  });
+
+});
+
+
+
+document.querySelectorAll('[data-action="show-calendar-task"]').forEach((row) => {
+
+  row.addEventListener('click', (event) => {
+
+    // Don't open details when clicking the trash button
+    if (event.target.closest('[data-action="delete-calendar-task"]')) {
+      return;
+    }
+
+    const taskId = row.dataset.taskId;
+
+    const task = state.data.tasks.find(
+      (item) =>
+        String(item.id || item._id) === String(taskId)
+    );
+
+    if (!task) return;
+
+    state.calendarDetail = {
+      type: 'task',
+      item: task,
+    };
+
+    renderLayout();
+  });
+
+
+  row.addEventListener('keydown', (event) => {
+
+    if (
+      event.key !== 'Enter' &&
+      event.key !== ' '
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const taskId = row.dataset.taskId;
+
+    const task = state.data.tasks.find(
+      (item) =>
+        String(item.id || item._id) === String(taskId)
+    );
+
+    if (!task) return;
+
+    state.calendarDetail = {
+      type: 'task',
+      item: task,
+    };
+
+    renderLayout();
+
+  });
+
+});
+
+  /* =====================================================
+   DELETE CALENDAR TASK
+===================================================== */
+
+document.querySelectorAll(
+  '[data-action="delete-calendar-task"]'
+).forEach((button) => {
+
+  button.addEventListener('click', (event) => {
+
+    event.stopPropagation();
+
+    const taskId = button.dataset.taskId;
+
+    if (!taskId) return;
+
+
+    showAppConfirm(
+      'Are you sure you want to delete this task?',
+      async () => {
+
+        try {
+
+          await apiRequest(
+            `/api/tasks/${taskId}`,
+            {
+              method: 'DELETE',
+            }
+          );
+
+
+          // Remove from current frontend state
+          state.data.tasks =
+            state.data.tasks.filter(
+              (task) =>
+                String(task.id || task._id) !==
+                String(taskId)
+            );
+
+
+          // Allow selected date to reload
+          state.calendarCache.delete(
+            state.selectedDate
+          );
+
+
+          // Close details if open
+          state.calendarDetail = null;
+
+
+          showToast(
+            'Task deleted successfully'
+          );
+
+
+          renderLayout();
+
+        } catch (error) {
+
+          showToast(
+            error.message ||
+            'Unable to delete task'
+          );
+
+        }
+
+      }
+    );
+
+  });
+
+});
+
+
+
+/* =====================================================
+   DELETE CALENDAR EVENT
+===================================================== */
+
+document.querySelectorAll(
+  '[data-action="delete-calendar-event"]'
+).forEach((button) => {
+
+  button.addEventListener('click', (event) => {
+
+    event.stopPropagation();
+
+    const eventId = button.dataset.eventId;
+
+    if (!eventId) return;
+
+
+    showAppConfirm(
+      'Are you sure you want to delete this event?',
+      async () => {
+
+        try {
+
+          await apiRequest(
+            `/api/events/${eventId}`,
+            {
+              method: 'DELETE',
+            }
+          );
+
+
+          // Remove from current frontend state
+          state.data.events =
+            state.data.events.filter(
+              (calendarEvent) =>
+                String(
+                  calendarEvent.id ||
+                  calendarEvent._id
+                ) !== String(eventId)
+            );
+
+
+          // Allow selected date to reload
+          state.calendarCache.delete(
+            state.selectedDate
+          );
+
+
+          // Close details if open
+          state.calendarDetail = null;
+
+
+          showToast(
+            'Event deleted successfully'
+          );
+
+
+          renderLayout();
+
+        } catch (error) {
+
+          showToast(
+            error.message ||
+            'Unable to delete event'
+          );
+
+        }
+
+      }
+    );
+
+  });
+
+});
+
+    /* =====================================================
+   CLOSE CALENDAR DETAIL
+===================================================== */
+
+document.querySelectorAll(
+  '[data-action="close-calendar-detail"]'
+).forEach((button) => {
+
+  button.addEventListener('click', (event) => {
+
+    /*
+      If the click happened inside the modal,
+      don't close unless it is an actual close button.
+    */
+    if (
+      event.target.closest(
+        '[data-calendar-detail-content]'
+      ) &&
+      !event.target.closest(
+        '[data-action="close-calendar-detail"]'
+      )
+    ) {
+      return;
+    }
+
+    state.calendarDetail = null;
+
+    renderLayout();
+
+  });
+
+});
 
   document.querySelectorAll('[data-action="open-add-entry"]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -2254,116 +2475,207 @@ function renderLayout() {
   });
 
   document.querySelectorAll('[data-action="save-entry"]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      document.querySelectorAll('[data-entry-field]').forEach((field) => {
-        const fieldName = field.dataset.entryField;
-        if (fieldName) {
-          state.entryDraft[fieldName] = field.type === 'checkbox' ? field.checked : field.value;
-        }
-      });
+  button.addEventListener('click', async () => {
 
-      const draft = state.entryDraft || {};
-      const type = draft.type || 'event';
-      const date = draft.date || state.selectedDate;
+    // Collect all form values before saving
+    document.querySelectorAll('[data-entry-field]').forEach((field) => {
+      const fieldName = field.dataset.entryField;
 
-      if ((type === 'event' || type === 'task') && isPastDate(date)) {
-        window.alert('Tasks and events can only be added for today or future dates.');
-        return;
-      }
-
-      try {
-        if (type === 'event') {
-          const title = (draft.title || '').trim();
-          if (!title) { window.alert('Please enter an event title.'); return; }
-          await createResource('event', {
-            title,
-            description: draft.description || '',
-            date,
-            startTime: draft.startTime || '09:00',
-            endTime: draft.endTime || '10:00',
-            category: draft.category || 'General',
-          });
-        } else if (type === 'task') {
-          const title = (draft.title || '').trim();
-          if (!title) { window.alert('Please enter a task title.'); return; }
-          const taskPayload = {
-            title,
-            description: draft.description || '',
-            date,
-            time: draft.time || null,
-            priority: draft.priority || 'Normal',
-            status: draft.status || 'Pending',
-            completed: draft.completed || false,
-            reminder: draft.reminder || '',
-            category: draft.category || 'General',
-          };
-
-          if (draft.id) {
-            await apiRequest(`/api/tasks/${draft.id}`, {
-              method: 'PUT',
-              body: JSON.stringify(taskPayload),
-            });
-          } else {
-            await createResource('task', taskPayload);
-          }
-        } else if (type === 'habit') {
-          const name = (draft.title || '').trim();
-          if (!name) { window.alert('Please enter a habit name.'); return; }
-          await createResource('habit', {
-            name,
-            description: draft.description || '',
-            goal: Number(draft.goal || 1),
-            progress: 0,
-            frequency: draft.frequency || 'Daily',
-          });
-        } else if (type === 'goal') {
-          const title = (draft.title || '').trim();
-          if (!title) { window.alert('Please enter a goal title.'); return; }
-          await createResource('goal', {
-            title,
-            description: draft.description || '',
-            duration: draft.duration || '30 days',
-            current: Number(draft.current || 0),
-            target: Number(draft.target || 30),
-            progress: Math.min(100, Math.round((Number(draft.current || 0) / Math.max(Number(draft.target || 30), 1)) * 100)),
-            status: 'Active',
-          });
-        } else if (type === 'mood') {
-          const mood = draft.mood || '😊';
-          await createResource('mood', {
-            date,
-            mood,
-            energy: 80,
-            note: draft.note || '',
-          });
-        } else if (type === 'asset') {
-          const title = (draft.title || '').trim();
-          if (!title) { window.alert('Please enter an asset title.'); return; }
-          await createResource('asset', {
-            title,
-            content: draft.content || '',
-            tags: draft.tags || '',
-          });
-        } else if (type === 'expense' || type === 'subscription') {
-          const title = (draft.title || '').trim();
-          if (!title || !draft.amount) { window.alert('Please enter a title and amount.'); return; }
-          await createResource(type, {
-            title,
-            amount: Number(draft.amount),
-            date: draft.date || state.selectedDate,
-            renewalDate: draft.renewalDate || state.selectedDate,
-            category: draft.category || 'General',
-          });
-        }
-
-       closeEntryModal(); 
-        showToast('Saved successfully!');
-
-      } catch (error) {
-        showToast(error.message || 'Unable to save item');
+      if (fieldName) {
+        state.entryDraft = state.entryDraft || {};
+        state.entryDraft[fieldName] =
+          field.type === 'checkbox' ? field.checked : field.value;
       }
     });
+
+    const draft = state.entryDraft || {};
+    const type = draft.type || 'event';
+    const date = draft.date || state.selectedDate;
+
+    // Tasks and events cannot be added to past dates
+    if ((type === 'event' || type === 'task') && isPastDate(date)) {
+      window.alert(
+        'Tasks and events can only be added for today or future dates.'
+      );
+      return;
+    }
+
+    try {
+
+      // ==========================================
+      // EVENT
+      // ==========================================
+      if (type === 'event') {
+        const title = (draft.title || '').trim();
+        if (!title) {
+          window.alert('Please enter an event title.');
+          return;
+        }
+        await createResource('event', {
+          title,
+          description: draft.description || '',
+          date,
+          startTime: draft.startTime || '09:00',
+          endTime: draft.endTime || '10:00',
+          category: draft.category || 'General',
+        });
+
+      // ==========================================
+      // TASK
+      // ==========================================
+      } else if (type === 'task') {
+        const title = (draft.title || '').trim();
+        if (!title) {
+          window.alert('Please enter a task title.');
+          return;
+        }
+        const taskPayload = {
+          title,
+          description: draft.description || '',
+          date,
+          time: draft.time || null,
+          priority: draft.priority || 'Normal',
+          status: draft.status || 'Pending',
+          completed: draft.completed || false,
+          reminder: draft.reminder || '',
+          category: draft.category || 'General',
+        };
+
+        if (draft.id) {
+          await apiRequest(`/api/tasks/${draft.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(taskPayload),
+          });
+        } else {
+          await createResource('task', taskPayload);
+        }
+
+      // ==========================================
+      // HABIT
+      // ==========================================
+      } else if (type === 'habit') {
+        const name = (draft.title || '').trim();
+        if (!name) {
+          window.alert('Please enter a habit name.');
+          return;
+        }
+        await createResource('habit', {
+          name,
+          description: draft.description || '',
+          goal: Number(draft.goal || 1),
+          progress: 0,
+          frequency: draft.frequency || 'Daily',
+        });
+
+      // ==========================================
+      // GOAL
+      // ==========================================
+      } else if (type === 'goal') {
+        const title = (draft.title || '').trim();
+        if (!title) {
+          window.alert('Please enter a goal title.');
+          return;
+        }
+        const current = Number(draft.current || 0);
+        const target = Math.max(Number(draft.target || 30), 1);
+        await createResource('goal', {
+          title,
+          description: draft.description || '',
+          duration: draft.duration || '30 days',
+          current,
+          target,
+          progress: Math.min(100, Math.round((current / target) * 100)),
+          status: 'Active',
+        });
+
+      // ==========================================
+      // MOOD
+      // ==========================================
+      } else if (type === 'mood') {
+        const mood = draft.mood || '😊';
+        await createResource('mood', {
+          date,
+          mood,
+          energy: 80,
+          note: draft.note || '',
+        });
+
+      // ==========================================
+      // ASSET / NOTEPAD
+      // ==========================================
+      } else if (type === 'asset' || type === 'note') {
+        const title = (draft.title || '').trim();
+        const description = (draft.description || draft.content || '').trim();
+
+        if (!title || !description) {
+          window.alert('Please enter a title and description.');
+          return;
+        }
+
+        const payload = { title: title, content: description, tags: draft.tags || 'Note' };
+
+        if (draft.id) {
+          // 🔴 ADDED HEADERS HERE SO THE BACKEND CAN READ THE JSON 🔴
+          await apiRequest(`/api/assets/${draft.id}`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(payload)
+});
+          // Refresh the data so the UI updates instantly
+          await loadDashboardData(); 
+          renderLayout();
+        } else {
+          // Creates a brand new note
+          await createResource('asset', payload);
+        }
+
+      // ==========================================
+      // EXPENSE / SUBSCRIPTION
+      // ==========================================
+      } else if (type === 'expense' || type === 'subscription') {
+        const title = (draft.title || '').trim();
+        const amount = Number(draft.amount);
+
+        if (!title) {
+          window.alert('Please enter a title.');
+          return;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+          window.alert('Please enter a valid amount.');
+          return;
+        }
+        await createResource(type, {
+          title,
+          amount,
+          date: draft.date || state.selectedDate,
+          renewalDate: draft.renewalDate || state.selectedDate,
+          category: draft.category || 'General',
+        });
+      }
+
+      // Close modal after successful save (placed only once at the end)
+      closeEntryModal();
+
+      // Show success message
+      if (typeof showToast === 'function') {
+        showToast('Saved successfully!');
+      } else {
+        window.alert('Saved successfully!');
+      }
+
+    } catch (error) {
+      console.error('Save entry failed:', error);
+      if (typeof showToast === 'function') {
+        showToast(error.message || 'Unable to save item');
+      } else {
+        window.alert(error.message || 'Unable to save item');
+      }
+    }
   });
+});
 
   document.querySelectorAll('[data-entry-field]').forEach((field) => {
     const fieldName = field.dataset.entryField;
@@ -2435,6 +2747,135 @@ function renderLayout() {
       }
     });
   });
+
+  if (!notepadEventsBound) {
+  notepadEventsBound = true;
+
+  // ==========================================
+// NOTEPAD: SEARCH, EDIT & DELETE ACTIONS
+// ==========================================
+
+// 1. Toggle Search
+document.addEventListener('click', (e) => {
+  const toggleBtn = e.target.closest('[data-action="toggle-notepad-search"]');
+  if (toggleBtn) {
+    state.notepadSearchOpen = !state.notepadSearchOpen;
+    renderLayout();
+    if (state.notepadSearchOpen) setTimeout(() => document.querySelector('[data-action="notepad-search-input"]')?.focus(), 50);
+  }
+});
+
+document.addEventListener('input', (e) => {
+  const input = e.target.closest('[data-action="notepad-search-input"]');
+
+  if (!input) return;
+
+  const cursorPosition = input.selectionStart ?? input.value.length;
+
+  state.noteSearchQuery = input.value;
+
+  renderLayout();
+
+  setTimeout(() => {
+    const newInput = document.querySelector(
+      '[data-action="notepad-search-input"]'
+    );
+
+    if (!newInput) return;
+
+    newInput.focus();
+
+    const position = Math.min(
+      cursorPosition,
+      newInput.value.length
+    );
+
+    newInput.setSelectionRange(position, position);
+  }, 0);
+});
+
+// 2. Open Edit inside Native App Modal (Replaces prompt)
+document.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-action="edit-note"]');
+  if (editBtn) {
+    const noteId = editBtn.dataset.noteId;
+    const notes = state.data.assets || state.data.notes || [];
+    const note = notes.find(n => String(n.id || n._id) === String(noteId));
+    if (!note) return;
+
+    state.entryModalOpen = true;
+    state.entryDraft = {
+  type: 'asset',
+  id: note.id || note._id,
+  title: note.title || '',
+  content: note.content || note.description || '',
+  description: note.content || note.description || '',
+  tags: note.tags || 'Note'
+};
+    renderLayout();
+  }
+});
+
+// 3. Delete Note with Beautiful Custom UI Modal
+function showCustomNotepadConfirm(message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);';
+  
+  const box = document.createElement('div');
+  box.style.cssText = 'background: #1e293b; padding: 24px; border-radius: 16px; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid rgba(255,255,255,0.1);';
+  
+  const text = document.createElement('p');
+  text.style.cssText = 'margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5; color: #f8fafc; font-weight: 500;';
+  text.innerText = message;
+  
+  const btnContainer = document.createElement('div');
+  btnContainer.style.cssText = 'display: flex; gap: 12px; justify-content: center;';
+  
+  const cancelBtn = document.createElement('button');
+  cancelBtn.innerText = 'Cancel';
+  cancelBtn.style.cssText = 'padding: 12px; border-radius: 10px; border: none; background: #334155; color: white; font-weight: 600; cursor: pointer; flex: 1;';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.innerText = 'Delete';
+  confirmBtn.style.cssText = 'padding: 12px; border-radius: 10px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer; flex: 1; box-shadow: 0 4px 10px rgba(239,68,68,0.3);';
+  
+  cancelBtn.onclick = () => document.body.removeChild(overlay); 
+  confirmBtn.onclick = () => {
+    onConfirm(); 
+    document.body.removeChild(overlay); 
+  };
+  
+  btnContainer.appendChild(cancelBtn);
+  btnContainer.appendChild(confirmBtn);
+  box.appendChild(text);
+  box.appendChild(btnContainer);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+document.addEventListener('click', (e) => {
+  const delBtn = e.target.closest('[data-action="delete-note"]');
+  if (delBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const noteId = delBtn.dataset.noteId;
+    
+    showCustomNotepadConfirm('Are you sure you want to delete this note?', async () => {
+      try {
+        // 🔴 UPDATED URL HERE 🔴
+       await apiRequest(`/api/assets/${noteId}`, {
+  method: 'DELETE'
+});
+    
+        await loadDashboardData(); 
+        if (typeof showToast === 'function') showToast('Note deleted');
+      } catch (error) {
+        if (typeof showToast === 'function') showToast(error.message || 'Failed to delete note');
+      }
+    });
+  }
+});
+  }
 
   document.querySelectorAll('[data-action="back-home"]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -2764,9 +3205,12 @@ applyTheme(getStoredTheme());
 bindBottomNav();
 bindGlobalListeners();
 
+// REPLACE THE BOTTOM BLOCK IN app.js WITH THIS:
+
 if (!localStorage.getItem('sahraToken')) {
   window.location.href = '/login';
 } else {
-  loadDashboardData();
-  renderLayout();
+  loadDashboardData().then(() => {
+    renderLayout(); // 👈 This ensures the UI only draws AFTER MongoDB data is fully loaded!
+  });
 }

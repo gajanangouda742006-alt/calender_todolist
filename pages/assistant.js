@@ -10,7 +10,7 @@ export function renderAssistantPage(state = {}) {
         <div class="assistant-header-row">
           <button class="back-button" type="button" data-action="back-home">← Back</button>
           <div class="assistant-brand">
-            <div class="assistant-mark"><img class="sahra-logo" src="/assets/sahra.png" alt="Sahra logo" width="48" height="48" /></div>
+            <div class="assistant-mark"><img class="sahra-logo" src="/images/sahra.png" alt="Sahra logo" width="48" height="48" /></div>
             <div class="assistant-title">
               <h1>Sahra</h1>
               <span>AI ASSISTANT:</span>
@@ -36,7 +36,10 @@ export function renderAssistantPage(state = {}) {
       </div>
 
       <div class="assistant-composer">
-        <button class="composer-mic" type="button" aria-label="Voice input">🎙️</button>
+        <!-- Replace your old mic emoji/icon with this -->
+    <button type="button" data-action="toggle-mic" style="background: transparent; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+    <img src="mic.png" alt="Mic" class="mic-icon" id="chat-mic-img" style="width: 45px; height: 45px; object-fit: contain;">
+    </button>
         <input class="assistant-input" type="text" placeholder="Type a message or speak..." aria-label="Type a message" ${disabled} />
         <button class="composer-send" type="button" aria-label="Send message" ${disabled}>➤</button>
       </div>

@@ -3166,12 +3166,12 @@ body.theme-light .profile-row strong {
   opacity: 0.5 !important; /* Fades out on click */
 }
 
-/* App-style Toast Notification */
+/* App-style Toast Notification (Positioned at the Top) */
 .app-toast {
   position: fixed;
-  bottom: 90px; /* Sits just above the bottom navigation */
+  top: 20px; /* Snaps to the top of the screen */
   left: 50%;
-  transform: translateX(-50%) translateY(20px);
+  transform: translateX(-50%) translateY(-20px); /* Starts slightly higher for a drop-in effect */
   background: var(--panel-bg, rgba(30, 30, 46, 0.95));
   border: 1px solid var(--cyan, #68d5ff);
   color: white;
@@ -3179,7 +3179,7 @@ body.theme-light .profile-row strong {
   border-radius: 30px;
   font-size: 0.9rem;
   font-weight: 500;
-  z-index: 9999;
+  z-index: 99999; /* Higher than modals so it's always visible */
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -3191,5 +3191,2101 @@ body.theme-light .profile-row strong {
 
 .app-toast.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0); /* Smoothly glides down into view */
+}
+
+/* Default Inactive State: Small and fully visible (Faded In) */
+.mic-icon {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  transform: scale(1);
+  opacity: 3; 
+}
+
+/* Active State: Fades out and pulses when listening */
+.mic-icon.listening {
+  animation: mic-pulse 1s infinite alternate ease-in-out;
+}
+
+@keyframes mic-pulse {
+  0% {
+    transform: scale(1.1);
+    opacity: 0.6; /* Fades out slightly */
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0.2; /* Fades out more deeply */
+  }
+}
+
+/* =====================================================
+   CALENDAR ENTRY ROW
+===================================================== */
+
+.calendar-entry-row {
+    position: relative;
+
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+
+    min-height: 42px;
+
+    gap: 10px;
+
+    padding: 8px 8px 8px 0;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+    border-radius: 8px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.calendar-entry-row:last-child {
+    border-bottom: none;
+}
+
+
+.calendar-entry-row:hover {
+    background: rgba(255, 255, 255, 0.035);
+
+    transform: translateX(2px);
+}
+
+
+.calendar-entry-row:focus-visible {
+    outline: 1px solid rgba(122, 216, 255, 0.55);
+
+    outline-offset: 2px;
+}
+
+
+
+/* =====================================================
+   TIME / STATUS
+===================================================== */
+
+.calendar-entry-time {
+    min-width: 58px;
+
+    font-size: 0.72rem;
+
+    color: #7ad8ff;
+
+    white-space: nowrap;
+}
+
+
+.calendar-entry-title {
+    flex: 1;
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+    color: var(--text, #ffffff);
+
+    font-size: 0.86rem;
+
+    text-align: right;
+}
+
+
+.completed-row .calendar-entry-title {
+    text-decoration: line-through;
+
+    opacity: 0.55;
+}
+
+
+
+/* =====================================================
+   SMALL DUSTBIN BUTTON
+===================================================== */
+
+.calendar-delete-btn {
+    flex: 0 0 auto;
+
+    width: 27px;
+    height: 27px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: 0;
+
+    border-radius: 7px;
+
+    background: rgba(255, 80, 100, 0.08);
+
+    color: #ff7d91;
+
+    cursor: pointer;
+
+    opacity: 0;
+
+    transform: scale(0.85);
+
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease,
+        background 0.18s ease;
+}
+
+
+/* Show when hovering the row */
+
+.calendar-entry-row:hover .calendar-delete-btn,
+
+.calendar-entry-row:focus-within .calendar-delete-btn {
+    opacity: 1;
+
+    transform: scale(1);
+}
+
+
+.calendar-delete-btn:hover {
+    background: rgba(255, 80, 100, 0.18);
+
+    color: #ff5e76;
+
+    transform: scale(1.08);
+}
+
+
+.calendar-delete-btn:active {
+    transform: scale(0.92);
+}
+
+
+.calendar-trash-icon {
+    display: block;
+
+    pointer-events: none;
+}
+
+
+
+/* =====================================================
+   MOBILE
+   Always show the dustbin because there is no hover.
+===================================================== */
+
+@media (max-width: 700px) {
+
+    .calendar-delete-btn {
+        opacity: 0.75;
+
+        transform: scale(1);
+    }
+
+    .calendar-entry-row {
+        padding-right: 3px;
+    }
+
+    .calendar-entry-title {
+        font-size: 0.8rem;
+    }
+
+}
+
+/* =====================================================
+   CALENDAR DETAIL BACKDROP
+===================================================== */
+
+.calendar-detail-backdrop {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 5000;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 20px;
+
+    background: rgba(3, 8, 25, 0.72);
+
+    backdrop-filter: blur(10px);
+
+    -webkit-backdrop-filter: blur(10px);
+
+    animation: calendarDetailFade 0.18s ease;
+}
+
+
+@keyframes calendarDetailFade {
+
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+
+}
+
+
+
+/* =====================================================
+   DETAIL MODAL
+===================================================== */
+
+.calendar-detail-modal {
+    width: min(100%, 390px);
+
+    max-height: min(680px, 90vh);
+
+    overflow-y: auto;
+
+    border-radius: 22px;
+
+    border: 1px solid rgba(150, 170, 255, 0.18);
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(28, 42, 82, 0.98),
+            rgba(13, 23, 52, 0.98)
+        );
+
+    box-shadow:
+        0 25px 80px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+    animation: calendarDetailSlide 0.2s ease;
+}
+
+
+@keyframes calendarDetailSlide {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(12px)
+            scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+    }
+
+}
+
+
+
+/* =====================================================
+   DETAIL HEADER
+===================================================== */
+
+.calendar-detail-header {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    padding: 17px 18px;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+
+.calendar-detail-type {
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    font-size: 0.78rem;
+
+    font-weight: 700;
+
+    color: #9fb4df;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.05em;
+}
+
+
+.calendar-detail-type-icon {
+    font-size: 1rem;
+}
+
+
+.calendar-detail-close {
+    width: 30px;
+    height: 30px;
+
+    display: grid;
+
+    place-items: center;
+
+    border: 0;
+
+    border-radius: 8px;
+
+    background: rgba(255, 255, 255, 0.06);
+
+    color: #b9c5df;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.calendar-detail-close:hover {
+    background: rgba(255, 255, 255, 0.11);
+
+    transform: rotate(4deg);
+}
+
+
+
+/* =====================================================
+   DETAIL BODY
+===================================================== */
+
+.calendar-detail-body {
+    padding: 20px;
+}
+
+
+.calendar-detail-body > h3 {
+    margin: 0 0 20px;
+
+    color: #ffffff;
+
+    font-size: 1.25rem;
+
+    line-height: 1.35;
+
+    word-break: break-word;
+}
+
+
+
+/* =====================================================
+   INFORMATION ROWS
+===================================================== */
+
+.calendar-detail-info {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 12px;
+}
+
+
+.calendar-detail-info-row {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 10px;
+
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, 0.035);
+}
+
+
+.calendar-detail-info-icon {
+    width: 32px;
+    height: 32px;
+
+    display: grid;
+
+    place-items: center;
+
+    flex: 0 0 32px;
+
+    border-radius: 9px;
+
+    background: rgba(122, 216, 255, 0.08);
+
+    font-size: 0.9rem;
+}
+
+
+.calendar-detail-info-row div {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+
+    min-width: 0;
+}
+
+
+.calendar-detail-info-row small {
+    color: #7f91ba;
+
+    font-size: 0.68rem;
+}
+
+
+.calendar-detail-info-row strong {
+    color: #e8edff;
+
+    font-size: 0.8rem;
+
+    word-break: break-word;
+}
+
+
+
+/* =====================================================
+   DESCRIPTION
+===================================================== */
+
+.calendar-detail-description {
+    margin-top: 18px;
+
+    padding-top: 16px;
+
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+
+.calendar-detail-description h4 {
+    margin: 0 0 8px;
+
+    color: #a9b9df;
+
+    font-size: 0.78rem;
+}
+
+
+.calendar-detail-description p {
+    margin: 0;
+
+    color: #c1cbe1;
+
+    font-size: 0.8rem;
+
+    line-height: 1.55;
+
+    word-break: break-word;
+}
+
+
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+.calendar-status-badge {
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 4px 8px;
+
+    border-radius: 999px;
+
+    background: rgba(122, 216, 255, 0.1);
+
+    color: #7ad8ff;
+
+    font-size: 0.68rem;
+}
+
+
+.calendar-status-badge.completed {
+    background: rgba(90, 220, 150, 0.12);
+
+    color: #72e3a3;
+}
+
+
+.calendar-status-badge.pending {
+    background: rgba(255, 190, 90, 0.12);
+
+    color: #ffc76b;
+}
+
+
+
+/* =====================================================
+   DETAIL FOOTER
+===================================================== */
+
+.calendar-detail-footer {
+    display: flex;
+
+    gap: 10px;
+
+    padding: 15px 18px;
+
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+
+.calendar-detail-footer button {
+    flex: 1;
+
+    min-height: 40px;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+
+    font-size: 0.78rem;
+
+    font-weight: 600;
+}
+
+
+.calendar-detail-delete {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 6px;
+
+    border: 1px solid rgba(255, 90, 110, 0.18);
+
+    background: rgba(255, 90, 110, 0.08);
+
+    color: #ff8294;
+}
+
+
+.calendar-detail-delete:hover {
+    background: rgba(255, 90, 110, 0.15);
+}
+
+
+.calendar-detail-close-btn {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+
+    background: rgba(255, 255, 255, 0.05);
+
+    color: #c7d0e6;
+}
+
+
+.calendar-detail-close-btn:hover {
+    background: rgba(255, 255, 255, 0.09);
+}
+
+
+@media (max-width: 500px) {
+
+    .calendar-detail-backdrop {
+        align-items: flex-end;
+
+        padding: 10px;
+    }
+
+
+    .calendar-detail-modal {
+        width: 100%;
+
+        max-height: 88vh;
+
+        border-radius: 20px;
+    }
+
+
+    .calendar-detail-footer {
+        padding-bottom: 18px;
+    }
+
+}
+
+/* ==========================================
+   💡 LIGHT MODE VISIBILITY FIXES
+   ========================================== */
+
+/* 1. Fix Assistant Chat Bubbles (Dark text on Dark background) */
+[data-theme="light"] .message.bot,
+[data-theme="light"] .bot-message {
+  background: #ffffff !important;
+  color: #333333 !important; /* Forces dark text */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+  border: 1px solid rgba(0,0,0,0.1) !important;
+}
+
+[data-theme="light"] .message.user,
+[data-theme="light"] .user-message {
+  color: #ffffff !important; /* Keeps your user bubble text white */
+}
+
+/* 2. Fix the Popup Menu Text (White text on White background) */
+[data-theme="light"] .menu-item,
+[data-theme="light"] .glass-card button {
+  color: #333333 !important; /* Forces the missing text to be dark */
+}
+
+/* 3. Fix the Chat Input Bar */
+[data-theme="light"] .chat-input-container,
+[data-theme="light"] .bottom-input-area {
+  background: #ffffff !important;
+  border-top: 1px solid rgba(0,0,0,0.1) !important;
+}
+
+[data-theme="light"] input[placeholder*="speak"] {
+  color: #333333 !important;
+}
+
+[data-theme="light"] input[placeholder*="speak"]::placeholder {
+  color: #888888 !important;
+}
+
+/* =========================================================
+   NOTEPAD / STICKY NOTES UI
+========================================================= */
+
+.vault-screen {
+  position: relative;
+  padding-bottom: 110px;
+}
+
+
+/* ---------------------------------------------------------
+   TOP TOOLBAR
+--------------------------------------------------------- */
+
+.notepad-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.notepad-title-wrap {
+  min-width: 0;
+}
+
+.notepad-title-wrap h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.notepad-title-wrap span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.notepad-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notepad-icon-btn {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.notepad-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.notepad-icon-btn:active {
+  transform: scale(0.94);
+}
+
+
+/* Search SVG */
+
+.notepad-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+
+/* Three-dot button */
+
+
+
+
+/* ---------------------------------------------------------
+   CATEGORY CHIPS
+--------------------------------------------------------- */
+
+.notepad-categories {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  scrollbar-width: none;
+}
+
+.notepad-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.notepad-category {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.notepad-category:hover {
+  color: var(--text);
+}
+
+.notepad-category.active {
+  background: var(--text);
+  color: var(--panel-bg, #111827);
+}
+
+
+/* ---------------------------------------------------------
+   NOTES GRID
+--------------------------------------------------------- */
+
+.notepad-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+
+/* ---------------------------------------------------------
+   STICKY NOTE
+--------------------------------------------------------- */
+
+.sticky-note {
+  position: relative;
+  min-width: 0;
+  border-radius: 12px;
+  padding: 11px 10px 10px;
+  min-height: 128px;
+  box-shadow:
+    0 7px 16px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+  overflow: hidden;
+}
+
+.sticky-note:nth-child(3n) {
+  min-height: 150px;
+}
+
+.sticky-note:nth-child(4n) {
+  min-height: 116px;
+}
+
+.sticky-note:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+
+/* Slight tape / paper effect */
+
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 18px;
+  width: 34px;
+  height: 15px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.23);
+  transform: rotate(-4deg);
+  opacity: 0.75;
+}
+
+
+/* ---------------------------------------------------------
+   COLORS
+--------------------------------------------------------- */
+
+.note-yellow {
+  background: #dcefa6;
+  color: #29321b;
+}
+
+.note-blue {
+  background: #bfe4f2;
+  color: #1e3440;
+}
+
+.note-pink {
+  background: #f5b7bd;
+  color: #4c252a;
+}
+
+.note-green {
+  background: #b9e2cc;
+  color: #1e4030;
+}
+
+.note-purple {
+  background: #c5b9f4;
+  color: #30295d;
+}
+
+.note-orange {
+  background: #f6d29e;
+  color: #4b321c;
+}
+
+
+/* ---------------------------------------------------------
+   NOTE HEADER
+--------------------------------------------------------- */
+
+.sticky-note-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sticky-note-type {
+  font-size: 0.60rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.62;
+}
+
+.sticky-note-menu {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.sticky-note-menu span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+
+/* ---------------------------------------------------------
+   NOTE CONTENT
+--------------------------------------------------------- */
+
+.sticky-note h3 {
+  margin: 0 0 7px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  font-weight: 850;
+}
+
+.sticky-note p {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  opacity: 0.82;
+  word-break: break-word;
+}
+
+.sticky-note-date {
+  margin-top: 9px;
+  font-size: 0.56rem;
+  font-weight: 650;
+  opacity: 0.50;
+}
+
+
+/* ---------------------------------------------------------
+   EMPTY STATE
+--------------------------------------------------------- */
+
+.notepad-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 44px 18px 35px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.notepad-empty h3 {
+  margin: 14px 0 5px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.notepad-empty p {
+  max-width: 280px;
+  margin: 0 auto 18px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+
+/* Simple CSS note icon */
+
+.notepad-empty-box {
+  width: 46px;
+  height: 52px;
+  margin: auto;
+  border-radius: 8px;
+  border: 2px solid currentColor;
+  color: var(--muted);
+  position: relative;
+}
+
+.notepad-empty-box::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: currentColor;
+  box-shadow:
+    0 8px 0 currentColor,
+    0 16px 0 currentColor;
+  opacity: 0.55;
+}
+
+
+/* ---------------------------------------------------------
+   FLOATING ADD BUTTON
+--------------------------------------------------------- */
+
+.notepad-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 88px;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: var(--cyan, #6edcff);
+  color: #10202a;
+  font-size: 1.8rem;
+  font-weight: 400;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.25),
+    0 0 0 5px rgba(110, 220, 255, 0.08);
+  z-index: 1100;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.notepad-fab:hover {
+  transform: translateY(-2px);
+}
+
+.notepad-fab:active {
+  transform: scale(0.92);
+}
+
+
+/* ---------------------------------------------------------
+   SMALL MOBILE
+--------------------------------------------------------- */
+
+@media (max-width: 380px) {
+
+  .notepad-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .sticky-note {
+    min-height: 120px;
+    padding: 9px 8px;
+    border-radius: 10px;
+  }
+
+  .sticky-note h3 {
+    font-size: 0.76rem;
+  }
+
+  .sticky-note p {
+    font-size: 0.64rem;
+  }
+
+  .notepad-fab {
+    right: 14px;
+    bottom: 84px;
+    width: 48px;
+    height: 48px;
+  }
+}
+
+
+/* ---------------------------------------------------------
+   LARGER SCREEN
+--------------------------------------------------------- */
+
+@media (min-width: 600px) {
+
+  .notepad-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .sticky-note {
+    min-height: 145px;
+  }
+
+}
+
+/* ==========================================
+   ➕ FLOATING ADD BUTTON (FAB) FIX
+   ========================================== */
+
+.notepad-fab, .fab-add {
+  position: fixed;
+  bottom: 90px; /* Forces it to sit 90px above the bottom, clearing the menu */
+  right: 20px;  /* Keeps it pinned to the right side */
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #007bff; /* Adjust to match your app's main blue */
+  color: #ffffff;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  cursor: pointer;
+  z-index: 100; /* Ensures it floats above the notes but stays under popups */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Press animation */
+.notepad-fab:active, .fab-add:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+}
+
+.notepad-fab, .fab-add {
+  position: fixed;
+  bottom: 220px;
+  
+  /* 🚀 THE FIX: Center it, then push it to the right side of the app box */
+  left: 50%; 
+  margin-left: 120px; /* Adjust this number (e.g., 120px - 160px) if it is too far left or right */
+  
+  /* Make sure to DELETE the old "right: 20px;" if it is still there! */
+
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #007bff; /* Primary Blue */
+  color: #ffffff;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  cursor: pointer;
+  z-index: 100;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Press animation */
+.notepad-fab:active, .fab-add:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+}
+
+/* ==========================================
+   📝 3D NOTEPAD MASONRY GRID
+   ========================================== */
+
+/* 1. Force the grid into two columns */
+.notepad-grid {
+  column-count: 2;
+  column-gap: 12px;
+  padding: 10px;
+  padding-bottom: 110px; /* Leaves room for the bottom nav and + button */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 2. 3D Card Styling for the Notes */
+.sticky-note {
+  break-inside: avoid; /* CRITICAL: Stops cards from splitting across columns */
+  page-break-inside: avoid;
+  display: inline-block; /* Required for break-inside to work properly */
+  width: 100%;
+  box-sizing: border-box;
+  
+  margin-bottom: 12px;
+  border-radius: 16px;
+  padding: 14px;
+  color: #333333;
+  position: relative;
+  
+  /* The 3D Shadow & Highlight Effect */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15), 
+              0 2px 4px rgba(0, 0, 0, 0.12),
+              inset 0 2px 0 rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(0,0,0,0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 3. Hover/Tap Animation */
+.sticky-note:active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 4. Ensure Text Fits Nicely */
+.sticky-note h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.sticky-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* =========================================================
+   PREMIUM NOTEPAD HEADER
+========================================================= */
+
+.vault-screen {
+  position: relative;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 12px 12px 120px;
+
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(91, 120, 255, 0.18),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 5% 15%,
+      rgba(133, 92, 255, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(
+      160deg,
+      rgba(10, 22, 52, 0.98),
+      rgba(7, 16, 37, 0.98)
+    );
+
+  border-radius: 28px;
+
+  overflow: hidden;
+}
+
+
+/* HEADER */
+
+.notepad-toolbar {
+  position: relative;
+
+  min-height: 108px;
+
+  margin-bottom: 14px;
+
+  padding: 20px 18px;
+
+  border-radius: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(39, 62, 121, 0.92),
+      rgba(28, 43, 92, 0.75)
+    );
+
+  border: 1px solid rgba(111, 153, 255, 0.28);
+
+  box-shadow:
+    0 16px 35px rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  overflow: hidden;
+}
+
+
+/* HEADER GLOW */
+
+.notepad-toolbar::before {
+  content: "";
+
+  position: absolute;
+
+  top: -90px;
+  right: -50px;
+
+  width: 230px;
+  height: 190px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(83, 126, 255, 0.32),
+      transparent 70%
+    );
+
+  filter: blur(12px);
+
+  pointer-events: none;
+}
+
+
+/* TITLE */
+
+.notepad-title-wrap {
+  position: relative;
+  z-index: 2;
+}
+
+
+.notepad-title-wrap h2 {
+  margin: 0;
+
+  color: #f8faff;
+
+  font-size: 1.72rem;
+
+  font-weight: 850;
+
+  letter-spacing: -0.04em;
+}
+
+
+.notepad-title-wrap span {
+  display: block;
+
+  margin-top: 7px;
+
+  color: rgba(215,225,250,0.68);
+
+  font-size: 0.74rem;
+}
+
+
+/* SEARCH BUTTON */
+
+.notepad-toolbar-actions {
+  position: relative;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+}
+
+
+.notepad-icon-btn {
+  width: 48px;
+  height: 48px;
+
+  padding: 0;
+
+  border: 1px solid rgba(255,255,255,0.22);
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #e8edff
+    );
+
+  color: #356ce8;
+
+  display: grid;
+  place-items: center;
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.24),
+    0 0 25px rgba(78,126,255,0.18);
+
+  cursor: pointer;
+
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease;
+}
+
+
+.notepad-icon-btn:hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 10px 28px rgba(0,0,0,0.30),
+    0 0 30px rgba(78,126,255,0.28);
+}
+
+
+.notepad-icon-btn:active {
+  transform: scale(.93);
+}
+
+
+.notepad-icon-btn svg {
+  width: 21px;
+  height: 21px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+/* =========================================================
+   SEARCH FIELD
+========================================================= */
+
+.notepad-search-wrap {
+  margin: 0 2px 16px;
+
+  animation: notepadSearchOpen .2s ease;
+}
+
+
+@keyframes notepadSearchOpen {
+
+  from {
+    opacity: 0;
+    transform: translateY(-7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
+
+
+.notepad-search-box {
+  min-height: 54px;
+
+  padding: 0 14px;
+
+  display: flex;
+  align-items: center;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(54,78,138,0.72),
+      rgba(38,53,105,0.62)
+    );
+
+  border: 1px solid rgba(83,145,255,0.58);
+
+  box-shadow:
+    0 8px 25px rgba(0,0,0,.22),
+    0 0 25px rgba(79,128,255,.10),
+    inset 0 1px 0 rgba(255,255,255,.07);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+
+.notepad-search-box > svg {
+  width: 21px;
+  height: 21px;
+
+  flex: 0 0 auto;
+
+  margin-right: 10px;
+
+  fill: none;
+
+  stroke: #f4f7ff;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+.notepad-search-box input {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 13px 0;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #ffffff;
+
+  font: inherit;
+
+  font-size: .92rem;
+}
+
+
+.notepad-search-box input::placeholder {
+  color: rgba(220,228,250,.62);
+}
+
+
+/* CLEAR */
+
+.notepad-search-clear {
+  width: 32px;
+  height: 32px;
+
+  padding: 0;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  background: rgba(255,255,255,.15);
+
+  color: rgba(255,255,255,.90);
+
+  display: grid;
+  place-items: center;
+
+  cursor: pointer;
+}
+
+
+.notepad-search-clear svg {
+  width: 15px;
+  height: 15px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+/* =========================================================
+   NOTE ACTIONS
+========================================================= */
+
+.sticky-note-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  flex-shrink: 0;
+}
+
+
+.sticky-note-action {
+  width: 32px;
+  height: 32px;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 50%;
+
+  display: grid;
+  place-items: center;
+
+  cursor: pointer;
+
+  background: rgba(255,255,255,.62);
+
+  transition:
+    transform .16s ease,
+    background .16s ease;
+}
+
+
+.sticky-note-action:hover {
+  transform: scale(1.06);
+}
+
+
+.sticky-note-action:active {
+  transform: scale(.92);
+}
+
+
+.sticky-note-action svg {
+  width: 17px;
+  height: 17px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+.sticky-note-action.edit {
+  color: #2864db;
+}
+
+
+.sticky-note-action.delete {
+  color: #d62f4b;
+}
+
+
+/* DATE */
+
+.sticky-note-date {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+}
+
+
+.sticky-note-date svg {
+  width: 15px;
+  height: 15px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 1.8;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 500px) {
+
+  .vault-screen {
+    max-width: 100%;
+
+    padding-left: 10px;
+    padding-right: 10px;
+
+    border-radius: 22px;
+  }
+
+
+  .notepad-toolbar {
+    min-height: 100px;
+
+    padding: 18px 16px;
+
+    border-radius: 21px;
+  }
+
+
+  .notepad-title-wrap h2 {
+    font-size: 1.55rem;
+  }
+
+
+  .notepad-icon-btn {
+    width: 46px;
+    height: 46px;
+  }
+
+}
+/* =========================================================
+   NOTEPAD — TOP POSITION + PREMIUM HEADER
+========================================================= */
+
+.vault-screen {
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+
+  /* VERY IMPORTANT: keeps Notepad at the top */
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+
+  position: relative;
+
+  /* space for bottom navigation */
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 120px;
+
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(85, 118, 255, 0.18),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      #0b1635 0%,
+      #071229 55%,
+      #050c1c 100%
+    );
+
+  border-radius: 0 0 26px 26px;
+}
+
+
+/* =========================================================
+   NOTEPAD HEADER
+========================================================= */
+
+.notepad-toolbar {
+  width: 100%;
+  min-height: 112px;
+
+  margin: 0 0 14px 0 !important;
+  padding: 20px 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  position: relative;
+  overflow: hidden;
+
+  border-radius: 0 0 26px 26px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(32, 57, 122, 0.96),
+      rgba(24, 40, 91, 0.88)
+    );
+
+  border: 1px solid rgba(108, 150, 255, 0.30);
+
+  box-shadow:
+    0 14px 35px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+
+/* glow inside header */
+
+.notepad-toolbar::before {
+  content: "";
+
+  position: absolute;
+
+  width: 240px;
+  height: 180px;
+
+  top: -100px;
+  right: -70px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(71, 119, 255, 0.35),
+      transparent 70%
+    );
+
+  filter: blur(10px);
+
+  pointer-events: none;
+}
+
+
+/* second soft glow */
+
+.notepad-toolbar::after {
+  content: "";
+
+  position: absolute;
+
+  width: 180px;
+  height: 120px;
+
+  left: -90px;
+  top: -50px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(112, 79, 255, 0.22),
+      transparent 70%
+    );
+
+  filter: blur(15px);
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   TITLE
+========================================================= */
+
+.notepad-title-wrap {
+  position: relative;
+  z-index: 2;
+}
+
+.notepad-title-wrap h2 {
+  margin: 0;
+
+  color: #f8faff;
+
+  font-size: 1.72rem;
+  line-height: 1;
+
+  font-weight: 850;
+
+  letter-spacing: -0.045em;
+}
+
+.notepad-title-wrap span {
+  display: block;
+
+  margin-top: 8px;
+
+  color: rgba(213, 223, 249, 0.68);
+
+  font-size: 0.76rem;
+}
+
+
+/* =========================================================
+   SEARCH BUTTON
+========================================================= */
+
+.notepad-toolbar-actions {
+  position: relative;
+  z-index: 5;
+
+  display: flex;
+  align-items: center;
+}
+
+.notepad-icon-btn {
+  width: 48px;
+  height: 48px;
+
+  padding: 0;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.25);
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #e9eeff
+    );
+
+  color: #376ce5;
+
+  box-shadow:
+    0 8px 22px rgba(0,0,0,0.25),
+    0 0 24px rgba(68, 119, 255, 0.25);
+
+  cursor: pointer;
+
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease;
+}
+
+.notepad-icon-btn:active {
+  transform: scale(.92);
+}
+
+.notepad-icon-btn svg {
+  width: 21px;
+  height: 21px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+
+/* =========================================================
+   SEARCH FIELD INSIDE NOTEPAD
+========================================================= */
+
+.notepad-search-wrap {
+  width: 100%;
+
+  margin: 0 0 16px;
+
+  animation: searchSlide .2s ease;
+}
+
+@keyframes searchSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notepad-search-box {
+  width: 100%;
+
+  min-height: 54px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 14px;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(47, 72, 137, 0.72),
+      rgba(29, 46, 98, 0.62)
+    );
+
+  border: 1px solid rgba(88, 146, 255, 0.55);
+
+  box-shadow:
+    0 10px 25px rgba(0,0,0,.20),
+    inset 0 1px 0 rgba(255,255,255,.08);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.notepad-search-box > svg {
+  width: 20px;
+  height: 20px;
+
+  flex-shrink: 0;
+
+  margin-right: 10px;
+
+  fill: none;
+
+  stroke: #edf3ff;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+}
+
+.notepad-search-box input {
+  flex: 1;
+
+  width: 100%;
+  min-width: 0;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #ffffff;
+
+  font-size: .92rem;
+}
+
+.notepad-search-box input::placeholder {
+  color: rgba(220, 229, 250, .62);
+}
+
+.notepad-search-clear {
+  width: 32px;
+  height: 32px;
+
+  border: none;
+  border-radius: 50%;
+
+  display: grid;
+  place-items: center;
+
+  background: rgba(255,255,255,.15);
+
+  color: white;
+
+  cursor: pointer;
+}
+
+.notepad-search-clear svg {
+  width: 15px;
+  height: 15px;
+
+  fill: none;
+
+  stroke: currentColor;
+
+  stroke-width: 2;
+
+  stroke-linecap: round;
+}
+
+
+/* =========================================================
+   MOBILE SAFE AREA
+========================================================= */
+
+@media (max-width: 500px) {
+
+  .vault-screen {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .notepad-toolbar {
+    min-height: 104px;
+    padding: 18px 16px;
+  }
+
+  .notepad-title-wrap h2 {
+    font-size: 1.58rem;
+  }
+
+  .notepad-icon-btn {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+.vault-screen {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+.vault-screen {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
 }

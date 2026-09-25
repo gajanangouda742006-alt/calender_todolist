@@ -88,10 +88,34 @@ export function renderTasksPage(state) {
       </div>
 
       <div class="task-input-row">
-        <button class="task-plus" type="button" data-action="open-task-modal" aria-label="Add new task">＋</button>
-        <input type="text" placeholder="Add a new task..." aria-label="Add new task" readonly data-action="open-task-modal" />
-        <button class="task-add" type="button" data-action="open-task-modal">Add</button>
-      </div>
+  <button
+    class="task-plus"
+    type="button"
+    data-action="open-add-entry"
+    data-type="task"
+    aria-label="Add new task"
+  >
+    ＋
+  </button>
+
+  <input
+    type="text"
+    placeholder="Add a new task..."
+    aria-label="Add new task"
+    readonly
+    data-action="open-add-entry"
+    data-type="task"
+  />
+
+  <button
+    class="task-add"
+    type="button"
+    data-action="open-add-entry"
+    data-type="task"
+  >
+    Add
+  </button>
+</div>
 
       <div class="todo-list">
         ${taskRows}

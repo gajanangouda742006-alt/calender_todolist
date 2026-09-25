@@ -148,4 +148,22 @@ const Goal = mongoose.model('Goal', goalSchema);
 const Reminder = mongoose.model('Reminder', reminderSchema);
 const Note = mongoose.model('Note', noteSchema);
 
-module.exports = { User, Event, Task, Mood, Habit, HabitLog, Goal, Reminder, Note };
+
+// ==========================================
+// ASSET / NOTEPAD SCHEMA & MODEL
+// ==========================================
+const assetSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    title: { type: String, default: 'Note' },
+    content: { type: String, default: '' },
+    tags: { type: String, default: 'Note' },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: 'assets' }
+);
+
+const Asset = mongoose.model('Asset', assetSchema);
+
+// Update your module.exports at the very bottom to include Asset:
+module.exports = { User, Event, Task, Mood, Habit, HabitLog, Goal, Reminder, Note, Asset };

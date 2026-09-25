@@ -48,6 +48,8 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+
+
 async function seedMongoDatabase() {
   const shouldSeed = String(process.env.SEED_DEMO_DATA || '').toLowerCase() === 'true';
 
@@ -81,6 +83,8 @@ async function seedMongoDatabase() {
     console.log('Seed data already exists in MongoDB.');
   }
 }
+
+
 
 async function startServer(portIndex = 0) {
   await connectMongo();
