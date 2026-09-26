@@ -6,7 +6,7 @@ import { renderHabitsPage } from './pages/habits.js';
 import { renderGoalsPage } from './pages/goals.js';
 import { renderAssistantPage } from './pages/assistant.js';
 import { renderVaultPage } from './pages/notepad.js';
-import { renderFinancePage } from './pages/expenses.js';
+import { renderFinancePage } from './pages/finance.js';
 
 
 
@@ -88,6 +88,14 @@ noteSearchQuery: '',
   progressLoading: false,
   showAllActivity: false,
   calendarCache: new Set(),
+    financeView: 'dashboard',
+  financeData: [],
+  financeFilter: 'week',
+  financeSearchQuery: '',
+  financeTypeFilter: 'all',
+  financeDetail: null,
+  showFinanceResetConfirm: false,
+  tempFinanceType: null,
 };
 let activeRecognition = null;
 let speechSilenceTimer = null;
@@ -154,11 +162,21 @@ function showAppConfirm(message, onConfirm) {
   confirmBtn.className = 'primary-btn compact-btn';
   confirmBtn.style.cssText = 'flex: 1; background: #ff4757; color: white; border: none; font-weight: bold;'; 
   
-  cancelBtn.onclick = () => overlay.remove();
-  confirmBtn.onclick = () => {
-    overlay.remove();
-    onConfirm();
-  };
+  let confirmed = false;
+
+confirmBtn.onclick = async () => {
+  if (confirmed) return;
+
+  confirmed = true;
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Deleting...';
+  confirmBtn.style.opacity = '0.6';
+  confirmBtn.style.pointerEvents = 'none';
+
+  overlay.remove();
+
+  await onConfirm();
+};
   
   btnRow.append(cancelBtn, confirmBtn);
   box.append(text, btnRow);
@@ -2363,6 +2381,61 @@ document.querySelectorAll(
     });
   });
 
+
+
+// INITIALIZE APP
+applyTheme(getStoredTheme());
+bindBottomNav();
+bindGlobalListeners();
+
+if (!localStorage.getItem('sahraToken')) {
+  window.location.href = '/login';
+} else {
+  loadDashboardData().then(() => {
+    renderLayout();
+  });
+}
+
+
+// ==========================================
+// FINANCE SEARCH AND FILTER LISTENERS
+// ==========================================
+
+// Handle dropdown filter change
+document.addEventListener('change', (e) => {
+    const target = e.target;
+    if (target.getAttribute('data-action') === 'finance-filter') {
+        state.financeTypeFilter = target.value;
+        triggerAppRender(); 
+    }
+});
+
+// Handle text typing (with cursor position fix so the keyboard doesn't close)
+document.addEventListener('input', (e) => {
+    const searchInput = e.target.closest('[data-action="finance-search"]');
+    
+    if (searchInput) {
+        // 1. Remember where the cursor was before rendering
+        const cursorPosition = searchInput.selectionStart ?? searchInput.value.length;
+        
+        // 2. Save the search text to state
+        state.financeSearchQuery = searchInput.value;
+        
+        // 3. Re-render the app to filter the list
+        triggerAppRender();
+
+        // 4. Immediately put the cursor back where it was
+        setTimeout(() => {
+            const newInput = document.querySelector('[data-action="finance-search"]');
+            if (newInput) {
+                newInput.focus();
+                const position = Math.min(cursorPosition, newInput.value.length);
+                newInput.setSelectionRange(position, position);
+            }
+        }, 0);
+    }
+});
+
   document.querySelectorAll('[data-action="edit-task"]').forEach((button) => {
     button.addEventListener('click', () => {
       const task = state.data.tasks.find((item) => String(item.id || item._id) === String(button.dataset.taskId));
@@ -2736,6 +2809,7 @@ document.addEventListener('click', (e) => {
   }
 });
 
+
 document.addEventListener('input', (e) => {
   const input = e.target.closest('[data-action="notepad-search-input"]');
 
@@ -2811,10 +2885,22 @@ function showCustomNotepadConfirm(message, onConfirm) {
   confirmBtn.style.cssText = 'padding: 12px; border-radius: 10px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer; flex: 1; box-shadow: 0 4px 10px rgba(239,68,68,0.3);';
   
   cancelBtn.onclick = () => document.body.removeChild(overlay); 
-  confirmBtn.onclick = () => {
-    onConfirm(); 
-    document.body.removeChild(overlay); 
-  };
+  let confirmed = false;
+
+confirmBtn.onclick = async () => {
+  if (confirmed) return;
+
+  confirmed = true;
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Deleting...';
+  confirmBtn.style.opacity = '0.6';
+  confirmBtn.style.pointerEvents = 'none';
+
+  overlay.remove();
+
+  await onConfirm();
+};
   
   btnContainer.appendChild(cancelBtn);
   btnContainer.appendChild(confirmBtn);
@@ -3088,6 +3174,7 @@ document.addEventListener('click', (e) => {
   }, 50);
 }
 
+
 function bindBottomNav() {
   document.querySelectorAll('.bottom-nav .nav-item').forEach((button) => {
     button.addEventListener('click', async (e) => {
@@ -3119,8 +3206,8 @@ function bindBottomNav() {
     });
   });
 }
-
 let globalListenersBound = false;
+
 function bindGlobalListeners() {
   if (globalListenersBound) return;
   globalListenersBound = true;
@@ -3131,7 +3218,7 @@ function bindGlobalListeners() {
     const clickedMoodPicker = event.target.closest('.mood-selector-wrap');
 
     let needsRender = false;
-    
+
     if (!clickedMenu && state.menuOpen) {
       state.menuOpen = false;
       needsRender = true;
@@ -3153,35 +3240,331 @@ function bindGlobalListeners() {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      let changed = false;
-      if (state.progressPickerOpen) {
-        state.progressPickerOpen = false;
-        changed = true;
-      }
-      if (state.menuOpen) {
-        state.menuOpen = false;
-        changed = true;
-      }
-      if (state.moodPickerOpen) {
-        state.moodPickerOpen = false;
-        changed = true;
-      }
-      if (changed) renderLayout();
+    if (event.key !== 'Escape') return;
+
+    let changed = false;
+
+    if (state.progressPickerOpen) {
+      state.progressPickerOpen = false;
+      changed = true;
+    }
+
+    if (state.menuOpen) {
+      state.menuOpen = false;
+      changed = true;
+    }
+
+    if (state.moodPickerOpen) {
+      state.moodPickerOpen = false;
+      changed = true;
+    }
+
+    if (changed) {
+      renderLayout();
     }
   });
 }
 
+// ==========================================
+// FINANCE MODULE
+// ==========================================
+
+function triggerAppRender() {
+  renderLayout();
+}
+
+async function fetchFinanceData() {
+  if (!localStorage.getItem('sahraToken')) return;
+
+  try {
+    const payload = await apiRequest('/api/transactions');
+
+    state.financeData = Array.isArray(payload)
+      ? payload
+      : (payload.transactions || []);
+
+    renderLayout();
+  } catch (error) {
+    console.error('Failed to load finance data:', error);
+  }
+}
+
+let financeListenersBound = false;
+
+function bindFinanceListeners() {
+  if (financeListenersBound) return;
+  financeListenersBound = true;
+
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+
+    const action = button.dataset.action;
+
+    // -------------------------------
+    // CHANGE FINANCE VIEW
+    // -------------------------------
+    if (action === 'set-finance-view') {
+      state.financeView = button.dataset.view || 'dashboard';
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // WEEK / MONTH / YEAR
+    // -------------------------------
+    if (action === 'set-finance-filter') {
+      state.financeFilter = button.dataset.filter || 'week';
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // SELECT INCOME / EXPENSE
+    // -------------------------------
+    if (action === 'select-finance-type') {
+      state.tempFinanceType = button.dataset.type || 'expense';
+      state.financeView = 'add-expense';
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // SHOW RESET MODAL
+    // -------------------------------
+    if (action === 'show-finance-reset-confirm') {
+      state.showFinanceResetConfirm = true;
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // CANCEL RESET
+    // -------------------------------
+    if (action === 'cancel-finance-reset') {
+      state.showFinanceResetConfirm = false;
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // DELETE ALL TRANSACTIONS
+    // -------------------------------
+    if (action === 'confirm-finance-reset') {
+      button.disabled = true;
+      button.textContent = 'Deleting...';
+
+      try {
+        const response = await apiRequest('/api/transactions', {
+          method: 'DELETE'
+        });
+
+        state.financeData = [];
+        state.financeDetail = null;
+        state.showFinanceResetConfirm = false;
+        state.tempFinanceType = null;
+        state.financeView = 'dashboard';
+
+        showToast(
+          `${response.deletedCount || 0} transactions deleted`
+        );
+
+        renderLayout();
+
+      } catch (error) {
+        console.error('Reset transactions error:', error);
+
+        button.disabled = false;
+        button.textContent = 'Yes, Reset All';
+
+        showToast(
+          error.message || 'Unable to delete transactions'
+        );
+      }
+
+      return;
+    }
+
+    // -------------------------------
+    // OPEN TRANSACTION DETAIL
+    // -------------------------------
+    if (action === 'show-transaction-detail') {
+      const id = button.dataset.id;
+
+      const transaction = state.financeData.find(
+        (item) =>
+          String(item._id || item.id) === String(id)
+      );
+
+      if (!transaction) return;
+
+      state.financeDetail = transaction;
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // CLOSE DETAIL
+    // -------------------------------
+    if (action === 'close-transaction-detail') {
+      state.financeDetail = null;
+      renderLayout();
+      return;
+    }
+
+    // -------------------------------
+    // DELETE ONE TRANSACTION
+    // -------------------------------
+   // -------------------------------
+// DELETE ONE TRANSACTION
+// -------------------------------
+// -------------------------------
+// DELETE ONE TRANSACTION
+// -------------------------------
+if (action === 'delete-finance-transaction') {
+  const id = button.dataset.id;
+
+  if (!id) {
+    showToast('Transaction ID is missing');
+    return;
+  }
+
+  // Prevent multiple taps
+  if (button.dataset.deleting === 'true') {
+    return;
+  }
+
+  const index = state.financeData.findIndex(
+    (item) => String(item._id || item.id) === String(id)
+  );
+
+  if (index === -1) {
+    showToast('Transaction not found');
+    return;
+  }
+
+  const deletedTransaction = state.financeData[index];
+
+  // Lock button immediately
+  button.dataset.deleting = 'true';
+  button.disabled = true;
+
+  // --------------------------------
+  // REMOVE FROM UI IMMEDIATELY
+  // --------------------------------
+  state.financeData.splice(index, 1);
+  state.financeDetail = null;
+
+  renderLayout();
+
+  // --------------------------------
+  // DELETE FROM MONGODB
+  // --------------------------------
+  try {
+    await apiRequest(`/api/transactions/${id}`, {
+      method: 'DELETE'
+    });
+
+    showToast('Transaction deleted successfully');
+
+  } catch (error) {
+    console.error('Delete transaction error:', error);
+
+    // --------------------------------
+    // RESTORE IF SERVER DELETE FAILED
+    // --------------------------------
+    state.financeData.splice(index, 0, deletedTransaction);
+
+    state.financeDetail = deletedTransaction;
+
+    renderLayout();
+
+    showToast(
+      error.message || 'Unable to delete transaction'
+    );
+  }
+
+  return;
+}
+
+    // -------------------------------
+    // SAVE TRANSACTION
+    // -------------------------------
+    if (action === 'save-finance-transaction') {
+      if (button.dataset.submitting === 'true') return;
+
+      button.dataset.submitting = 'true';
+      button.textContent = 'Saving...';
+
+      const amount =
+        document.getElementById('finance-amount')?.value;
+
+      const category =
+        document.getElementById('finance-category')?.value;
+
+      const date =
+        document.getElementById('finance-date')?.value;
+
+      const note =
+        document.getElementById('finance-note')?.value;
+
+      const type =
+        button.dataset.type || state.tempFinanceType || 'expense';
+
+      if (!amount || Number(amount) <= 0) {
+        showToast('Please enter a valid amount.');
+
+        button.dataset.submitting = 'false';
+        button.textContent = 'Save Transaction';
+        return;
+      }
+
+      try {
+        await apiRequest('/api/transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: Number(amount),
+            category: category || 'Other',
+            date: date || new Date().toISOString(),
+            note: note || '',
+            type
+          })
+        });
+
+        state.financeView = 'dashboard';
+        state.tempFinanceType = null;
+
+        await fetchFinanceData();
+
+        showToast('Transaction saved successfully');
+
+      } catch (error) {
+        console.error(error);
+
+        showToast(
+          error.message || 'Unable to save transaction'
+        );
+
+        button.dataset.submitting = 'false';
+        button.textContent = 'Save Transaction';
+      }
+
+      return;
+    }
+  });
+}
+
+
+// INITIALIZE APP
 applyTheme(getStoredTheme());
+
 bindBottomNav();
 bindGlobalListeners();
-
-// REPLACE THE BOTTOM BLOCK IN app.js WITH THIS:
+bindFinanceListeners();
 
 if (!localStorage.getItem('sahraToken')) {
   window.location.href = '/login';
 } else {
-  loadDashboardData().then(() => {
-    renderLayout(); // 👈 This ensures the UI only draws AFTER MongoDB data is fully loaded!
-  });
+  loadDashboardData();
+  fetchFinanceData();
 }

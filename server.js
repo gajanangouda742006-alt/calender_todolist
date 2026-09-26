@@ -11,6 +11,8 @@ const { seedData } = require('./backend/data/seedData');
 const authRoutes = require('./backend/routes/auth');
 const dashboardRoutes = require('./backend/routes/dashboard');
 
+
+
 const app = express();
 const preferredPorts = [Number(process.env.PORT) || 9090, 9091, 9200, 9300, 9400];
 
@@ -108,5 +110,92 @@ async function startServer(portIndex = 0) {
     process.exit(1);
   });
 }
+
+// 1. GET: Fetch all transactions for the logged-in user
+app.get('/api/finance', async (req, res) => {
+  try {
+    // Assuming req.user.id is set by your authentication middleware
+    const transactions = await Transaction.find({ userId: req.user.id }).sort({ date: -1 });
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+// 2. POST: Save a new transaction
+app.post('/api/finance', async (req, res) => {
+  try {
+    const { type, amount, category, note, date } = req.body;
+    
+    const newTransaction = new Transaction({
+      userId: req.user.id, // Ensure user is logged in
+      type,
+      amount: Number(amount),
+      category,
+      note,
+      date: date || Date.now()
+    });
+
+    await newTransaction.save();
+    res.status(201).json(newTransaction);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save transaction' });
+  }
+});
+
+
+
+
+
+// GET: Fetch all transactions
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const transactions = await Transaction.find().sort({ date: -1 });
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST: Save a new transaction
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const { type, amount, category, note, date } = req.body;
+    
+    const newTransaction = new Transaction({
+      type,
+      amount: Number(amount),
+      category,
+      note,
+      date: date || Date.now()
+    });
+
+    await newTransaction.save();
+    res.status(201).json(newTransaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// ==========================================
+// DELETE ALL TRANSACTIONS ROUTE
+// ==========================================
+app.delete('/api/transactions', async (req, res) => {
+    try {
+        // Delete all transactions from the MongoDB collection
+        await Transaction.deleteMany({});
+        
+        res.status(200).json({ 
+            success: true, 
+            message: 'All transactions permanently deleted from database.' 
+        });
+
+    } catch (error) {
+        console.error("Database deletion error:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Server error while deleting transactions.' 
+        });
+    }
+});
 
 startServer();

@@ -1,6 +1,18 @@
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
-const { User, Event, Task, Mood, Habit, HabitLog, Goal, Reminder, Asset } = require('../models');
+const {
+  User,
+  Event,
+  Task,
+  Mood,
+  Habit,
+  HabitLog,
+  Goal,
+  Reminder,
+  Note,
+  Asset,
+  Transaction
+} = require('../models');
 
 const router = express.Router();
 
@@ -49,6 +61,19 @@ router.get('/dashboard', verifyToken, async (req, res) => {
     return res.status(500).json({ message: 'Unable to load dashboard data' });
   }
 });
+
+module.exports = {
+  User,
+  Event,
+  Task,
+  Mood,
+  Habit,
+  HabitLog,
+  Goal,
+  Reminder,
+  Note,
+  Transaction,
+};
 
 router.get('/progress', verifyToken, async (req, res) => {
   try {
@@ -1246,5 +1271,125 @@ router.post('/assets', verifyToken, async (req, res) => {
     return res.status(500).json({ message: 'Unable to create asset' });
   }
 });
+// ==========================================
+// FINANCE / TRANSACTIONS
+// ==========================================
+
+router.get('/transactions', verifyToken, async (req, res) => {
+  try {
+    const items = await Transaction.find({
+      userId: req.user.id
+    }).sort({ date: -1, createdAt: -1 });
+
+    return res.status(200).json(
+      items.map(item => ({
+        ...item.toObject(),
+        id: item._id.toString()
+      }))
+    );
+  } catch (error) {
+    console.error('Load transactions error:', error);
+    return res.status(500).json({
+      message: 'Unable to load transactions'
+    });
+  }
+});
+
+router.post('/transactions', verifyToken, async (req, res) => {
+  try {
+    const {
+      amount,
+      category = 'General',
+      date,
+      note = '',
+      type
+    } = req.body;
+
+    const numericAmount = Number(amount);
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({
+        message: 'Amount must be greater than 0'
+      });
+    }
+
+    if (!['income', 'expense'].includes(type)) {
+      return res.status(400).json({
+        message: 'Transaction type must be income or expense'
+      });
+    }
+
+    if (!date) {
+      return res.status(400).json({
+        message: 'Transaction date is required'
+      });
+    }
+
+    const item = await Transaction.create({
+      userId: req.user.id,
+      amount: numericAmount,
+      category: String(category).trim(),
+      date,
+      note: String(note).trim(),
+      type
+    });
+
+    return res.status(201).json({
+      message: 'Transaction created',
+      transaction: {
+        ...item.toObject(),
+        id: item._id.toString()
+      }
+    });
+  } catch (error) {
+    console.error('Create transaction error:', error);
+    return res.status(500).json({
+      message: 'Unable to create transaction'
+    });
+  }
+});
+
+router.delete('/transactions/:id', verifyToken, async (req, res) => {
+  try {
+    const item = await Transaction.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        message: 'Transaction not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Transaction deleted'
+    });
+  } catch (error) {
+    console.error('Delete transaction error:', error);
+    return res.status(500).json({
+      message: 'Unable to delete transaction'
+    });
+  }
+});
+
+router.delete('/transactions', verifyToken, async (req, res) => {
+  try {
+    const result = await Transaction.deleteMany({
+      userId: req.user.id
+    });
+
+    return res.status(200).json({
+      message: 'All transactions deleted',
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Reset transactions error:', error);
+    return res.status(500).json({
+      message: 'Unable to reset transactions'
+    });
+  }
+});
 
 module.exports = router;
+
