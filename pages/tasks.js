@@ -62,7 +62,7 @@ export function renderTasksPage(state) {
 
   return `
     <section class="screen todo-screen">
-      <div class="todo-header">
+      <div class="todo-header page-fixed-header">
         <div class="todo-back-wrap">
           <button class="nav-back" type="button" data-action="back-home" aria-label="Back">←</button>
         </div>

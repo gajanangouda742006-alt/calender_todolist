@@ -545,6 +545,19 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
     },
 
+    paymentMethod: {
+      type: String,
+      default: 'Cash',
+      trim: true,
+    },
+
+    paymentMethod: {
+  type: String,
+  enum: ['UPI', 'Bank', 'Card', 'Cash'],
+  default: 'Cash',
+  trim: true,
+},
+
     date: {
       type: String,
       required: true,

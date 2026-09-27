@@ -116,24 +116,195 @@ function renderDashboard(transactions, state) {
     : 'rgba(255,255,255,0.05)';
 
   return `
-    <div style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; box-sizing: border-box;">
+    <div class="finance-dashboard-page" style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 170px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; box-sizing: border-box;">
       
       <!-- Top Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <div>
-          <h1 style="font-size: 1.8rem; font-weight: 700; margin: 0 0 4px 0; letter-spacing: -0.02em; text-shadow: 0 2px 4px rgba(0,0,0,0.4);">Dashboard</h1>
-          <span style="color: #8b92a5; font-size: 0.95rem;">${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
-        </div>
-       <button data-action="show-finance-reset-confirm" style="position: relative; z-index: 999; width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #222634, #14161c); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); border-top: 1px solid rgba(255,255,255,0.3); color: #f87171; display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);" title="Reset All Data">
-  🔄
-</button>
-      </div>
+      <!-- =========================================
+     HIGHLIGHTED DASHBOARD HEADER
+========================================= -->
+<div
+  class="finance-dashboard-header"
+  style="
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    margin: 0 -6px 24px;
+    padding: 18px 14px 20px;
+
+    border-radius: 22px;
+
+    background:
+      linear-gradient(
+        135deg,
+        rgba(96,165,255,0.18),
+        rgba(37,99,235,0.08) 55%,
+        rgba(255,255,255,0.025)
+      );
+
+    border:
+      1px solid rgba(96,165,255,0.18);
+
+    box-shadow:
+      0 12px 30px rgba(0,0,0,0.28),
+      inset 0 1px 1px rgba(255,255,255,0.10);
+
+    overflow: hidden;
+  "
+>
+
+  <!-- Soft glow -->
+  <div
+    style="
+      position: absolute;
+      width: 150px;
+      height: 150px;
+
+      top: -90px;
+      left: -50px;
+
+      background: rgba(96,165,255,0.18);
+
+      filter: blur(45px);
+
+      border-radius: 50%;
+
+      pointer-events: none;
+    "
+  ></div>
+
+  <!-- Header Text -->
+  <div
+    style="
+      position: relative;
+      z-index: 2;
+    "
+  >
+
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 5px;
+      "
+    >
+
+      <span
+        style="
+          width: 5px;
+          height: 28px;
+          border-radius: 10px;
+
+          background:
+            linear-gradient(
+              180deg,
+              #60a5ff,
+              #8b5cf6
+            );
+
+          box-shadow:
+            0 0 14px rgba(96,165,255,0.7);
+        "
+      ></span>
+
+      <h1
+        style="
+          margin: 0;
+
+          font-size: 1.85rem;
+          line-height: 1;
+
+          font-weight: 850;
+
+          color: #ffffff;
+
+          letter-spacing: -0.035em;
+
+          text-shadow:
+            0 2px 10px rgba(96,165,255,0.25);
+        "
+      >
+        Dashboard
+      </h1>
+
+    </div>
+
+    <div
+      style="
+        margin-left: 14px;
+
+        color: #9fb6d9;
+
+        font-size: 0.82rem;
+
+        font-weight: 600;
+
+        letter-spacing: 0.02em;
+      "
+    >
+      ${new Date().toLocaleString('default', {
+        month: 'long',
+        year: 'numeric'
+      })}
+    </div>
+
+  </div>
+
+  <!-- Reset Button -->
+  <button
+    data-action="show-finance-reset-confirm"
+    type="button"
+    style="
+      position: relative;
+      z-index: 3;
+
+      width: 44px;
+      height: 44px;
+
+      border-radius: 15px;
+
+      display: grid;
+      place-items: center;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgba(47,55,72,0.95),
+          rgba(20,24,34,0.95)
+        );
+
+      border:
+        1px solid rgba(255,255,255,0.14);
+
+      border-top:
+        1px solid rgba(255,255,255,0.28);
+
+      color: #8dc1ff;
+
+      cursor: pointer;
+
+      box-shadow:
+        0 8px 18px rgba(0,0,0,0.35),
+        inset 0 1px 1px rgba(255,255,255,0.12);
+
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+    "
+    title="Reset Transactions"
+  >
+    🔄
+  </button>
+
+</div>
 
       <!-- Total Balance Card -->
       <div style="background: linear-gradient(145deg, #60a5ff, #2563eb); border-radius: 28px; padding: 26px; margin-bottom: 24px; box-shadow: 0 20px 45px rgba(37, 99, 235, 0.4), inset 0 2px 4px rgba(255,255,255,0.5), inset 0 -3px 8px rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.4);">
         <div style="color: rgba(255,255,255,0.9); font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Total Balance</div>
         <div style="font-size: 2.6rem; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; text-shadow: 0 3px 6px rgba(0,0,0,0.25);">₹${totalBalance.toFixed(2)}</div>
-        
+        🔄
         <div style="display: flex; align-items: center; background: rgba(0,0,0,0.15); padding: 14px 16px; border-radius: 18px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15);">
           <div style="flex: 1;">
             <div style="font-size: 0.72rem; font-weight: 800; color: #a7f3d0; margin-bottom: 4px; letter-spacing: 0.05em;">✓ INCOME</div>
@@ -191,57 +362,436 @@ function renderDashboard(transactions, state) {
 }
 
 // ==========================================
-// SCREEN 2: TRANSACTIONS LIST
+// ALL TRANSACTIONS
+// ONLY MONTH + YEAR SEPARATORS
 // ==========================================
+
 function renderTransactions(transactions, state) {
-    if (!transactions || transactions.length === 0) {
-        return `
-            <div style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; font-family: 'Segoe UI', system-ui, sans-serif; color: white;">
-                <button data-action="set-finance-view" data-view="dashboard" style="background: linear-gradient(135deg, #222634, #14161c); border: 1px solid rgba(255,255,255,0.12); border-top: 1px solid rgba(255,255,255,0.25); width: 42px; height: 42px; border-radius: 14px; color: white; font-size: 1.2rem; cursor: pointer; display: grid; place-items: center; margin-bottom: 24px; box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2);">←</button>
-                <div style="text-align: center; color: #8b92a5; margin-top: 40px; font-size: 1.1rem;">No transactions found.</div>
-            </div>
-        `;
+  const allTransactions = Array.isArray(transactions)
+    ? [...transactions]
+    : [];
+
+  // Sort newest transaction first
+  allTransactions.sort((a, b) => {
+    return new Date(b.date || 0) - new Date(a.date || 0);
+  });
+
+  // ------------------------------------------
+  // EMPTY STATE
+  // ------------------------------------------
+
+  if (allTransactions.length === 0) {
+    return `
+      <div
+        style="
+          background: #0c0e14;
+          min-height: 100vh;
+          padding: 24px 20px 130px;
+          font-family: 'Segoe UI', system-ui, sans-serif;
+          color: white;
+          box-sizing: border-box;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+          "
+        >
+          <button
+            type="button"
+            data-action="set-finance-view"
+            data-view="dashboard"
+            style="
+              width: 42px;
+              height: 42px;
+              border-radius: 14px;
+              background: linear-gradient(135deg, #222634, #14161c);
+              border: 1px solid rgba(255,255,255,0.12);
+              color: white;
+              font-size: 1.2rem;
+              cursor: pointer;
+              display: grid;
+              place-items: center;
+              margin-right: 14px;
+            "
+          >
+            ←
+          </button>
+
+          <h1
+            style="
+              margin: 0;
+              font-size: 1.5rem;
+              font-weight: 700;
+            "
+          >
+            All Transactions
+          </h1>
+        </div>
+
+        <div
+          style="
+            text-align: center;
+            color: #8b92a5;
+            margin-top: 60px;
+          "
+        >
+          No transactions found.
+        </div>
+      </div>
+    `;
+  }
+
+  // ------------------------------------------
+  // GROUP ONLY BY MONTH + YEAR
+  // ------------------------------------------
+
+  const monthGroups = {};
+
+  allTransactions.forEach((transaction) => {
+    const date = new Date(transaction.date);
+
+    if (Number.isNaN(date.getTime())) return;
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    const key =
+      `${year}-${String(month + 1).padStart(2, '0')}`;
+
+    if (!monthGroups[key]) {
+      monthGroups[key] = {
+        year,
+        month,
+        transactions: []
+      };
     }
 
-    const txCards = transactions.map(t => {
+    monthGroups[key].transactions.push(transaction);
+  });
+
+  // ------------------------------------------
+  // MONTHS NEWEST FIRST
+  // ------------------------------------------
+
+  const sortedGroups = Object.values(monthGroups).sort((a, b) => {
+    if (a.year !== b.year) {
+      return b.year - a.year;
+    }
+
+    return b.month - a.month;
+  });
+
+  // ------------------------------------------
+  // BUILD MONTH SECTIONS
+  // ------------------------------------------
+
+  const sections = sortedGroups.map((group) => {
+    const monthName = new Date(
+      group.year,
+      group.month,
+      1
+    ).toLocaleDateString('en-IN', {
+      month: 'long'
+    });
+
+    const transactionRows = group.transactions
+      .sort((a, b) => {
+        return new Date(b.date || 0) - new Date(a.date || 0);
+      })
+      .map((t) => {
         const isExpense = t.type === 'expense';
-        const amountColor = isExpense ? '#fca5a5' : '#6ee7b7';
+
         const sign = isExpense ? '-' : '+';
+
+        const amountColor = isExpense
+          ? '#ff8f9c'
+          : '#63e6b1';
+
         const txId = t._id || t.id;
 
+        const category = escapeHtml(
+          t.category ||
+          t.title ||
+          'Transaction'
+        );
+
+        const date = new Date(t.date);
+
+        const formattedDate =
+          date.toLocaleDateString('en-IN');
+
         return `
-            <div data-action="show-transaction-detail" data-id="${txId}" 
-                 style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1); cursor: pointer; transition: transform 0.1s;">
-                <div style="display: flex; align-items: center; gap: 16px; pointer-events: none;">
-                    <div style="width: 48px; height: 48px; border-radius: 16px; background: rgba(255,255,255,0.05); display: grid; place-items: center; font-size: 1.4rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
-                        ${t.icon || '💰'} 
-                    </div>
-                    <div>
-                        <h4 style="margin: 0; font-size: 1.1rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3); color: white;">${t.category}</h4>
-                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #8b92a5;">${new Date(t.date).toLocaleDateString()}</p>
-                    </div>
+          <button
+            type="button"
+            data-action="show-transaction-detail"
+            data-id="${txId}"
+            style="
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 14px;
+
+              padding: 16px 0;
+
+              background: transparent;
+              border: none;
+              border-bottom: 1px solid rgba(255,255,255,0.06);
+
+              color: white;
+              text-align: left;
+
+              cursor: pointer;
+              box-sizing: border-box;
+            "
+          >
+
+            <!-- LEFT -->
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-width: 0;
+                flex: 1;
+              "
+            >
+
+              <div
+                style="
+                  width: 46px;
+                  height: 46px;
+                  min-width: 46px;
+                  border-radius: 14px;
+
+                  background: rgba(255,255,255,0.06);
+
+                  display: grid;
+                  place-items: center;
+
+                  font-size: 1.15rem;
+                "
+              >
+                💰
+              </div>
+
+              <div
+                style="
+                  min-width: 0;
+                "
+              >
+
+                <div
+                  style="
+                    color: white;
+                    font-size: 1rem;
+                    font-weight: 700;
+
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                >
+                  ${category}
                 </div>
-                <div style="text-align: right; pointer-events: none;">
-                    <p style="margin: 0; font-weight: 800; font-size: 1.15rem; color: ${amountColor}; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${sign}₹${Math.abs(t.amount).toFixed(2)}</p>
+
+                <div
+                  style="
+                    margin-top: 4px;
+                    color: #8b92a5;
+                    font-size: 0.82rem;
+                  "
+                >
+                  ${formattedDate}
                 </div>
+
+              </div>
+
             </div>
+
+            <!-- AMOUNT -->
+            <div
+              style="
+                color: ${amountColor};
+                font-size: 1.05rem;
+                font-weight: 800;
+                white-space: nowrap;
+                flex-shrink: 0;
+              "
+            >
+              ${sign}₹${Math.abs(Number(t.amount) || 0).toFixed(2)}
+            </div>
+
+          </button>
         `;
-    }).join('');
+      })
+      .join('');
+
+    // ----------------------------------------
+    // ONLY MONTH/YEAR HEADING
+    // ----------------------------------------
 
     return `
-        <div style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; box-sizing: border-box;">
-            <!-- Header -->
-            <div style="display: flex; align-items: center; margin-bottom: 24px;">
-                <button data-action="set-finance-view" data-view="dashboard" style="background: linear-gradient(135deg, #222634, #14161c); border: 1px solid rgba(255,255,255,0.12); border-top: 1px solid rgba(255,255,255,0.25); width: 42px; height: 42px; border-radius: 14px; color: white; font-size: 1.2rem; cursor: pointer; display: grid; place-items: center; margin-right: 16px; box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2);">←</button>
-                <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.4);">All Transactions</h1>
-            </div>
-            
-            <!-- Transactions List -->
-            <div>
-                ${txCards}
-            </div>
+      <section
+        style="
+          margin: 0;
+        "
+      >
+
+        <!-- MONTH SEPARATOR -->
+        <div
+          style="
+            width: 100%;
+
+            padding:
+              20px 20px 16px;
+
+            background: #1a1b1d;
+
+            border-top:
+              1px solid rgba(255,255,255,0.04);
+
+            border-bottom:
+              1px solid rgba(255,255,255,0.05);
+
+            box-sizing: border-box;
+          "
+        >
+
+          <div
+            style="
+              color: #aeb4be;
+              font-size: 0.95rem;
+              font-weight: 600;
+              margin-bottom: 2px;
+            "
+          >
+            ${group.year}
+          </div>
+
+          <div
+            style="
+              color: #f2f3f5;
+              font-size: 1.75rem;
+              font-weight: 500;
+              line-height: 1.1;
+            "
+          >
+            ${monthName}
+          </div>
+
         </div>
+
+        <!-- ONLY TRANSACTIONS OF THIS MONTH -->
+        <div
+          style="
+            padding: 0 20px;
+            background: #0f1012;
+          "
+        >
+          ${transactionRows}
+        </div>
+
+      </section>
     `;
+  }).join('');
+
+  // ------------------------------------------
+  // PAGE
+  // ------------------------------------------
+
+  return `
+   <div
+  class="finance-transactions-page"
+  style="
+    background: #040404;
+    min-height: 100vh;
+
+    padding: 18px 14px 170px;
+
+    font-family:
+      'Segoe UI',
+      system-ui,
+      sans-serif;
+
+    color: white;
+
+    box-sizing: border-box;
+  "
+>
+
+      <!-- HEADER -->
+      <div
+  class="finance-transactions-header"
+  style="
+    display: flex;
+    align-items: center;
+
+    padding: 14px 20px;
+
+    background: #050505;
+  "
+>
+
+        <button
+          type="button"
+          data-action="set-finance-view"
+          data-view="dashboard"
+          style="
+            width: 42px;
+            height: 42px;
+
+            border-radius: 13px;
+
+            background:
+              linear-gradient(
+                145deg,
+                #292d34,
+                #17191d
+              );
+
+            border:
+              1px solid rgba(255,255,255,0.10);
+
+            color: white;
+
+            font-size: 1.2rem;
+
+            cursor: pointer;
+
+            display: grid;
+            place-items: center;
+
+            margin-right: 14px;
+          "
+        >
+          ←
+        </button>
+
+        <h1
+          style="
+            margin: 0;
+
+            font-size: 1.5rem;
+
+            font-weight: 800;
+
+            color: #f5f6f8;
+          "
+        >
+          All Transactions
+        </h1>
+
+      </div>
+
+      <!-- MONTH GROUPS -->
+      ${sections}
+
+    </div>
+  `;
 }
 
 // ==========================================

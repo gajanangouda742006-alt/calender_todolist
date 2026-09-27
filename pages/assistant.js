@@ -6,7 +6,7 @@ export function renderAssistantPage(state = {}) {
 
   return `
     <section class="screen assistant-screen">
-      <header class="assistant-header glass-card">
+      <header class="assistant-header glass-card page-fixed-header">
         <div class="assistant-header-row">
           <button class="back-button" type="button" data-action="back-home">← Back</button>
           <div class="assistant-brand">
@@ -35,7 +35,7 @@ export function renderAssistantPage(state = {}) {
         ${state.assistantLoading ? '<div class="message-time">Sahra is thinking...</div>' : ''}
       </div>
 
-      <div class="assistant-composer">
+      <div class="assistant-composer assistant-fixed-composer">
         <!-- Replace your old mic emoji/icon with this -->
     <button type="button" data-action="toggle-mic" style="background: transparent; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
     <img src="mic.png" alt="Mic" class="mic-icon" id="chat-mic-img" style="width: 45px; height: 45px; object-fit: contain;">

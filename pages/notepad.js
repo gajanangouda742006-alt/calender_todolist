@@ -25,10 +25,10 @@ export function renderVaultPage(state) {
   const noteColors = ['note-yellow', 'note-blue', 'note-pink', 'note-green', 'note-purple', 'note-orange'];
 
   return `
-    <div class="notepad-container" style="padding: 24px; padding-bottom: 110px; max-width: 600px; margin: 0 auto; min-height: 100vh;">
-      
+    <div class="notepad-container ${state.notepadSearchOpen ? 'search-open' : ''}">
       <!-- Glowing Glassmorphic Top Header[cite: 3] -->
-      <div style="background: linear-gradient(135deg, rgba(28, 42, 82, 0.65), rgba(13, 23, 52, 0.85)); border: 1px solid rgba(122, 180, 255, 0.4); border-radius: 24px; padding: 22px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 0 25px rgba(88, 140, 255, 0.2), inset 0 1px 0 rgba(255,255,255,0.18); margin-bottom: 24px;">
+     <div class="notepad-page-header"
+     style="background: linear-gradient(135deg, rgba(28, 42, 82, 0.65), rgba(13, 23, 52, 0.85)); border: 1px solid rgba(122, 180, 255, 0.4); border-radius: 24px; padding: 22px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 0 25px rgba(88, 140, 255, 0.2), inset 0 1px 0 rgba(255,255,255,0.18); margin-bottom: 24px;">
         <div>
           <h1 style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 0; line-height: 1.1; letter-spacing: -0.02em;">Notepad</h1>
           <span style="font-size: 0.85rem; color: #9fb4df; margin-top: 4px; display: block;">${notes.length} saved</span>
@@ -47,7 +47,7 @@ export function renderVaultPage(state) {
       </div>
 
       <!-- Notes Grid -->
-      <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div class="notepad-notes">
         ${filteredNotes.length === 0 ? `<div style="text-align:center; color:rgba(255,255,255,0.4); padding: 40px 0;">No notes found.</div>` : ''}
         ${filteredNotes.map((note, index) => {
           

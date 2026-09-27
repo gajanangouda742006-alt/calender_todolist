@@ -1298,12 +1298,13 @@ router.get('/transactions', verifyToken, async (req, res) => {
 router.post('/transactions', verifyToken, async (req, res) => {
   try {
     const {
-      amount,
-      category = 'General',
-      date,
-      note = '',
-      type
-    } = req.body;
+  amount,
+  category = 'General',
+  paymentMethod = 'Cash',
+  date,
+  note = '',
+  type
+} = req.body;
 
     const numericAmount = Number(amount);
 
@@ -1325,14 +1326,21 @@ router.post('/transactions', verifyToken, async (req, res) => {
       });
     }
 
-    const item = await Transaction.create({
-      userId: req.user.id,
-      amount: numericAmount,
-      category: String(category).trim(),
-      date,
-      note: String(note).trim(),
-      type
-    });
+    const allowedPaymentMethods = ['UPI', 'Bank', 'Card', 'Cash'];
+
+const cleanPaymentMethod = allowedPaymentMethods.includes(paymentMethod)
+  ? paymentMethod
+  : 'Cash';
+
+const item = await Transaction.create({
+  userId: req.user.id,
+  amount: numericAmount,
+  category: String(category).trim(),
+  paymentMethod: cleanPaymentMethod,
+  date,
+  note: String(note).trim(),
+  type
+});
 
     return res.status(201).json({
       message: 'Transaction created',

@@ -973,7 +973,7 @@ const monthLabel = new Date(
 
   return `
     <section class="screen home-screen">
-      <section class="hero glass-card">
+      <section class="hero glass-card page-fixed-header">
         <div class="hero-top">
           <div class="brand">
             <div class="brand-mark">${renderSahraLogo(52)}</div>
@@ -1023,9 +1023,9 @@ const monthLabel = new Date(
         <div class="calendar-header">
           <h3>${monthLabel}</h3>
           <div class="calendar-actions">
-            <button class="calendar-arrow" type="button" aria-label="Previous month">‹</button>
-            <button class="calendar-arrow" type="button" aria-label="Next month">›</button>
-            <button class="today-button" type="button" data-view="calendar">Today</button>
+            <button class="calendar-arrow" type="button" data-action="prev-month" aria-label="Previous month">‹</button>
+            <button class="calendar-arrow" type="button" data-action="next-month" aria-label="Next month">›</button>
+            <button class="today-button" type="button" data-action="today">Today</button>
           </div>
         </div>
 
@@ -1322,7 +1322,7 @@ function renderProgressPage() {
 
       <!-- TOP BAR -->
 
-      <header class="dashboard-topbar">
+      <header class="dashboard-topbar page-fixed-header">
 
         <button
           class="back-button"
@@ -1759,7 +1759,7 @@ function renderLayout() {
   app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
   
   // 🚀 FORCE SCROLL TO TOP IMMEDIATELY AFTER DRAWING NEW HTML
-  window.scrollTo(0, 0);
+  
 
   // Highlight active bottom navigation button
   const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals'];
@@ -2799,29 +2799,71 @@ document.addEventListener('input', (e) => {
 // NOTEPAD: SEARCH, EDIT & DELETE ACTIONS
 // ==========================================
 
+
 // 1. Toggle Search
 document.addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('[data-action="toggle-notepad-search"]');
-  if (toggleBtn) {
-    state.notepadSearchOpen = !state.notepadSearchOpen;
-    renderLayout();
-    if (state.notepadSearchOpen) setTimeout(() => document.querySelector('[data-action="notepad-search-input"]')?.focus(), 50);
-  }
-});
 
+  if (!toggleBtn) return;
 
-document.addEventListener('input', (e) => {
-  const input = e.target.closest('[data-action="notepad-search-input"]');
+  // Remember current page position
+  const app = document.querySelector('#app');
+  const currentScroll = app ? app.scrollTop : 0;
 
-  if (!input) return;
-
-  const cursorPosition = input.selectionStart ?? input.value.length;
-
-  state.noteSearchQuery = input.value;
+  state.notepadSearchOpen = !state.notepadSearchOpen;
 
   renderLayout();
 
-  setTimeout(() => {
+  // Restore position after render
+  requestAnimationFrame(() => {
+    const newApp = document.querySelector('#app');
+
+    if (newApp) {
+      newApp.scrollTop = currentScroll;
+    }
+
+    if (state.notepadSearchOpen) {
+      const searchInput = document.querySelector(
+        '[data-action="notepad-search-input"]'
+      );
+
+      if (searchInput) {
+        searchInput.focus();
+      }
+    }
+  });
+});
+
+
+// 2. Search typing
+document.addEventListener('input', (e) => {
+  const input = e.target.closest(
+    '[data-action="notepad-search-input"]'
+  );
+
+  if (!input) return;
+
+  const cursorPosition =
+    input.selectionStart ?? input.value.length;
+
+  // Save current scroll position
+  const app = document.querySelector('#app');
+  const currentScroll = app ? app.scrollTop : 0;
+
+  // Update search text
+  state.noteSearchQuery = input.value;
+
+  // Re-render filtered notes
+  renderLayout();
+
+  // Restore scroll + focus
+  requestAnimationFrame(() => {
+    const newApp = document.querySelector('#app');
+
+    if (newApp) {
+      newApp.scrollTop = currentScroll;
+    }
+
     const newInput = document.querySelector(
       '[data-action="notepad-search-input"]'
     );
@@ -2836,7 +2878,7 @@ document.addEventListener('input', (e) => {
     );
 
     newInput.setSelectionRange(position, position);
-  }, 0);
+  });
 });
 
 // 2. Open Edit inside Native App Modal (Replaces prompt)
@@ -3496,20 +3538,15 @@ if (action === 'delete-finance-transaction') {
       button.dataset.submitting = 'true';
       button.textContent = 'Saving...';
 
-      const amount =
-        document.getElementById('finance-amount')?.value;
+      const amount = document.getElementById('finance-amount')?.value;
+      const category = document.getElementById('finance-category')?.value;
+      const date = document.getElementById('finance-date')?.value;
+      const note = document.getElementById('finance-note')?.value;
+      
+      // 👈 1. ADD THIS LINE to grab the payment method from your form
+      const paymentMethod = document.getElementById('finance-payment-method')?.value || 'Cash';
 
-      const category =
-        document.getElementById('finance-category')?.value;
-
-      const date =
-        document.getElementById('finance-date')?.value;
-
-      const note =
-        document.getElementById('finance-note')?.value;
-
-      const type =
-        button.dataset.type || state.tempFinanceType || 'expense';
+      const type = button.dataset.type || state.tempFinanceType || 'expense';
 
       if (!amount || Number(amount) <= 0) {
         showToast('Please enter a valid amount.');
@@ -3527,7 +3564,8 @@ if (action === 'delete-finance-transaction') {
             category: category || 'Other',
             date: date || new Date().toISOString(),
             note: note || '',
-            type
+            type,
+            paymentMethod // 👈 2. ADD THIS LINE to send it to the database
           })
         });
 

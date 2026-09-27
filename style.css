@@ -2176,23 +2176,38 @@ body.theme-light .month-option.active {
   background: linear-gradient(135deg, #6557ff, #1a9de8);
   color: #ffffff;
 }
-
 .dashboard-hero {
   position: relative;
   overflow: hidden;
   padding: 18px 18px 22px;
-  background: linear-gradient(180deg, rgba(27, 42, 80, 0.96), rgba(16, 27, 55, 0.96));
+  margin-top: 75px;
+  background: linear-gradient(
+    180deg,
+    rgba(27, 42, 80, 0.96),
+    rgba(16, 27, 55, 0.96)
+  );
   border-radius: 26px;
 }
 
 .dashboard-hero::before {
   content: "";
+
   position: absolute;
-  inset: auto auto 0 -30px;
+
+  top: 30px;
+height: 120px;
+
   width: 180px;
   height: 120px;
-  background: linear-gradient(180deg, rgba(88, 98, 204, 0.18), transparent);
+
+  background: linear-gradient(
+    180deg,
+    rgba(88, 98, 204, 0.18),
+    transparent
+  );
+
   border-radius: 50% 50% 0 0;
+
   transform: skewX(8deg);
 }
 
@@ -4313,16 +4328,24 @@ body.theme-light .profile-row strong {
 
 /* HEADER */
 
-.notepad-toolbar {
-  position: relative;
+/* ==========================================
+   FIXED / STICKY NOTEPAD HEADER
+========================================== */
 
+.notepad-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+
+  z-index: 1000;
+
+  width: 100%;
   min-height: 108px;
 
   margin-bottom: 14px;
 
   padding: 20px 18px;
 
-  border-radius: 24px;
+  border-radius: 0 0 24px 24px;
 
   display: flex;
   align-items: center;
@@ -4331,15 +4354,15 @@ body.theme-light .profile-row strong {
   background:
     linear-gradient(
       135deg,
-      rgba(39, 62, 121, 0.92),
-      rgba(28, 43, 92, 0.75)
+      rgba(39, 62, 121, 0.98),
+      rgba(28, 43, 92, 0.96)
     );
 
-  border: 1px solid rgba(111, 153, 255, 0.28);
+  border: 1px solid rgba(111, 153, 255, 0.30);
 
   box-shadow:
-    0 16px 35px rgba(0,0,0,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+    0 12px 28px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255,255,255,0.10);
 
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
@@ -5505,3 +5528,890 @@ body.theme-light .profile-row strong {
   margin-top: 0 !important;
 }
 
+/* =========================================================
+   SAHRA FIXED APP LAYOUT
+   - Page content scrolls
+   - Page header stays fixed
+   - Bottom navigation stays fixed
+========================================================= */
+
+.mobile-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ONLY the page content scrolls */
+#app {
+  position: relative;
+
+  width: 100%;
+  max-width: 450px;
+
+  height: 100%;
+  min-height: 0;
+
+  margin: 0 auto;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  padding-bottom: 110px;
+
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+
+  scrollbar-width: none;
+}
+
+#app::-webkit-scrollbar {
+  display: none;
+}
+
+
+/* =========================================================
+   COMMON FIXED PAGE HEADER
+========================================================= */
+
+.page-fixed-header {
+  position: sticky;
+  top: 0;
+
+  z-index: 900;
+
+  width: 100%;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 13, 36, 0.98) 0%,
+      rgba(7, 13, 36, 0.94) 75%,
+      rgba(7, 13, 36, 0) 100%
+    );
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+
+/* =========================================================
+   FIXED BOTTOM NAVIGATION
+========================================================= */
+
+.bottom-nav {
+  position: absolute;
+
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+
+  z-index: 9999;
+
+  width: auto;
+
+  height: 72px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+
+  padding: 6px;
+
+  border-radius: 22px;
+
+  background: rgba(18, 30, 58, 0.96);
+
+  border: 1px solid rgba(160, 180, 255, 0.16);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+
+/* Keep last content visible above bottom nav */
+.screen {
+  padding-bottom: 20px;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 420px) {
+
+  .mobile-frame {
+    width: 100vw;
+
+    height: 100dvh;
+
+    min-height: 100dvh;
+    max-height: none;
+
+    border-radius: 0;
+  }
+
+  #app {
+    height: 100%;
+    min-height: 0;
+
+    padding-bottom: 108px;
+  }
+
+  .bottom-nav {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+  }
+}
+
+/* ==========================================
+   HOME PAGE FIXED HEADER
+========================================== */
+
+.hero.page-fixed-header {
+  position: sticky !important;
+  top: 0 !important;
+
+  z-index: 1000;
+
+  width: 100%;
+  box-sizing: border-box;
+
+  /* Keep header visible over scrolling content */
+  background:
+    linear-gradient(
+      135deg,
+      rgba(16, 29, 67, 0.98),
+      rgba(10, 20, 48, 0.96)
+    );
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================
+   ASSISTANT FIXED HEADER
+========================================== */
+
+.assistant-header.page-fixed-header {
+  position: sticky !important;
+  top: 0 !important;
+
+  z-index: 1000;
+
+  width: 100%;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(12, 22, 48, 0.98),
+      rgba(10, 18, 40, 0.96)
+    );
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+/* =========================================================
+   SAHRA ASSISTANT - FIXED HEADER + FIXED MESSAGE BOX
+========================================================= */
+
+/* The app itself should be the ONLY scroll area */
+.mobile-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+  height: 100%;
+  min-height: 0 !important;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  padding-bottom: 180px !important;
+
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+#app::-webkit-scrollbar {
+  display: none;
+}
+
+
+/* =========================================================
+   ASSISTANT PAGE
+========================================================= */
+
+.assistant-screen {
+  display: flex !important;
+  flex-direction: column !important;
+
+  height: auto !important;
+  min-height: 100% !important;
+
+  padding-top: 0 !important;
+  padding-bottom: 180px !important;
+
+  overflow: visible !important;
+}
+
+
+/* =========================================================
+   TOP HEADER - STAYS AT TOP WHEN PAGE SCROLLS
+========================================================= */
+
+.assistant-header.page-fixed-header {
+  position: sticky !important;
+  top: 0 !important;
+
+  z-index: 1000 !important;
+
+  flex-shrink: 0;
+
+  width: 100%;
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(10, 20, 44, 0.99),
+      rgba(8, 16, 35, 0.97)
+    ) !important;
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  border-radius: 0 0 22px 22px;
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+
+/* =========================================================
+   CHAT - NO SECOND SCROLL
+========================================================= */
+
+.assistant-chat {
+  flex: none !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  overflow: visible !important;
+
+  padding:
+    14px 4px 210px !important;
+}
+
+
+/* =========================================================
+   MESSAGE COMPOSER - FIXED ABOVE BOTTOM NAV
+========================================================= */
+
+.assistant-fixed-composer {
+  position: fixed !important;
+
+  left: 50% !important;
+  bottom: 200px !important;
+
+  transform: translateX(-50%) !important;
+
+  width: min(calc(100vw - 24px), 382px) !important;
+  min-height: 62px;
+
+  z-index: 10000 !important;
+
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 9px !important;
+
+  padding: 8px 10px !important;
+
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(24, 35, 65, 0.99),
+      rgba(11, 20, 42, 0.99)
+    ) !important;
+
+  border:
+    1px solid rgba(135, 157, 218, 0.28) !important;
+
+  border-radius: 20px !important;
+
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+
+/* Mic button */
+
+.assistant-fixed-composer [data-action="toggle-mic"] {
+  width: 42px !important;
+  height: 42px !important;
+
+  flex: 0 0 42px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0 !important;
+
+  border-radius: 13px !important;
+}
+
+
+/* Mic image */
+
+.assistant-fixed-composer .mic-icon {
+  width: 36px !important;
+  height: 36px !important;
+
+  object-fit: contain;
+}
+
+
+/* Text input */
+
+.assistant-fixed-composer .assistant-input {
+  flex: 1 1 auto !important;
+
+  min-width: 0 !important;
+
+  height: 42px !important;
+
+  padding: 0 13px !important;
+
+  border-radius: 13px !important;
+
+  box-sizing: border-box;
+}
+
+
+/* Send button */
+
+.assistant-fixed-composer .composer-send {
+  width: 42px !important;
+  height: 42px !important;
+
+  flex: 0 0 42px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0 !important;
+
+  border-radius: 13px !important;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 430px) {
+
+  .assistant-fixed-composer {
+    left: 10px !important;
+    right: 10px !important;
+
+    bottom: 92px !important;
+
+    transform: none !important;
+
+    width: auto !important;
+  }
+
+  .assistant-screen {
+    padding-bottom: 175px !important;
+  }
+
+  .assistant-chat {
+    padding-bottom: 200px !important;
+  }
+}
+/* =========================================================
+   NOTEPAD - FINAL CLEAN POSITIONING
+   CLOSED -> NOTES BELOW HEADER
+   OPEN   -> NOTES BELOW SEARCH BAR
+========================================================= */
+
+.notepad-container {
+  --notepad-width: min(calc(100vw - 24px), 406px);
+
+  width: var(--notepad-width) !important;
+  max-width: var(--notepad-width) !important;
+
+  margin: 0 auto !important;
+  padding: 0 0 170px 0 !important;
+
+  box-sizing: border-box !important;
+  position: relative !important;
+}
+
+
+/* =========================================================
+   FIXED HEADER
+========================================================= */
+
+.notepad-page-header {
+  position: fixed !important;
+
+  top: 15px !important;
+  left: 50% !important;
+
+  transform: translateX(-50%) !important;
+
+  width: var(--notepad-width) !important;
+  max-width: var(--notepad-width) !important;
+
+  margin: 0 !important;
+  box-sizing: border-box !important;
+
+  z-index: 10000 !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(28, 42, 82, 0.99),
+      rgba(13, 23, 52, 0.99)
+    ) !important;
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+
+/* =========================================================
+   FIXED SEARCH BAR
+========================================================= */
+
+[data-action="notepad-search-input"] {
+  position: fixed !important;
+
+  top: 128px !important;
+  left: 50% !important;
+
+  transform: translateX(-50%) !important;
+
+  width: var(--notepad-width) !important;
+  max-width: var(--notepad-width) !important;
+
+  height: 54px !important;
+
+  margin: 0 !important;
+  padding: 16px 20px !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 10001 !important;
+
+  background: #ffffff !important;
+
+  border-radius: 16px !important;
+
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.22) !important;
+}
+
+
+/* =========================================================
+   NOTES CONTAINER
+========================================================= */
+
+.notepad-notes {
+  width: 100% !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+
+  gap: 16px !important;
+
+  margin-left: auto !important;
+  margin-right: auto !important;
+
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+
+  /*
+    Header is top: 10px.
+    Notes begin just below the header.
+  */
+  margin-top: 130px !important;
+}
+
+
+/* =========================================================
+   SEARCH OPEN
+   Move notes below the fixed search bar
+========================================================= */
+
+.notepad-container.search-open .notepad-notes {
+  margin-top: 184px !important;
+}
+
+
+/* =========================================================
+   NOTE CARDS
+========================================================= */
+
+.notepad-notes > * {
+  width: 100% !important;
+
+  flex-shrink: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+   REMOVE OLD NOTEPAD SPACING / OVERLAYS
+========================================================= */
+
+.notepad-screen {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+
+.notepad-grid {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.notepad-screen::before,
+.notepad-screen::after {
+  display: none !important;
+  content: none !important;
+}
+
+
+/* =========================================================
+   SEARCH WRAPPER
+========================================================= */
+
+.notepad-container > div:nth-of-type(2) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* =========================================================
+   SCROLL CLEARANCE
+========================================================= */
+
+#app {
+  scroll-padding-top: 185px !important;
+  scroll-padding-bottom: 170px !important;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 430px) {
+
+  .notepad-container {
+    --notepad-width: calc(100vw - 24px);
+
+    width: var(--notepad-width) !important;
+    max-width: var(--notepad-width) !important;
+
+    padding-bottom: 170px !important;
+  }
+
+  .notepad-page-header {
+    width: var(--notepad-width) !important;
+    max-width: var(--notepad-width) !important;
+  }
+
+  [data-action="notepad-search-input"] {
+    width: var(--notepad-width) !important;
+    max-width: var(--notepad-width) !important;
+  }
+
+  .notepad-notes {
+    margin-top: 104px !important;
+  }
+
+  .notepad-container.search-open .notepad-notes {
+    margin-top: 184px !important;
+  }
+}
+/* =========================================================
+   FINANCE DASHBOARD
+   FIXED TOP HEADER
+========================================================= */
+
+.finance-dashboard-page {
+  position: relative !important;
+
+  box-sizing: border-box !important;
+
+  /* Space reserved for fixed header */
+  padding-top: 118px !important;
+
+  /* Space above bottom navigation */
+  padding-bottom: 170px !important;
+
+  overflow-x: hidden;
+}
+
+
+/* =========================================================
+   FIXED DASHBOARD HEADER
+========================================================= */
+
+.finance-dashboard-header {
+  position: fixed !important;
+
+  top: 10px !important;
+  left: 50% !important;
+
+  transform: translateX(-50%) !important;
+
+  width: min(calc(100vw - 28px), 402px) !important;
+
+  margin: 0 !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 10000 !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(28, 42, 82, 0.98),
+      rgba(13, 23, 52, 0.98)
+    ) !important;
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.30),
+    inset 0 1px 1px rgba(255, 255, 255, 0.10) !important;
+}
+
+
+/* Keep header contents above the glow */
+
+.finance-dashboard-header > * {
+  position: relative;
+  z-index: 2;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 430px) {
+
+  .finance-dashboard-page {
+    padding-top: 118px !important;
+    padding-bottom: 170px !important;
+  }
+
+  .finance-dashboard-header {
+    width: calc(100vw - 28px) !important;
+    max-width: 402px !important;
+  }
+}
+
+/* =========================================================
+   FINANCE - ALL TRANSACTIONS
+   DASHBOARD STYLE HEADER
+========================================================= */
+
+.finance-transactions-page {
+  position: relative !important;
+  box-sizing: border-box !important;
+
+  padding-top: 118px !important;
+  padding-bottom: 170px !important;
+
+  background: #0f1012 !important;
+}
+
+
+/* =========================================================
+   INSET CURVED HEADER
+========================================================= */
+
+.finance-transactions-header {
+  position: fixed !important;
+
+  top: 8px !important;
+
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+
+  width: min(calc(100vw - 28px), 402px) !important;
+
+  margin: 0 !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 10000 !important;
+
+  border-radius: 22px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(28, 42, 82, 0.98),
+      rgba(13, 23, 52, 0.98)
+    ) !important;
+
+  border:
+    1px solid rgba(96,165,255,0.18) !important;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,0.30),
+    inset 0 1px 1px rgba(255,255,255,0.10) !important;
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  overflow: hidden !important;
+}
+
+
+/* =========================================================
+   HEADER CONTENT ABOVE BACKGROUND
+========================================================= */
+
+.finance-transactions-header > * {
+  position: relative;
+  z-index: 2;
+}
+
+
+/* =========================================================
+   BLACK SPACE ABOVE / AROUND HEADER
+========================================================= */
+
+.finance-transactions-page::before {
+  content: "";
+
+  position: fixed;
+
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 10px;
+
+  background: #0f1012;
+
+  z-index: 9999;
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 430px) {
+
+  .finance-transactions-header {
+    width: calc(100vw - 28px) !important;
+    max-width: 402px !important;
+    top: 8px !important;
+  }
+
+  .finance-transactions-page {
+    padding-top: 118px !important;
+  }
+}
+/* =========================================================
+   SAHRA DASHBOARD TOP HEADER
+   FIXED POSITION
+========================================================= */
+
+.dashboard-topbar.page-fixed-header {
+  position: fixed !important;
+
+  top: 8px !important;
+  left: 50% !important;
+
+  transform: translateX(-50%) !important;
+
+  width: min(calc(100vw - 28px), 402px) !important;
+
+  margin: 0 !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 10000 !important;
+
+  border-radius: 22px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(28, 42, 82, 0.98),
+      rgba(13, 23, 52, 0.98)
+    ) !important;
+
+  border: 1px solid rgba(96,165,255,0.18) !important;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,0.30),
+    inset 0 1px 1px rgba(255,255,255,0.10) !important;
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+
+/* Keep header elements above the background */
+
+.dashboard-topbar.page-fixed-header > * {
+  position: relative;
+  z-index: 2;
+}
+
+
+/* Mobile */
+
+@media (max-width: 430px) {
+
+  .dashboard-topbar.page-fixed-header {
+    width: calc(100vw - 28px) !important;
+    max-width: 402px !important;
+    top: 8px !important;
+  }
+
+}

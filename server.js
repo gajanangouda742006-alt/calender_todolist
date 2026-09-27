@@ -160,14 +160,17 @@ app.get('/api/transactions', async (req, res) => {
 // POST: Save a new transaction
 app.post('/api/transactions', async (req, res) => {
   try {
-    const { type, amount, category, note, date } = req.body;
+    // 1. ADD paymentMethod HERE to extract it from the incoming request
+    const { type, amount, category, note, date, paymentMethod } = req.body; 
     
     const newTransaction = new Transaction({
       type,
       amount: Number(amount),
       category,
       note,
-      date: date || Date.now()
+      date: date || Date.now(),
+      // 2. ADD paymentMethod HERE so it actually saves to MongoDB
+      paymentMethod: paymentMethod || 'Cash' 
     });
 
     await newTransaction.save();
