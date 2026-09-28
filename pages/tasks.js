@@ -61,11 +61,7 @@ export function renderTasksPage(state) {
     : '<div class="todo-item"><div class="todo-content"><div class="todo-title-row"><h4>No tasks yet.</h4></div></div></div>';
 
   return `
-    <section class="screen todo-screen">
-      <div class="todo-header page-fixed-header">
-        <div class="todo-back-wrap">
-          <button class="nav-back" type="button" data-action="back-home" aria-label="Back">←</button>
-        </div>
+   
 
         <div class="todo-heading">
           <div class="todo-icon">☑️</div>

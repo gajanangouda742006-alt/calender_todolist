@@ -8,7 +8,7 @@ export function renderAssistantPage(state = {}) {
     <section class="screen assistant-screen">
       <header class="assistant-header glass-card page-fixed-header">
         <div class="assistant-header-row">
-          <button class="back-button" type="button" data-action="back-home">← Back</button>
+          
           <div class="assistant-brand">
             <div class="assistant-mark"><img class="sahra-logo" src="/images/sahra.png" alt="Sahra logo" width="48" height="48" /></div>
             <div class="assistant-title">

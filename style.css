@@ -1,22 +1,22 @@
 :root {
-  --bg-1: #070d24;
-  --bg-2: #101a39;
-  --surface: rgba(17, 28, 56, 0.84);
-  --surface-strong: rgba(21, 33, 68, 0.96);
-  --surface-soft: rgba(120, 132, 255, 0.12);
-  --text: #edf3ff;
-  --muted: #9aa7c2;
-  --purple: #8d71ff;
-  --pink: #ff77d8;
-  --cyan: #67d6ff;
-  --green: #61f5b0;
-  --yellow: #ffdc7a;
-  --danger: #ff7c9a;
-  --shadow: 0 24px 50px rgba(12, 18, 40, 0.45);
-  --panel-bg: rgba(18, 28, 52, 0.97);
-  --panel-border: rgba(172, 186, 255, 0.18);
-  --button-surface: rgba(255, 255, 255, 0.04);
-  --page-bg: radial-gradient(circle at top, #111d3f 0%, #070d24 38%, #040912 100%);
+  --bg-1: #071126;
+  --bg-2: #0b1730;
+  --surface: rgba(16, 27, 53, 0.96);
+  --surface-strong: rgba(20, 36, 67, 0.98);
+  --surface-soft: rgba(67, 139, 245, 0.10);
+  --text: #ffffff;
+  --muted: #aab9d8;
+  --purple: #8763f5;
+  --pink: #b59cff;
+  --cyan: #73cfff;
+  --green: #63e1ae;
+  --yellow: #ffd56f;
+  --danger: #ff7d98;
+  --shadow: 0 22px 42px rgba(0, 0, 0, 0.42), 0 8px 20px rgba(35, 80, 170, 0.18);
+  --panel-bg: rgba(15, 26, 53, 0.98);
+  --panel-border: rgba(150, 180, 255, 0.20);
+  --button-surface: rgba(255, 255, 255, 0.045);
+  --page-bg: radial-gradient(circle at top, #13264b 0%, #071126 42%, #040a16 100%);
 }
 
 html[data-theme="light"], body.theme-light {
@@ -66,13 +66,13 @@ button, input, textarea {
 }
 
 .mobile-frame {
-  width: min(100%, 430px);
+  width: min(100%, 410px);
   height: 90vh; /* Forces constrained height so scrolling works */
   min-height: 700px;
   max-height: 900px;
-  background: linear-gradient(180deg, rgba(8, 12, 26, 0.85), rgba(9, 16, 33, 0.94));
+  background: linear-gradient(180deg, rgba(8, 15, 31, 0.98), rgba(5, 13, 29, 0.99));
   border: 1px solid rgba(173, 186, 255, 0.22);
-  border-radius: 32px;
+  border-radius: 28px;
   overflow: hidden; /* Hides overflow extending past the frame rounded corners */
   box-shadow: var(--shadow);
   position: relative;
@@ -109,9 +109,10 @@ button, input, textarea {
 }
 
 .hero {
+    margin-top: 10px;
   padding: 18px 18px 14px;
   background: linear-gradient(135deg, rgba(112, 76, 255, 0.32), rgba(79, 176, 255, 0.08));
-  position: relative;
+  position: fixed;
   overflow: hidden;
 }
 
@@ -2618,9 +2619,6 @@ height: 120px;
   padding: 6px;
   padding-bottom: 6px;
 
- .nav-itembackground {
-    background: rgba(18, 30, 58, 0.94);
-}
   border: 1px solid rgba(160, 180, 255, 0.16);
   border-radius: 22px;
 
@@ -5523,10 +5521,6 @@ body.theme-light .profile-row strong {
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
-.vault-screen {
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
 
 /* =========================================================
    SAHRA FIXED APP LAYOUT
@@ -5702,8 +5696,9 @@ body.theme-light .profile-row strong {
 ========================================== */
 
 .assistant-header.page-fixed-header {
+  margin-top:10px;
   position: sticky !important;
-  top: 0 !important;
+  
 
   z-index: 1000;
 
@@ -6414,4 +6409,1576 @@ body.theme-light .profile-row strong {
     top: 8px !important;
   }
 
+}
+/* =========================================================
+   MONTHLY FINANCE — PROGRESS PAGE
+========================================================= */
+
+.monthly-finance-panel {
+  padding: 18px 16px;
+  border-radius: 22px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(24, 40, 77, 0.98),
+      rgba(12, 24, 51, 0.98)
+    );
+
+  border: 1px solid rgba(150, 180, 255, 0.18);
+
+  box-shadow:
+    0 18px 35px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.finance-month-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.monthly-finance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.finance-summary-card {
+  padding: 16px 14px;
+  border-radius: 17px;
+
+  border: 1px solid rgba(150, 180, 255, 0.14);
+
+  box-shadow:
+    0 10px 18px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.income-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(39, 112, 218, 0.75),
+      rgba(27, 65, 137, 0.95)
+    );
+}
+
+.expense-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(77, 61, 145, 0.82),
+      rgba(40, 35, 92, 0.96)
+    );
+}
+
+.finance-summary-icon {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  background: rgba(255,255,255,0.10);
+
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.finance-summary-label {
+  color: #b5c4e6;
+  font-size: 0.78rem;
+}
+
+.finance-summary-card strong {
+  color: white;
+  font-size: 1.12rem;
+  letter-spacing: -0.02em;
+}
+
+.finance-net-row {
+  margin-top: 12px;
+  padding: 13px 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-radius: 14px;
+
+  background: rgba(255,255,255,0.045);
+
+  border: 1px solid rgba(150,180,255,0.10);
+}
+
+.finance-net-row span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.finance-net-row strong {
+  font-size: 1rem;
+}
+
+.finance-net-row strong.positive {
+  color: #68e0ae;
+}
+
+.finance-net-row strong.negative {
+  color: #ff7d98;
+}
+
+@media (max-width: 380px) {
+  .monthly-finance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   SAHRA REFERENCE VISUAL SYSTEM — PHYSICAL 3D SKIN
+   Visual-only: stronger 3D depth, bevels, raised/recessed surfaces,
+   consistent mobile width. Do not alter behavior or structure.
+========================================================= */
+
+:root {
+  --sahra-bg: #071126;
+  --sahra-bg-2: #0b1730;
+  --sahra-surface: #101b35;
+  --sahra-surface-2: #142443;
+  --sahra-surface-3: #182b52;
+  --sahra-blue-1: #438bf5;
+  --sahra-blue-2: #347ff0;
+  --sahra-blue-3: #2467d9;
+  --sahra-purple-1: #8763f5;
+  --sahra-purple-2: #7654e8;
+  --sahra-purple-3: #6c4ce5;
+  --sahra-text: #ffffff;
+  --sahra-muted: #aab9d8;
+  --sahra-border: rgba(150,180,255,.20);
+
+  /* Physical depth system */
+  --sahra-card-shadow:
+    0 3px 0 rgba(5,12,28,.88),
+    0 8px 14px rgba(0,0,0,.28),
+    0 18px 30px rgba(0,0,0,.28);
+
+  --sahra-card-inset:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    inset 0 2px 0 rgba(255,255,255,.035),
+    inset 0 -2px 0 rgba(0,0,0,.30),
+    inset 0 -7px 14px rgba(0,0,0,.10);
+
+  --sahra-raise-shadow:
+    0 3px 0 rgba(5,11,28,.85),
+    0 8px 14px rgba(0,0,0,.24),
+    0 14px 24px rgba(0,0,0,.24),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -2px 0 rgba(0,0,0,.24);
+
+  --sahra-recess-shadow:
+    inset 0 2px 5px rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 1px 0 rgba(255,255,255,.025);
+}
+
+/* =========================================================
+   APP BODY / FRAME
+========================================================= */
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -8%, #14294f 0%, #0b1730 38%, #040a16 100%) !important;
+  color: var(--sahra-text) !important;
+}
+
+.mobile-frame {
+  width: min(100%, 410px) !important;
+  background:
+    linear-gradient(180deg, #0a1630 0%, #071126 54%, #050c1b 100%) !important;
+  border: 1px solid rgba(154,182,255,.27) !important;
+  border-radius: 28px !important;
+  overflow: hidden !important;
+  position: relative !important;
+  isolation: isolate;
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.05),
+    0 0 0 1px rgba(0,0,0,.45),
+    0 10px 18px rgba(0,0,0,.42),
+    0 26px 48px rgba(0,0,0,.34) !important;
+}
+
+.mobile-frame::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 27px;
+  pointer-events: none;
+  z-index: 0;
+  border: 1px solid rgba(255,255,255,.035);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+#app {
+  width: 100% !important;
+  max-width: 410px !important;
+  margin: 0 auto !important;
+  position: relative;
+  z-index: 1;
+}
+
+.screen {
+  gap: 16px;
+}
+
+/* =========================================================
+   UNIVERSAL 3D CARD SURFACES
+========================================================= */
+
+.glass-card,
+.todo-card,
+.progress-card,
+.progress-panel,
+.activity-panel,
+.mood-panel,
+.profile-panel,
+.calendar-card,
+.date-weather-card,
+.task-card,
+.focus-card,
+.metric-card,
+.monthly-finance-panel,
+.finance-summary-card,
+.habit-card,
+.goal-card,
+.life-card,
+.activity-card {
+  position: relative;
+  border: 1px solid rgba(150,180,255,.20) !important;
+  border-top-color: rgba(188,208,255,.27) !important;
+  border-bottom-color: rgba(3,11,28,.58) !important;
+  border-radius: 22px !important;
+  background:
+    linear-gradient(180deg,
+      #1b315e 0%,
+      #15294f 44%,
+      #0f2144 100%) !important;
+  box-shadow: var(--sahra-card-shadow), var(--sahra-card-inset) !important;
+  transform: translateZ(0);
+}
+
+/* top bevel / lower bevel without covering content */
+.glass-card::after,
+.todo-card::after,
+.progress-card::after,
+.progress-panel::after,
+.activity-panel::after,
+.mood-panel::after,
+.profile-panel::after,
+.calendar-card::after,
+.date-weather-card::after,
+.task-card::after,
+.focus-card::after,
+.metric-card::after,
+.monthly-finance-panel::after,
+.finance-summary-card::after,
+.habit-card::after,
+.goal-card::after,
+.life-card::after,
+.activity-card::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: -5px;
+  height: 7px;
+  border-radius: 0 0 18px 18px;
+  background: linear-gradient(180deg, rgba(15,28,57,.82), rgba(3,10,24,.95));
+  box-shadow: 0 7px 10px rgba(0,0,0,.22);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.glass-card:focus-within,
+.todo-card:focus-within,
+.progress-card:focus-within,
+.progress-panel:focus-within,
+.activity-panel:focus-within,
+.calendar-card:focus-within {
+  border-top-color: rgba(191,214,255,.38) !important;
+}
+
+/* =========================================================
+   HEADERS — RAISED PANEL
+========================================================= */
+
+.hero,
+.dashboard-topbar.page-fixed-header,
+.finance-dashboard-header,
+.finance-transactions-header,
+.assistant-header.page-fixed-header,
+.notepad-page-header {
+  position: relative;
+  border: 1px solid rgba(153,184,255,.27) !important;
+  border-top-color: rgba(211,224,255,.34) !important;
+  border-bottom-color: rgba(2,10,26,.68) !important;
+  background:
+    linear-gradient(180deg,
+      #233e77 0%,
+      #19325f 48%,
+      #10244a 100%) !important;
+  box-shadow:
+    0 3px 0 rgba(4,10,25,.90),
+    0 11px 20px rgba(0,0,0,.28),
+    0 22px 34px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 -2px 0 rgba(0,0,0,.28) !important;
+}
+
+.hero {
+  border-radius: 24px !important;
+}
+
+/* Do not allow the generic 3D lower edge to collide with special hero decorations. */
+.hero::after,
+.dashboard-hero::after {
+  bottom: 0;
+  height: 0;
+  box-shadow: none;
+  background: none;
+}
+
+/* =========================================================
+   BLUE FEATURE / BALANCE / WEATHER CARDS
+========================================================= */
+
+.date-weather-card,
+.finance-dashboard-page .total-balance-card,
+.finance-dashboard-page .balance-card,
+.finance-dashboard-page .summary-card,
+.finance-dashboard-page .finance-summary-card.income-card,
+.monthly-finance-panel .income-card {
+  background:
+    linear-gradient(180deg,
+      #438bf5 0%,
+      #367ff0 42%,
+      #2a6fe0 72%,
+      #2467d9 100%) !important;
+  border-top-color: rgba(214,234,255,.48) !important;
+  border-bottom-color: rgba(25,67,146,.84) !important;
+  box-shadow:
+    0 3px 0 rgba(18,54,120,.88),
+    0 10px 16px rgba(0,0,0,.27),
+    0 22px 34px rgba(31,92,202,.28),
+    0 30px 50px rgba(17,55,129,.16),
+    inset 0 2px 0 rgba(255,255,255,.20),
+    inset 0 -3px 0 rgba(0,0,0,.16),
+    inset 0 -14px 24px rgba(0,0,0,.06) !important;
+}
+
+.date-weather-card .weather-icon,
+.date-weather-card .date-weather-day,
+.date-weather-card .temp-value {
+  text-shadow: 0 3px 8px rgba(0,0,0,.20);
+}
+
+/* =========================================================
+   DASHBOARD / PROGRESS HERO
+========================================================= */
+
+.dashboard-hero {
+  background:
+    linear-gradient(180deg,
+      #213a70 0%,
+      #192f5c 46%,
+      #11264e 100%) !important;
+  box-shadow:
+    0 3px 0 rgba(4,10,25,.90),
+    0 10px 18px rgba(0,0,0,.28),
+    0 20px 34px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.13),
+    inset 0 -2px 0 rgba(0,0,0,.28) !important;
+}
+
+/* =========================================================
+   DARK PANELS
+========================================================= */
+
+.dashboard-screen .progress-panel,
+.dashboard-screen .activity-panel,
+.finance-dashboard-page .finance-content-card,
+.finance-transactions-page .transaction-card,
+.todo-item,
+.habit-card,
+.goal-card,
+.task-card,
+.focus-card,
+.life-card,
+.activity-card {
+  background:
+    linear-gradient(180deg,
+      #1b2f59 0%,
+      #152747 48%,
+      #10213f 100%) !important;
+  border-top-color: rgba(183,205,255,.24) !important;
+  border-bottom-color: rgba(2,10,25,.62) !important;
+  box-shadow: var(--sahra-card-shadow), var(--sahra-card-inset) !important;
+}
+
+/* =========================================================
+   RECESSED SUB-PANELS
+========================================================= */
+
+.progress-metrics,
+.finance-net-row,
+.finance-dashboard-page .summary-grid,
+.task-input-row,
+.ask-box,
+.assistant-composer,
+.metric-card,
+.focus-card,
+.month-picker,
+.filter-row,
+.tab-row,
+.finance-filter-row,
+.entry-inline-grid,
+.entry-field input,
+.entry-field textarea,
+.entry-field select,
+.profile-input,
+input,
+textarea,
+select {
+  box-shadow: var(--sahra-recess-shadow) !important;
+}
+
+/* =========================================================
+   BUTTONS — RAISED / BEVELED
+========================================================= */
+
+.primary-btn,
+.secondary-btn,
+.small-btn,
+.ghost-btn,
+.inline-btn,
+.tag-btn,
+.calendar-arrow,
+.today-button,
+.panel-select,
+.panel-link,
+.filter-btn,
+.task-plus,
+.task-add,
+.back-button,
+.nav-back,
+.menu-button,
+.notepad-icon-btn,
+.month-picker,
+.month-picker-nav,
+.year-chip,
+.more-menu-option,
+.more-menu-close,
+.show-event,
+.add-event,
+.icon-btn {
+  border: 1px solid rgba(156,185,255,.20) !important;
+  border-top-color: rgba(215,228,255,.22) !important;
+  border-bottom-color: rgba(4,12,28,.58) !important;
+  background:
+    linear-gradient(180deg,
+      #263e6c 0%,
+      #1b315b 46%,
+      #132747 100%) !important;
+  color: #fff !important;
+  box-shadow: var(--sahra-raise-shadow) !important;
+  transform: translateY(0);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+
+.primary-btn:hover,
+.secondary-btn:hover,
+.small-btn:hover,
+.ghost-btn:hover,
+.inline-btn:hover,
+.tag-btn:hover,
+.calendar-arrow:hover,
+.today-button:hover,
+.panel-select:hover,
+.panel-link:hover,
+.filter-btn:hover,
+.task-plus:hover,
+.task-add:hover,
+.back-button:hover,
+.nav-back:hover,
+.menu-button:hover,
+.notepad-icon-btn:hover,
+.month-picker:hover,
+.month-picker-nav:hover,
+.year-chip:hover,
+.more-menu-option:hover,
+.more-menu-close:hover,
+.show-event:hover,
+.add-event:hover,
+.icon-btn:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 0 rgba(5,11,28,.82),
+    0 10px 18px rgba(0,0,0,.28),
+    0 16px 26px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.18),
+    inset 0 -2px 0 rgba(0,0,0,.25) !important;
+}
+
+.primary-btn:active,
+.secondary-btn:active,
+.small-btn:active,
+.ghost-btn:active,
+.inline-btn:active,
+.tag-btn:active,
+.calendar-arrow:active,
+.today-button:active,
+.panel-select:active,
+.panel-link:active,
+.filter-btn:active,
+.task-plus:active,
+.task-add:active,
+.back-button:active,
+.nav-back:active,
+.menu-button:active,
+.notepad-icon-btn:active,
+.month-picker:active,
+.month-picker-nav:active,
+.year-chip:active,
+.more-menu-option:active,
+.more-menu-close:active,
+.show-event:active,
+.add-event:active,
+.icon-btn:active {
+  transform: translateY(2px) !important;
+  box-shadow:
+    0 1px 0 rgba(5,11,28,.72),
+    0 4px 8px rgba(0,0,0,.24),
+    inset 0 2px 5px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+
+/* =========================================================
+   PURPLE ACTIVE / PRIMARY SURFACES
+========================================================= */
+
+.nav-item.active,
+.filter-btn.active,
+.month-option.active,
+.tab.active,
+.finance-filter.active,
+.primary-btn,
+.task-add,
+.add-event,
+.entry-back {
+  background:
+    linear-gradient(180deg,
+      #9171f7 0%,
+      #8763f5 42%,
+      #7654e8 72%,
+      #6c4ce5 100%) !important;
+  color: #fff !important;
+  border-color: rgba(205,187,255,.38) !important;
+  border-top-color: rgba(235,226,255,.48) !important;
+  border-bottom-color: rgba(66,43,157,.80) !important;
+  box-shadow:
+    0 3px 0 rgba(59,39,145,.92),
+    0 10px 16px rgba(85,55,201,.30),
+    0 18px 28px rgba(52,35,137,.24),
+    inset 0 2px 0 rgba(255,255,255,.23),
+    inset 0 -2px 0 rgba(0,0,0,.18) !important;
+}
+
+/* =========================================================
+   BOTTOM NAV — FLOATING 3D TRAY
+========================================================= */
+
+.bottom-nav {
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+  width: auto !important;
+  max-width: none !important;
+  height: 70px !important;
+  padding: 5px !important;
+  border-radius: 22px !important;
+  background:
+    linear-gradient(180deg,
+      #182e5a 0%,
+      #122544 48%,
+      #0a1935 100%) !important;
+  border: 1px solid rgba(151,181,250,.25) !important;
+  border-top-color: rgba(206,222,255,.32) !important;
+  border-bottom-color: rgba(2,9,23,.82) !important;
+  box-shadow:
+    0 3px 0 rgba(2,9,24,.94),
+    0 12px 20px rgba(0,0,0,.38),
+    0 20px 34px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -3px 0 rgba(0,0,0,.24) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.bottom-nav::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -5px;
+  height: 6px;
+  border-radius: 0 0 18px 18px;
+  background: #071329;
+  box-shadow: 0 6px 11px rgba(0,0,0,.30);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.bottom-nav .nav-indicator {
+  display: none !important;
+}
+
+.bottom-nav .nav-item {
+  position: relative;
+  height: 58px !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: #9eafd2 !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  transform: translateY(0);
+}
+
+.bottom-nav .nav-item:hover {
+  background: linear-gradient(180deg, rgba(49,73,121,.34), rgba(17,33,61,.30)) !important;
+  color: #dfe8ff !important;
+}
+
+.bottom-nav .nav-item.active {
+  background:
+    linear-gradient(180deg,
+      #9171f7 0%,
+      #8763f5 42%,
+      #7654e8 72%,
+      #6c4ce5 100%) !important;
+  border: 1px solid rgba(211,194,255,.38) !important;
+  border-top-color: rgba(246,240,255,.54) !important;
+  border-bottom-color: rgba(64,42,153,.86) !important;
+  color: #fff !important;
+  box-shadow:
+    0 3px 0 rgba(59,39,145,.96),
+    0 10px 16px rgba(72,46,180,.34),
+    0 16px 26px rgba(0,0,0,.24),
+    inset 0 2px 0 rgba(255,255,255,.23),
+    inset 0 -2px 0 rgba(0,0,0,.18) !important;
+  transform: translateY(-2px) !important;
+}
+
+.bottom-nav .nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 1px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.34);
+  pointer-events: none;
+}
+
+/* =========================================================
+   INPUTS — RECESSED INTO CARD
+========================================================= */
+
+input,
+textarea,
+select,
+.profile-input,
+.entry-field input,
+.entry-field textarea,
+.entry-field select {
+  background:
+    linear-gradient(180deg,
+      #0e1e3b 0%,
+      #0a1933 100%) !important;
+  color: #fff !important;
+  border: 1px solid rgba(151,182,255,.18) !important;
+  border-top-color: rgba(184,207,255,.20) !important;
+  border-bottom-color: rgba(0,8,22,.72) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 1px 0 rgba(255,255,255,.02) !important;
+  border-radius: 13px !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(109,150,255,.58) !important;
+  box-shadow:
+    0 0 0 2px rgba(67,139,245,.10),
+    inset 0 2px 5px rgba(0,0,0,.30),
+    inset 0 1px 0 rgba(255,255,255,.05) !important;
+  outline: none !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #91a4c8 !important;
+}
+
+/* =========================================================
+   CALENDAR — TILE DEPTH
+========================================================= */
+
+.calendar-day {
+  background:
+    linear-gradient(180deg,
+      #263d6b 0%,
+      #1d3159 48%,
+      #142746 100%) !important;
+  border: 1px solid rgba(146,179,251,.12) !important;
+  border-top-color: rgba(199,218,255,.16) !important;
+  border-bottom-color: rgba(3,10,24,.64) !important;
+  box-shadow:
+    0 2px 0 rgba(5,12,26,.82),
+    0 5px 9px rgba(0,0,0,.20),
+    inset 0 1px 0 rgba(255,255,255,.07),
+    inset 0 -2px 0 rgba(0,0,0,.18) !important;
+}
+
+.calendar-day:hover {
+  transform: translateY(-1px);
+}
+
+.calendar-day.selected {
+  background:
+    linear-gradient(180deg,
+      #6684bd 0%,
+      #5574ac 46%,
+      #3f6098 100%) !important;
+  border-color: rgba(204,221,255,.42) !important;
+  border-top-color: rgba(238,246,255,.50) !important;
+  border-bottom-color: rgba(37,59,103,.86) !important;
+  box-shadow:
+    0 3px 0 rgba(31,51,91,.88),
+    0 8px 15px rgba(39,80,150,.30),
+    inset 0 2px 0 rgba(255,255,255,.20),
+    inset 0 -2px 0 rgba(0,0,0,.18) !important;
+  transform: translateY(-1px);
+}
+
+.calendar-arrow,
+.today-button,
+.month-picker-nav,
+.year-chip,
+.panel-link,
+.panel-select {
+  min-height: 30px;
+}
+
+/* =========================================================
+   CHARTS — RECESSED / EMBEDDED
+========================================================= */
+
+.donut-wrap {
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,.22));
+}
+
+.donut-chart {
+  box-shadow:
+    0 4px 0 rgba(1,7,18,.68),
+    0 12px 20px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+
+.donut-chart::before {
+  background: #0d1a32 !important;
+  border: 1px solid rgba(168,190,239,.16) !important;
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.035) !important;
+}
+
+/* =========================================================
+   MENUS / POPOVERS / MODALS — RAISED CONTAINERS
+========================================================= */
+
+.menu-panel,
+.more-menu-panel,
+.entry-modal,
+.month-picker-popover,
+.mood-selector-panel,
+.more-menu {
+  background:
+    linear-gradient(180deg,
+      #203866 0%,
+      #172c52 46%,
+      #0f2141 100%) !important;
+  border: 1px solid rgba(155,184,255,.23) !important;
+  border-top-color: rgba(211,225,255,.30) !important;
+  border-bottom-color: rgba(2,9,23,.72) !important;
+  box-shadow:
+    0 3px 0 rgba(3,10,24,.90),
+    0 14px 24px rgba(0,0,0,.36),
+    0 24px 40px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.25) !important;
+}
+
+.menu-item:hover,
+.more-menu-option:hover,
+.month-option:hover:not(.active) {
+  background:
+    linear-gradient(180deg,
+      rgba(61,93,150,.34),
+      rgba(26,48,87,.34)) !important;
+}
+
+/* =========================================================
+   NOTEPAD / 3D NOTES
+========================================================= */
+
+.sticky-note-3d {
+  box-shadow:
+    0 4px 0 rgba(0,0,0,.30),
+    0 12px 20px rgba(0,0,0,.26),
+    0 20px 30px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+
+/* =========================================================
+   PROFILE / ASSISTANT / OTHER PANELS
+========================================================= */
+
+.profile-panel,
+.assistant-header,
+.assistant-composer,
+.task-input-row,
+.ask-box,
+.notepad-page-header {
+  box-shadow:
+    0 3px 0 rgba(4,10,25,.90),
+    0 10px 18px rgba(0,0,0,.26),
+    0 18px 30px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.24) !important;
+}
+
+.assistant-bubble {
+  background:
+    linear-gradient(180deg, #1c3159, #112442) !important;
+  border-top-color: rgba(200,218,255,.22) !important;
+  border-bottom-color: rgba(0,8,22,.62) !important;
+  box-shadow:
+    0 3px 0 rgba(4,11,26,.84),
+    0 8px 14px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.08),
+    inset 0 -2px 0 rgba(0,0,0,.20) !important;
+}
+
+.user-bubble {
+  box-shadow:
+    0 3px 0 rgba(61,40,145,.88),
+    0 8px 14px rgba(67,45,160,.22),
+    inset 0 1px 0 rgba(255,255,255,.18),
+    inset 0 -2px 0 rgba(0,0,0,.14) !important;
+}
+
+/* =========================================================
+   CONSISTENT PAGE WIDTH
+========================================================= */
+
+.dashboard-screen,
+.todo-screen,
+.assistant-screen,
+.profile-screen,
+.notepad-screen,
+.vault-screen,
+.finance-dashboard-page,
+.finance-transactions-page {
+  width: 100% !important;
+  max-width: 410px !important;
+}
+
+/* =========================================================
+   SMALLER SCREENS
+========================================================= */
+
+@media (max-width: 420px) {
+  .mobile-frame {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 0 !important;
+  }
+
+  #app {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .bottom-nav {
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+  }
+}
+
+/* =========================================================
+   LIGHT THEME — KEEP THEME FUNCTIONAL
+========================================================= */
+
+html[data-theme="light"],
+body.theme-light {
+  --sahra-text: #14203a;
+  --sahra-muted: #5d6f9a;
+  --sahra-surface: #ffffff;
+  --sahra-surface-2: #f0f4ff;
+  --sahra-surface-3: #e5ebfa;
+}
+
+body.theme-light {
+  background: #e7edfb !important;
+  color: #14203a !important;
+}
+
+body.theme-light .mobile-frame {
+  background: linear-gradient(180deg, #f4f7ff 0%, #e6edfb 100%) !important;
+  border-color: rgba(92,115,170,.22) !important;
+  box-shadow:
+    0 3px 0 rgba(160,176,210,.28),
+    0 18px 34px rgba(96,112,160,.18),
+    inset 0 1px 0 rgba(255,255,255,.82) !important;
+}
+
+body.theme-light .glass-card,
+body.theme-light .todo-card,
+body.theme-light .progress-card,
+body.theme-light .progress-panel,
+body.theme-light .activity-panel,
+body.theme-light .mood-panel,
+body.theme-light .profile-panel,
+body.theme-light .calendar-card,
+body.theme-light .date-weather-card,
+body.theme-light .task-card,
+body.theme-light .focus-card,
+body.theme-light .metric-card,
+body.theme-light .monthly-finance-panel,
+body.theme-light .finance-summary-card,
+body.theme-light .habit-card,
+body.theme-light .goal-card,
+body.theme-light .life-card {
+  background: linear-gradient(180deg, #fdfefe 0%, #eef3ff 100%) !important;
+  color: #14203a !important;
+  border-color: rgba(105,128,183,.22) !important;
+  box-shadow:
+    0 3px 0 rgba(174,186,214,.34),
+    0 10px 20px rgba(99,117,165,.14),
+    inset 0 1px 0 rgba(255,255,255,.90),
+    inset 0 -2px 0 rgba(120,140,180,.10) !important;
+}
+
+body.theme-light .date-weather-card,
+body.theme-light .finance-dashboard-page .total-balance-card,
+body.theme-light .finance-dashboard-page .balance-card,
+body.theme-light .finance-dashboard-page .summary-card {
+  background: linear-gradient(180deg, #62a3fb 0%, #4284ed 50%, #2d6ed7 100%) !important;
+  color: #fff !important;
+}
+
+body.theme-light .menu-panel,
+body.theme-light .more-menu-panel,
+body.theme-light .entry-modal,
+body.theme-light .month-picker-popover,
+body.theme-light .mood-selector-panel {
+  background: linear-gradient(180deg, #ffffff, #edf2ff) !important;
+  color: #14203a !important;
+  border-color: rgba(105,128,183,.22) !important;
+  box-shadow:
+    0 3px 0 rgba(170,184,215,.34),
+    0 18px 32px rgba(92,108,150,.20),
+    inset 0 1px 0 rgba(255,255,255,.95) !important;
+}
+
+body.theme-light input,
+body.theme-light textarea,
+body.theme-light select,
+body.theme-light .profile-input,
+body.theme-light .entry-field input,
+body.theme-light .entry-field textarea,
+body.theme-light .entry-field select {
+  background: linear-gradient(180deg, #eef3ff, #e4ebfa) !important;
+  color: #14203a !important;
+  border-color: rgba(104,126,179,.22) !important;
+  border-bottom-color: rgba(74,94,140,.22) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(77,96,145,.15),
+    inset 0 1px 0 rgba(255,255,255,.78) !important;
+}
+
+/* =========================================================
+   SAHRA FINAL CONTENT WIDTH SYSTEM
+   Match the reference card width across ALL pages.
+   Visual/layout only — no functionality changes.
+========================================================= */
+
+:root {
+  --sahra-content-width: 364px;
+  --sahra-header-width: 382px;
+  --sahra-frame-width: 410px;
+  --sahra-content-gutter: 16px;
+}
+
+/* Keep the outer device/frame stable. */
+.mobile-frame {
+  width: min(100%, var(--sahra-frame-width)) !important;
+}
+
+/*
+ * Every top-level page gets the SAME inner content width.
+ * This is the important part: all page cards now align to
+ * the same left/right boundaries as the reference finance card.
+ */
+#app > .screen {
+  width: min(
+    calc(100% - (var(--sahra-content-gutter) * 2)),
+    var(--sahra-content-width)
+  ) !important;
+  max-width: var(--sahra-content-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+}
+
+/* Known page roots: keep the same canonical width even when
+   older page-specific CSS tries to set a larger width. */
+.dashboard-screen,
+.todo-screen,
+.assistant-screen,
+.profile-screen,
+.notepad-screen,
+.vault-screen,
+.finance-dashboard-page,
+.finance-transactions-page {
+  width: min(
+    calc(100% - (var(--sahra-content-gutter) * 2)),
+    var(--sahra-content-width)
+  ) !important;
+  max-width: var(--sahra-content-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+}
+
+/* Main cards fill the page content box exactly. */
+#app > .screen > .glass-card,
+#app > .screen > .layout-card,
+#app > .screen > .todo-card,
+#app > .screen > .progress-card,
+#app > .screen > .progress-panel,
+#app > .screen > .activity-panel,
+#app > .screen > .mood-panel,
+#app > .screen > .profile-panel,
+#app > .screen > .calendar-card,
+#app > .screen > .date-weather-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Finance page — the reference card becomes the canonical width. */
+.finance-dashboard-page > *:not(.finance-dashboard-header),
+.finance-transactions-page > *:not(.finance-transactions-header) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Keep finance cards fully inside the same page box. */
+.finance-dashboard-page .finance-summary-card,
+.finance-dashboard-page .balance-card,
+.finance-dashboard-page .summary-card,
+.finance-dashboard-page .finance-content-card,
+.finance-transactions-page .transaction-card {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/*
+ * Headers remain slightly wider than the cards, matching
+ * the reference image while staying inside the same device.
+ */
+.dashboard-topbar.page-fixed-header,
+.finance-dashboard-header,
+.finance-transactions-header,
+.assistant-header.page-fixed-header,
+.notepad-page-header {
+  width: min(calc(100vw - 28px), var(--sahra-header-width)) !important;
+  max-width: var(--sahra-header-width) !important;
+  left: 50% !important;
+  right: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Floating navigation tray uses one stable width. */
+.bottom-nav {
+  width: min(calc(100vw - 32px), 378px) !important;
+  max-width: 378px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  box-sizing: border-box !important;
+}
+
+/*
+ * When the viewport is smaller than the reference frame,
+ * the content scales down smoothly instead of overflowing.
+ */
+@media (max-width: 430px) {
+  :root {
+    --sahra-content-gutter: 14px;
+  }
+
+  #app > .screen,
+  .dashboard-screen,
+  .todo-screen,
+  .assistant-screen,
+  .profile-screen,
+  .notepad-screen,
+  .vault-screen,
+  .finance-dashboard-page,
+  .finance-transactions-page {
+    width: calc(100% - (var(--sahra-content-gutter) * 2)) !important;
+    max-width: var(--sahra-content-width) !important;
+  }
+
+  .dashboard-topbar.page-fixed-header,
+  .finance-dashboard-header,
+  .finance-transactions-header,
+  .assistant-header.page-fixed-header,
+  .notepad-page-header {
+    width: calc(100vw - 28px) !important;
+    max-width: var(--sahra-header-width) !important;
+  }
+
+  .bottom-nav {
+    width: calc(100vw - 24px) !important;
+    max-width: 378px !important;
+  }
+}
+
+/* Very small phones: always fit without horizontal scrolling. */
+@media (max-width: 380px) {
+  :root {
+    --sahra-content-gutter: 10px;
+  }
+
+  #app > .screen,
+  .dashboard-screen,
+  .todo-screen,
+  .assistant-screen,
+  .profile-screen,
+  .notepad-screen,
+  .vault-screen,
+  .finance-dashboard-page,
+  .finance-transactions-page {
+    width: calc(100% - 20px) !important;
+    max-width: none !important;
+  }
+
+  .dashboard-topbar.page-fixed-header,
+  .finance-dashboard-header,
+  .finance-transactions-header,
+  .assistant-header.page-fixed-header,
+  .notepad-page-header {
+    width: calc(100vw - 20px) !important;
+  }
+
+  .bottom-nav {
+    width: calc(100vw - 20px) !important;
+  }
+}
+
+/* Prevent long content from pushing cards outside the box. */
+#app,
+#app > .screen,
+#app > .screen > * {
+  min-width: 0;
+}
+
+#app > .screen img,
+#app > .screen svg,
+#app > .screen canvas,
+#app > .screen video {
+  max-width: 100%;
+}
+
+/* Smooth native-style scrolling inside the application. */
+#app {
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth;
+}
+
+
+/* =========================================================
+   SAHRA MORE MENU — 3D PHYSICAL POPUP
+   Visual-only. The Finance / Expense Tracker is untouched.
+   Inline styles from renderMoreMenu() are intentionally
+   overridden only inside .more-menu-panel.
+========================================================= */
+
+.more-menu-panel {
+  /* Keep the existing fixed positioning/size/behavior. */
+  width: 220px !important;
+  height: fit-content !important;
+  min-height: 0 !important;
+  padding: 12px !important;
+  gap: 8px !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      #243d72 0%,
+      #172d57 42%,
+      #0d1f40 100%
+    ) !important;
+
+  border: 1px solid rgba(156, 187, 255, 0.28) !important;
+  border-top-color: rgba(221, 232, 255, 0.38) !important;
+  border-bottom-color: rgba(2, 9, 24, 0.82) !important;
+  border-radius: 20px !important;
+
+  box-shadow:
+    0 3px 0 rgba(2, 8, 22, 0.92),
+    0 8px 0 rgba(7, 15, 34, 0.55),
+    0 18px 32px rgba(0, 0, 0, 0.46),
+    0 28px 48px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.26) !important;
+
+  overflow: hidden !important;
+}
+
+/* Thin top bevel / light catch */
+.more-menu-panel::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 1px;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,0.35),
+    transparent
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Dark physical lower edge */
+.more-menu-panel::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 0;
+  height: 8px;
+  border-radius: 0 0 17px 17px;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 22, 46, 0.10),
+    rgba(2, 8, 20, 0.62)
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* =========================================================
+   MENU ITEMS — RAISED 3D BUTTONS
+========================================================= */
+
+.more-menu-panel .menu-item {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 47px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 11px 12px !important;
+  margin: 0 !important;
+
+  border: 1px solid rgba(157, 187, 250, 0.18) !important;
+  border-top-color: rgba(227, 237, 255, 0.24) !important;
+  border-bottom-color: rgba(3, 11, 27, 0.56) !important;
+  border-radius: 14px !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      #294775 0%,
+      #1c365f 46%,
+      #11284e 100%
+    ) !important;
+
+  color: #ffffff !important;
+  font-size: 0.95rem !important;
+  font-weight: 650 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+
+  box-shadow:
+    0 2px 0 rgba(3, 10, 25, 0.84),
+    0 7px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -2px 0 rgba(0,0,0,0.20) !important;
+
+  text-shadow: 0 2px 3px rgba(0,0,0,0.30) !important;
+  transform: translateY(0) !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease !important;
+
+  z-index: 1 !important;
+}
+
+.more-menu-panel .menu-item:hover {
+  background:
+    linear-gradient(
+      145deg,
+      #34558a 0%,
+      #234473 48%,
+      #152f58 100%
+    ) !important;
+
+  border-top-color: rgba(231, 240, 255, 0.32) !important;
+  border-color: rgba(165, 194, 255, 0.25) !important;
+
+  transform: translateY(-2px) !important;
+
+  box-shadow:
+    0 3px 0 rgba(3, 10, 25, 0.84),
+    0 10px 16px rgba(0, 0, 0, 0.30),
+    0 0 16px rgba(71, 126, 230, 0.10),
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -2px 0 rgba(0,0,0,0.20) !important;
+}
+
+.more-menu-panel .menu-item:active {
+  opacity: 1 !important;
+  transform: translateY(2px) !important;
+
+  box-shadow:
+    inset 0 3px 6px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 1px 0 rgba(2, 8, 20, 0.80) !important;
+}
+
+/* Small blue/purple depth on each menu row */
+.more-menu-panel .menu-item::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 1px;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,0.18),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* Keep the existing inline text/icon content above the bevel */
+.more-menu-panel .menu-item {
+  isolation: isolate;
+}
+
+/* =========================================================
+   MENU ITEM TYPE ACCENTS
+========================================================= */
+
+.more-menu-panel .menu-item[data-view="tasks"] {
+  box-shadow:
+    0 2px 0 rgba(3,10,25,.84),
+    0 7px 12px rgba(0,0,0,.25),
+    inset 3px 0 0 rgba(107, 204, 255, .38),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.20) !important;
+}
+
+.more-menu-panel .menu-item[data-view="vault"] {
+  box-shadow:
+    0 2px 0 rgba(3,10,25,.84),
+    0 7px 12px rgba(0,0,0,.25),
+    inset 3px 0 0 rgba(145, 115, 255, .42),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.20) !important;
+}
+
+.more-menu-panel .menu-item[data-view="finance"] {
+  /* Keep Finance as a destination, but do not alter the Finance page. */
+  box-shadow:
+    0 2px 0 rgba(3,10,25,.84),
+    0 7px 12px rgba(0,0,0,.25),
+    inset 3px 0 0 rgba(98, 225, 174, .38),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.20) !important;
+}
+
+.more-menu-panel .menu-item[data-view="progress"] {
+  box-shadow:
+    0 2px 0 rgba(3,10,25,.84),
+    0 7px 12px rgba(0,0,0,.25),
+    inset 3px 0 0 rgba(255, 213, 111, .38),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -2px 0 rgba(0,0,0,.20) !important;
+}
+
+/* Mobile: keep the popup comfortably inside the device */
+@media (max-width: 430px) {
+  .more-menu-panel {
+    width: min(220px, calc(100vw - 48px)) !important;
+  }
+}
+
+/* =========================================================
+   FINAL NOTEPAD WIDTH / HEADER ALIGNMENT FIX
+   Fixes the desktop-wide fixed header problem.
+   Keeps Finance / Expense Tracker untouched.
+========================================================= */
+
+.notepad-container {
+  --notepad-final-width: min(var(--sahra-content-width, 364px), calc(100vw - 28px));
+  width: var(--notepad-final-width) !important;
+  max-width: var(--notepad-final-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Header MUST use the same width as the notes.
+   Keep it fixed/sticky behavior, but never use viewport width. */
+.notepad-page-header {
+  position: fixed !important;
+  top: 15px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: var(--notepad-final-width) !important;
+  max-width: var(--notepad-final-width) !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Search field follows the same exact width. */
+.notepad-container [data-action="notepad-search-input"],
+[data-action="notepad-search-input"] {
+  width: var(--notepad-final-width) !important;
+  max-width: var(--notepad-final-width) !important;
+  box-sizing: border-box !important;
+}
+
+/* Notes, grid, and every note fill the same width as the header. */
+.notepad-container .notepad-notes,
+.notepad-container .notepad-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.notepad-container .notepad-notes > *,
+.notepad-container .notepad-grid > *,
+.notepad-container .sticky-note,
+.notepad-container .sticky-note-3d,
+.notepad-container .note-yellow,
+.notepad-container .note-blue,
+.notepad-container .note-pink,
+.notepad-container .note-green,
+.notepad-container .note-purple,
+.notepad-container .note-orange {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 430px) {
+  .notepad-container {
+    --notepad-final-width: calc(100vw - 28px);
+    width: var(--notepad-final-width) !important;
+    max-width: var(--notepad-final-width) !important;
+  }
+
+  .notepad-page-header {
+    width: var(--notepad-final-width) !important;
+    max-width: var(--notepad-final-width) !important;
+  }
+
+  .notepad-container [data-action="notepad-search-input"],
+  [data-action="notepad-search-input"] {
+    width: var(--notepad-final-width) !important;
+    max-width: var(--notepad-final-width) !important;
+  }
+}
+
+/* TO DO LIST — MATCH HEADER + CARD WIDTH */
+.todo-screen {
+  width: min(calc(100vw - 28px), 382px) !important;
+  max-width: 382px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+.todo-screen .todo-header {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-top: 12px !important;
+}
+
+.todo-screen .filter-row,
+.todo-screen .task-input-row,
+.todo-screen .todo-list,
+.todo-screen .motivation-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.todo-screen .todo-header {
+  margin-top: 12px !important;
 }

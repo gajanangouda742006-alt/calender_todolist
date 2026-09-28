@@ -848,11 +848,7 @@ function renderProfilePage() {
 
   if (state.profileEditing) {
     return `
-      <section class="screen profile-screen">
-        <div class="page-header profile-header">
-          <button class="back-button" type="button" data-action="profile-cancel">← Back</button>
-          <h2>Edit Profile</h2>
-        </div>
+      
 
         <div class="glass-card profile-panel">
           <div class="profile-avatar large">${(user.name || 'S').charAt(0).toUpperCase()}</div>
@@ -889,11 +885,9 @@ function renderProfilePage() {
   }
 
   return `
-    <section class="screen profile-screen">
-      <div class="page-header profile-header">
-        <button class="back-button" type="button" data-action="back-home">← Back</button>
-        <h2>Profile</h2>
-      </div>
+   <div class="page-header profile-header">
+  <h2>Profile</h2>
+</div>
 
       <div class="glass-card profile-panel">
         <div class="profile-avatar large">${(user.name || 'S').charAt(0).toUpperCase()}</div>
@@ -992,15 +986,6 @@ const monthLabel = new Date(
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
             </div>
-          </div>
-        </div>
-
-        <div class="hero-card">
-          <div class="avatar">${(userName || 'S').charAt(0).toUpperCase()}</div>
-          <div class="hero-copy">
-            <h2>Hi ${userName}! 👋</h2>
-            <p>I'm Sahra, your AI assistant.</p>
-            <p>How can I help you today?</p>
           </div>
         </div>
       </section>
@@ -1135,6 +1120,49 @@ function renderProgressPage() {
     months[state.currentMonth] || months[new Date().getMonth()];
 
   const todayIso = formatDateKey(new Date());
+    /* ---------------------------------------------------------
+   * MONTHLY FINANCE SUMMARY
+   * --------------------------------------------------------- */
+
+  const monthlyTransactions = (Array.isArray(state.financeData)
+    ? state.financeData
+    : []
+  ).filter((transaction) => {
+    if (!transaction?.date) return false;
+
+    const transactionDate = new Date(transaction.date);
+
+    if (Number.isNaN(transactionDate.getTime())) return false;
+
+    return (
+      transactionDate.getFullYear() === Number(state.currentYear) &&
+      transactionDate.getMonth() === Number(state.currentMonth)
+    );
+  });
+
+  const monthlyIncome = monthlyTransactions
+    .filter(
+      (transaction) =>
+        String(transaction.type || '').toLowerCase() === 'income'
+    )
+    .reduce(
+      (total, transaction) =>
+        total + Number(transaction.amount || 0),
+      0
+    );
+
+  const monthlyExpense = monthlyTransactions
+    .filter(
+      (transaction) =>
+        String(transaction.type || '').toLowerCase() === 'expense'
+    )
+    .reduce(
+      (total, transaction) =>
+        total + Number(transaction.amount || 0),
+      0
+    );
+
+  const monthlyBalance = monthlyIncome - monthlyExpense;
 
   /*
    * ---------------------------------------------------------
@@ -1618,6 +1646,75 @@ function renderProgressPage() {
           </div>
 
           </div>
+
+        </div>
+
+      </section>
+
+            <!-- MONTHLY FINANCE -->
+
+      <section class="glass-card monthly-finance-panel">
+
+        <div class="panel-header">
+          <h3>Monthly Finance</h3>
+
+          <span class="finance-month-label">
+            ${currentMonthName} ${state.currentYear}
+          </span>
+        </div>
+
+        <div class="monthly-finance-grid">
+
+          <div class="finance-summary-card income-card">
+
+            <div class="finance-summary-icon">
+              ↗
+            </div>
+
+            <div class="finance-summary-label">
+              Income
+            </div>
+
+            <strong>
+              ₹${monthlyIncome.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}
+            </strong>
+
+          </div>
+
+          <div class="finance-summary-card expense-card">
+
+            <div class="finance-summary-icon">
+              ↘
+            </div>
+
+            <div class="finance-summary-label">
+              Expense
+            </div>
+
+            <strong>
+              ₹${monthlyExpense.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}
+            </strong>
+
+          </div>
+
+        </div>
+
+        <div class="finance-net-row">
+
+          <span>Net Balance</span>
+
+          <strong class="${monthlyBalance >= 0 ? 'positive' : 'negative'}">
+            ${monthlyBalance >= 0 ? '+' : '-'}₹${Math.abs(monthlyBalance).toLocaleString('en-IN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            })}
+          </strong>
 
         </div>
 
