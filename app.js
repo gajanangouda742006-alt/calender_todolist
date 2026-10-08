@@ -3689,6 +3689,17 @@ if (action === 'delete-finance-transaction') {
   });
 }
 
+document.addEventListener("click", (e) => {
+  const target = e.target.closest('[data-action="open-add-entry"]');
+
+  if (!target) return;
+
+  const type = target.dataset.type;
+
+  if (type === "task") {
+    openAddTaskModal();
+  }
+});
 
 // INITIALIZE APP
 applyTheme(getStoredTheme());

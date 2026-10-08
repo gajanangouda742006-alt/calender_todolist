@@ -70,6 +70,7 @@ const searchAndFilterHTML = `
 // ==========================================
 function renderDashboard(transactions, state) {
   const filter = state.financeFilter || 'week';
+
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
@@ -80,11 +81,19 @@ function renderDashboard(transactions, state) {
     if (filter === 'week') {
       const diffDays = (now - tDate) / (1000 * 60 * 60 * 24);
       return diffDays >= 0 && diffDays < 7;
-    } else if (filter === 'month') {
-      return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
-    } else if (filter === 'year') {
+    }
+
+    if (filter === 'month') {
+      return (
+        tDate.getMonth() === now.getMonth() &&
+        tDate.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (filter === 'year') {
       return tDate.getFullYear() === now.getFullYear();
     }
+
     return true;
   });
 
@@ -93,14 +102,27 @@ function renderDashboard(transactions, state) {
 
   filteredTransactions.forEach(t => {
     const amt = Number(t.amount) || 0;
-    if (t.type === 'income') totalIncome += amt;
-    if (t.type === 'expense') totalExpense += amt;
+
+    if (t.type === 'income') {
+      totalIncome += amt;
+    }
+
+    if (t.type === 'expense') {
+      totalExpense += amt;
+    }
   });
 
   const totalBalance = totalIncome - totalExpense;
-  const spendingTitle = filter === 'week' ? 'Weekly Breakdown' : filter === 'month' ? 'Monthly Breakdown' : 'Yearly Breakdown';
+
+  const spendingTitle =
+    filter === 'week'
+      ? 'Weekly Breakdown'
+      : filter === 'month'
+        ? 'Monthly Breakdown'
+        : 'Yearly Breakdown';
 
   const totalFlow = totalIncome + totalExpense;
+
   let incomeAngle = 0;
   let incomePercent = 0;
   let expensePercent = 0;
@@ -111,256 +133,669 @@ function renderDashboard(transactions, state) {
     expensePercent = Math.round((totalExpense / totalFlow) * 100);
   }
 
-  const chartGradient = totalFlow > 0 
-    ? `conic-gradient(#34d399 0deg ${incomeAngle}deg, #f87171 ${incomeAngle}deg 360deg)`
-    : 'rgba(255,255,255,0.05)';
+  const chartGradient =
+    totalFlow > 0
+      ? `conic-gradient(#34d399 0deg ${incomeAngle}deg, #f87171 ${incomeAngle}deg 360deg)`
+      : 'rgba(255,255,255,0.05)';
 
   return `
-    <div class="finance-dashboard-page" style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 170px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; box-sizing: border-box;">
-      
-      <!-- Top Header -->
-      <!-- =========================================
-     HIGHLIGHTED DASHBOARD HEADER
-========================================= -->
-<div
-  class="finance-dashboard-header"
+    <div
+  class="finance-dashboard-page"
   style="
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    margin: 0 -6px 24px;
-    padding: 18px 14px 20px;
-
-    border-radius: 22px;
-
-    background:
-      linear-gradient(
-        135deg,
-        rgba(96,165,255,0.18),
-        rgba(37,99,235,0.08) 55%,
-        rgba(255,255,255,0.025)
-      );
-
-    border:
-      1px solid rgba(96,165,255,0.18);
-
-    box-shadow:
-      0 12px 30px rgba(0,0,0,0.28),
-      inset 0 1px 1px rgba(255,255,255,0.10);
-
-    overflow: hidden;
+    background: transparent;
+    width: 100%;
+    max-width: 410px;
+    margin-left: auto;
+    margin-right: auto;
+    min-height: 100vh;
+    padding: 24px 20px;
+    padding-bottom: 170px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: white;
+    box-sizing: border-box;
   "
 >
 
-  <!-- Soft glow -->
-  <div
-    style="
-      position: absolute;
-      width: 150px;
-      height: 150px;
-
-      top: -90px;
-      left: -50px;
-
-      background: rgba(96,165,255,0.18);
-
-      filter: blur(45px);
-
-      border-radius: 50%;
-
-      pointer-events: none;
-    "
-  ></div>
-
-  <!-- Header Text -->
-  <div
-    style="
-      position: relative;
-      z-index: 2;
-    "
-  >
-
-    <div
-      style="
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        margin-bottom: 5px;
-      "
-    >
-
-      <span
+      <!-- Top Header -->
+      <div
+        class="finance-dashboard-header"
         style="
-          width: 5px;
-          height: 28px;
-          border-radius: 10px;
-
+          position: relative;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin: 0 -6px 24px;
+          padding: 18px 14px 20px;
+          border-radius: 22px;
           background:
             linear-gradient(
-              180deg,
-              #60a5ff,
-              #8b5cf6
+              135deg,
+              rgba(96,165,255,0.18),
+              rgba(37,99,235,0.08) 55%,
+              rgba(255,255,255,0.025)
             );
-
+          border: 1px solid rgba(96,165,255,0.18);
           box-shadow:
-            0 0 14px rgba(96,165,255,0.7);
-        "
-      ></span>
-
-      <h1
-        style="
-          margin: 0;
-
-          font-size: 1.85rem;
-          line-height: 1;
-
-          font-weight: 850;
-
-          color: #ffffff;
-
-          letter-spacing: -0.035em;
-
-          text-shadow:
-            0 2px 10px rgba(96,165,255,0.25);
+            0 12px 30px rgba(0,0,0,0.28),
+            inset 0 1px 1px rgba(255,255,255,0.10);
+          overflow: hidden;
         "
       >
-        Dashboard
-      </h1>
 
-    </div>
+        <!-- Soft glow -->
+        <div
+          style="
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            top: -90px;
+            left: -50px;
+            background: rgba(96,165,255,0.18);
+            filter: blur(45px);
+            border-radius: 50%;
+            pointer-events: none;
+          "
+        ></div>
 
-    <div
-      style="
-        margin-left: 14px;
+        <!-- Header Text -->
+        <div
+          style="
+            position: relative;
+            z-index: 2;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 9px;
+              margin-bottom: 5px;
+            "
+          >
+            <span
+              style="
+                width: 5px;
+                height: 28px;
+                border-radius: 10px;
+                background:
+                  linear-gradient(
+                    180deg,
+                    #60a5ff,
+                    #8b5cf6
+                  );
+                box-shadow:
+                  0 0 14px rgba(96,165,255,0.7);
+              "
+            ></span>
 
-        color: #9fb6d9;
-
-        font-size: 0.82rem;
-
-        font-weight: 600;
-
-        letter-spacing: 0.02em;
-      "
-    >
-      ${new Date().toLocaleString('default', {
-        month: 'long',
-        year: 'numeric'
-      })}
-    </div>
-
-  </div>
-
-  <!-- Reset Button -->
-  <button
-    data-action="show-finance-reset-confirm"
-    type="button"
-    style="
-      position: relative;
-      z-index: 3;
-
-      width: 44px;
-      height: 44px;
-
-      border-radius: 15px;
-
-      display: grid;
-      place-items: center;
-
-      background:
-        linear-gradient(
-          145deg,
-          rgba(47,55,72,0.95),
-          rgba(20,24,34,0.95)
-        );
-
-      border:
-        1px solid rgba(255,255,255,0.14);
-
-      border-top:
-        1px solid rgba(255,255,255,0.28);
-
-      color: #8dc1ff;
-
-      cursor: pointer;
-
-      box-shadow:
-        0 8px 18px rgba(0,0,0,0.35),
-        inset 0 1px 1px rgba(255,255,255,0.12);
-
-      transition:
-        transform 0.18s ease,
-        box-shadow 0.18s ease;
-    "
-    title="Reset Transactions"
-  >
-    🔄
-  </button>
-
-</div>
-
-      <!-- Total Balance Card -->
-      <div style="background: linear-gradient(145deg, #60a5ff, #2563eb); border-radius: 28px; padding: 26px; margin-bottom: 24px; box-shadow: 0 20px 45px rgba(37, 99, 235, 0.4), inset 0 2px 4px rgba(255,255,255,0.5), inset 0 -3px 8px rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.4);">
-        <div style="color: rgba(255,255,255,0.9); font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Total Balance</div>
-        <div style="font-size: 2.6rem; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; text-shadow: 0 3px 6px rgba(0,0,0,0.25);">₹${totalBalance.toFixed(2)}</div>
-        🔄
-        <div style="display: flex; align-items: center; background: rgba(0,0,0,0.15); padding: 14px 16px; border-radius: 18px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15);">
-          <div style="flex: 1;">
-            <div style="font-size: 0.72rem; font-weight: 800; color: #a7f3d0; margin-bottom: 4px; letter-spacing: 0.05em;">✓ INCOME</div>
-            <div style="font-size: 1.25rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">₹${totalIncome.toFixed(2)}</div>
+            <h1
+              style="
+                margin: 0;
+                font-size: 1.85rem;
+                line-height: 1;
+                font-weight: 850;
+                color: #ffffff;
+                letter-spacing: -0.035em;
+                text-shadow:
+                  0 2px 10px rgba(96,165,255,0.25);
+              "
+            >
+              Dashboard
+            </h1>
           </div>
-          <div style="width: 1px; height: 36px; background: rgba(255,255,255,0.25);"></div>
-          <div style="flex: 1; padding-left: 16px;">
-            <div style="font-size: 0.72rem; font-weight: 800; color: #fecaca; margin-bottom: 4px; letter-spacing: 0.05em;">↗ EXPENSES</div>
-            <div style="font-size: 1.25rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">₹${totalExpense.toFixed(2)}</div>
+
+          <div
+            style="
+              margin-left: 14px;
+              color: #9fb6d9;
+              font-size: 0.82rem;
+              font-weight: 600;
+              letter-spacing: 0.02em;
+            "
+          >
+            ${new Date().toLocaleString('default', {
+              month: 'long',
+              year: 'numeric'
+            })}
           </div>
+        </div>
+
+        <!-- Reset Button -->
+        <button
+          data-action="show-finance-reset-confirm"
+          type="button"
+          title="Reset Transactions"
+          style="
+            position: relative;
+            z-index: 3;
+            width: 44px;
+            height: 44px;
+            border-radius: 15px;
+            display: grid;
+            place-items: center;
+            background:
+              linear-gradient(
+                145deg,
+                rgba(47,55,72,0.95),
+                rgba(20,24,34,0.95)
+              );
+            border: 1px solid rgba(255,255,255,0.14);
+            border-top: 1px solid rgba(255,255,255,0.28);
+            color: #8dc1ff;
+            cursor: pointer;
+            box-shadow:
+              0 8px 18px rgba(0,0,0,0.35),
+              inset 0 1px 1px rgba(255,255,255,0.12);
+            transition:
+              transform 0.18s ease,
+              box-shadow 0.18s ease;
+          "
+        >
+          🔄
+        </button>
+      </div>
+
+
+      <!-- TOTAL BALANCE -->
+      <!-- WIDTH = FULL INNER FINANCE WIDTH -->
+      <div
+        style="
+          width: 100%;
+          max-width: 100%;
+          margin: 0 auto 24px;
+          box-sizing: border-box;
+          background: linear-gradient(145deg, #60a5ff, #2563eb);
+          border-radius: 28px;
+          padding: 26px;
+          box-shadow:
+            0 20px 45px rgba(37, 99, 235, 0.4),
+            inset 0 2px 4px rgba(255,255,255,0.5),
+            inset 0 -3px 8px rgba(0,0,0,0.3);
+          border-top:
+            1px solid rgba(255,255,255,0.4);
+        "
+      >
+
+        <div
+          style="
+            color: rgba(255,255,255,0.9);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          "
+        >
+          Total Balance
+        </div>
+
+        <div
+          style="
+            font-size: 2.6rem;
+            font-weight: 800;
+            margin-bottom: 24px;
+            letter-spacing: -0.02em;
+            text-shadow: 0 3px 6px rgba(0,0,0,0.25);
+          "
+        >
+          ₹${totalBalance.toFixed(2)}
+        </div>
+
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.15);
+            padding: 14px 16px;
+            border-radius: 18px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.15);
+          "
+        >
+
+          <div style="flex: 1; min-width: 0;">
+            <div
+              style="
+                font-size: 0.72rem;
+                font-weight: 800;
+                color: #a7f3d0;
+                margin-bottom: 4px;
+                letter-spacing: 0.05em;
+              "
+            >
+              ✓ INCOME
+            </div>
+
+            <div
+              style="
+                font-size: 1.25rem;
+                font-weight: 700;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                white-space: nowrap;
+              "
+            >
+              ₹${totalIncome.toFixed(2)}
+            </div>
+          </div>
+
+          <div
+            style="
+              width: 1px;
+              height: 36px;
+              background: rgba(255,255,255,0.25);
+              flex-shrink: 0;
+            "
+          ></div>
+
+          <div
+            style="
+              flex: 1;
+              min-width: 0;
+              padding-left: 16px;
+            "
+          >
+            <div
+              style="
+                font-size: 0.72rem;
+                font-weight: 800;
+                color: #fecaca;
+                margin-bottom: 4px;
+                letter-spacing: 0.05em;
+              "
+            >
+              ↗ EXPENSES
+            </div>
+
+            <div
+              style="
+                font-size: 1.25rem;
+                font-weight: 700;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                white-space: nowrap;
+              "
+            >
+              ₹${totalExpense.toFixed(2)}
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <!-- Time Frame Toggle Buttons -->
-      <div style="background: linear-gradient(145deg, #181b24, #101218); border: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.15); border-radius: 24px; padding: 6px; display: flex; gap: 6px; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.08);">
-        <button data-action="set-finance-filter" data-filter="week" style="flex: 1; padding: 12px 0; border-radius: 18px; background: ${filter === 'week' ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : 'transparent'}; color: ${filter === 'week' ? 'white' : '#8b92a5'}; border: ${filter === 'week' ? '1px solid rgba(255,255,255,0.3)' : 'none'}; font-size: 0.95rem; font-weight: 700; cursor: pointer; box-shadow: ${filter === 'week' ? '0 6px 16px rgba(59, 130, 246, 0.4), inset 0 1px 1px rgba(255,255,255,0.4)' : 'none'}; transition: all 0.2s;">Week</button>
-        <button data-action="set-finance-filter" data-filter="month" style="flex: 1; padding: 12px 0; border-radius: 18px; background: ${filter === 'month' ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : 'transparent'}; color: ${filter === 'month' ? 'white' : '#8b92a5'}; border: ${filter === 'month' ? '1px solid rgba(255,255,255,0.3)' : 'none'}; font-size: 0.95rem; font-weight: 700; cursor: pointer; box-shadow: ${filter === 'month' ? '0 6px 16px rgba(59, 130, 246, 0.4), inset 0 1px 1px rgba(255,255,255,0.4)' : 'none'}; transition: all 0.2s;">Month</button>
-        <button data-action="set-finance-filter" data-filter="year" style="flex: 1; padding: 12px 0; border-radius: 18px; background: ${filter === 'year' ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : 'transparent'}; color: ${filter === 'year' ? 'white' : '#8b92a5'}; border: ${filter === 'year' ? '1px solid rgba(255,255,255,0.3)' : 'none'}; font-size: 0.95rem; font-weight: 700; cursor: pointer; box-shadow: ${filter === 'year' ? '0 6px 16px rgba(59, 130, 246, 0.4), inset 0 1px 1px rgba(255,255,255,0.4)' : 'none'}; transition: all 0.2s;">Year</button>
+
+      <!-- TIME FRAME -->
+      <!-- WIDTH = SAME AS TOTAL BALANCE -->
+      <div
+        style="
+          width: 100%;
+          max-width: 100%;
+          margin: 0 auto 24px;
+          box-sizing: border-box;
+          background: linear-gradient(145deg, #181b24, #101218);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-top: 1px solid rgba(255,255,255,0.15);
+          border-radius: 24px;
+          padding: 6px;
+          display: flex;
+          gap: 6px;
+          box-shadow:
+            0 10px 25px rgba(0,0,0,0.4),
+            inset 0 1px 2px rgba(255,255,255,0.08);
+        "
+      >
+
+        <button
+          data-action="set-finance-filter"
+          data-filter="week"
+          style="
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 18px;
+            background:
+              ${filter === 'week'
+                ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+                : 'transparent'};
+            color:
+              ${filter === 'week' ? 'white' : '#8b92a5'};
+            border:
+              ${filter === 'week'
+                ? '1px solid rgba(255,255,255,0.3)'
+                : 'none'};
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow:
+              ${filter === 'week'
+                ? '0 6px 16px rgba(59,130,246,0.4), inset 0 1px 1px rgba(255,255,255,0.4)'
+                : 'none'};
+            transition: all 0.2s;
+          "
+        >
+          Week
+        </button>
+
+        <button
+          data-action="set-finance-filter"
+          data-filter="month"
+          style="
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 18px;
+            background:
+              ${filter === 'month'
+                ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+                : 'transparent'};
+            color:
+              ${filter === 'month' ? 'white' : '#8b92a5'};
+            border:
+              ${filter === 'month'
+                ? '1px solid rgba(255,255,255,0.3)'
+                : 'none'};
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow:
+              ${filter === 'month'
+                ? '0 6px 16px rgba(59,130,246,0.4), inset 0 1px 1px rgba(255,255,255,0.4)'
+                : 'none'};
+            transition: all 0.2s;
+          "
+        >
+          Month
+        </button>
+
+        <button
+          data-action="set-finance-filter"
+          data-filter="year"
+          style="
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 18px;
+            background:
+              ${filter === 'year'
+                ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+                : 'transparent'};
+            color:
+              ${filter === 'year' ? 'white' : '#8b92a5'};
+            border:
+              ${filter === 'year'
+                ? '1px solid rgba(255,255,255,0.3)'
+                : 'none'};
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow:
+              ${filter === 'year'
+                ? '0 6px 16px rgba(59,130,246,0.4), inset 0 1px 1px rgba(255,255,255,0.4)'
+                : 'none'};
+            transition: all 0.2s;
+          "
+        >
+          Year
+        </button>
+
       </div>
 
-      <!-- Spending Chart & Percentage Breakdown -->
-      <div style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.2); border-radius: 28px; padding: 24px; margin-bottom: 24px; box-shadow: 0 16px 35px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${spendingTitle}</h3>
-          <button data-action="set-finance-view" data-view="transactions" style="background: none; border: none; color: #60a5ff; font-size: 0.9rem; font-weight: 700; cursor: pointer;">Details ></button>
+
+      <!-- WEEKLY / MONTHLY / YEARLY BREAKDOWN -->
+      <!-- WIDTH = SAME AS OTHER TWO -->
+      <div
+        style="
+          width: 100%;
+          max-width: 100%;
+          margin: 0 auto 24px;
+          box-sizing: border-box;
+          background: linear-gradient(145deg, #191c26, #11131a);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-top: 1px solid rgba(255,255,255,0.2);
+          border-radius: 28px;
+          padding: 24px;
+          box-shadow:
+            0 16px 35px rgba(0,0,0,0.5),
+            inset 0 1px 1px rgba(255,255,255,0.1);
+        "
+      >
+
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+          "
+        >
+
+          <h3
+            style="
+              margin: 0;
+              font-size: 1.15rem;
+              font-weight: 700;
+              text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            "
+          >
+            ${spendingTitle}
+          </h3>
+
+          <button
+            data-action="set-finance-view"
+            data-view="transactions"
+            style="
+              background: none;
+              border: none;
+              color: #60a5ff;
+              font-size: 0.9rem;
+              font-weight: 700;
+              cursor: pointer;
+              white-space: nowrap;
+            "
+          >
+            Details >
+          </button>
+
         </div>
 
-        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-          <div style="width: 176px; height: 176px; border-radius: 50%; background: ${chartGradient}; display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 30px rgba(0,0,0,0.6), inset 0 3px 6px rgba(255,255,255,0.3);">
-            <div style="width: 128px; height: 128px; border-radius: 50%; background: #12141c; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 4px 8px rgba(0,0,0,0.6);">
-              <div style="font-size: 1.35rem; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.4);">₹${totalExpense.toFixed(2)}</div>
-              <div style="font-size: 0.7rem; color: #8b92a5; margin-top: 4px; font-weight: 800; letter-spacing: 0.08em;">SPENT</div>
+
+        <!-- DONUT -->
+        <div
+          style="
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+          "
+        >
+
+          <div
+            style="
+              width: 176px;
+              height: 176px;
+              flex-shrink: 0;
+              border-radius: 50%;
+              background: ${chartGradient};
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow:
+                0 12px 30px rgba(0,0,0,0.6),
+                inset 0 3px 6px rgba(255,255,255,0.3);
+            "
+          >
+
+            <div
+              style="
+                width: 128px;
+                height: 128px;
+                border-radius: 50%;
+                background: #12141c;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                box-shadow:
+                  inset 0 4px 8px rgba(0,0,0,0.6);
+              "
+            >
+
+              <div
+                style="
+                  font-size: 1.35rem;
+                  font-weight: 800;
+                  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                "
+              >
+                ₹${totalExpense.toFixed(2)}
+              </div>
+
+              <div
+                style="
+                  font-size: 0.7rem;
+                  color: #8b92a5;
+                  margin-top: 4px;
+                  font-weight: 800;
+                  letter-spacing: 0.08em;
+                "
+              >
+                SPENT
+              </div>
+
             </div>
           </div>
         </div>
 
-        <div style="display: flex; gap: 12px; background: rgba(0,0,0,0.25); padding: 14px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.06); box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
-          <div style="flex: 1; text-align: center; border-right: 1px solid rgba(255,255,255,0.1);">
-            <div style="font-size: 0.72rem; color: #34d399; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">🟢 EARNED</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #34d399; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${incomePercent}%</div>
+
+        <!-- PERCENTAGES -->
+        <div
+          style="
+            display: flex;
+            gap: 12px;
+            background: rgba(0,0,0,0.25);
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow:
+              inset 0 2px 4px rgba(0,0,0,0.4);
+          "
+        >
+
+          <div
+            style="
+              flex: 1;
+              text-align: center;
+              border-right:
+                1px solid rgba(255,255,255,0.1);
+              min-width: 0;
+            "
+          >
+            <div
+              style="
+                font-size: 0.72rem;
+                color: #34d399;
+                font-weight: 800;
+                letter-spacing: 0.05em;
+                margin-bottom: 4px;
+              "
+            >
+              🟢 EARNED
+            </div>
+
+            <div
+              style="
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #34d399;
+                text-shadow:
+                  0 2px 4px rgba(0,0,0,0.3);
+              "
+            >
+              ${incomePercent}%
+            </div>
           </div>
-          <div style="flex: 1; text-align: center;">
-            <div style="font-size: 0.72rem; color: #f87171; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">🔴 SPENT</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #f87171; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">${expensePercent}%</div>
+
+          <div
+            style="
+              flex: 1;
+              text-align: center;
+              min-width: 0;
+            "
+          >
+            <div
+              style="
+                font-size: 0.72rem;
+                color: #f87171;
+                font-weight: 800;
+                letter-spacing: 0.05em;
+                margin-bottom: 4px;
+              "
+            >
+              🔴 SPENT
+            </div>
+
+            <div
+              style="
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #f87171;
+                text-shadow:
+                  0 2px 4px rgba(0,0,0,0.3);
+              "
+            >
+              ${expensePercent}%
+            </div>
           </div>
+
         </div>
       </div>
 
-      <!-- FLOATING 3D ADD BUTTON (+) -->
-      <div style="position: fixed; bottom: 95px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; display: flex; justify-content: flex-end; padding-right: 20px; box-sizing: border-box; pointer-events: none; z-index: 9999;">
-        <button data-action="set-finance-view" data-view="add-choice" style="pointer-events: auto; width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, #60a5ff, #2563eb); color: white; border: none; border-top: 1px solid rgba(255,255,255,0.5); font-size: 34px; font-weight: 300; cursor: pointer; box-shadow: 0 12px 30px rgba(37, 99, 235, 0.6), inset 0 2px 4px rgba(255,255,255,0.6), inset 0 -3px 6px rgba(0,0,0,0.3); display: grid; place-items: center; transition: transform 0.1s;">+</button>
+
+      <!-- FLOATING ADD BUTTON -->
+      <div
+        style="
+          position: fixed;
+          bottom: 95px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 100%;
+          max-width: 430px;
+          display: flex;
+          justify-content: flex-end;
+          padding-right: 20px;
+          box-sizing: border-box;
+          pointer-events: none;
+          z-index: 9999;
+        "
+      >
+        <button
+          data-action="set-finance-view"
+          data-view="add-choice"
+          style="
+            pointer-events: auto;
+            width: 62px;
+            height: 62px;
+            border-radius: 50%;
+            background:
+              linear-gradient(135deg, #60a5ff, #2563eb);
+            color: white;
+            border: none;
+            border-top:
+              1px solid rgba(255,255,255,0.5);
+            font-size: 34px;
+            font-weight: 300;
+            cursor: pointer;
+            box-shadow:
+              0 12px 30px rgba(37,99,235,0.6),
+              inset 0 2px 4px rgba(255,255,255,0.6),
+              inset 0 -3px 6px rgba(0,0,0,0.3);
+            display: grid;
+            place-items: center;
+            transition: transform 0.1s;
+          "
+        >
+          +
+        </button>
       </div>
+
     </div>
   `;
 }
-
 // ==========================================
 // ALL TRANSACTIONS
 // ONLY MONTH + YEAR SEPARATORS
