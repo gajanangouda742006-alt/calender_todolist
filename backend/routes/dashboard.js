@@ -783,6 +783,7 @@ function cleanTaskTitle(message) {
     .replace(/^(?:please\s+)?(?:(?:can|could) you\s+|i want you to\s+)?(?:add|create|make|schedule|set up)\s+/i, '')
     .replace(/^(?:(?:a|an|the)\s+)?(?:(?:high|low|urgent)[ -]priority\s+)?(?:new\s+)?(?:task|to-?do)\b\s*/i, '')
     .replace(/^(?:task|to-?do)\b\s*/i, '')
+    .replace(/^(?:called|named|titled)\s+/i, '')
     .replace(/^to\s+/i, '')
     .replace(/\b(?:today|tomorrow|yesterday|tonight|this evening|next|on|by)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, '')
     .replace(/\b(?:today|tomorrow|yesterday|tonight|this evening|next\s+week)\b/gi, '')
@@ -935,17 +936,34 @@ function explicitRoutineIntent(message) {
 }
 
 function parseAssistantNote(message) {
-  const named = message.match(/\b(?:called|named)\s+(.+?)(?:\s*:\s*(.*))?$/i);
-  if (named) return { title: named[1].trim().replace(/[.!?]+$/g, ''), content: String(named[2] || '').trim() };
-  const colonContent = message.match(/:\s*([\s\S]+)$/);
-  if (colonContent) return { title: '', content: colonContent[1].trim() };
-  const content = message
+  const body = String(message)
     .replace(/^(?:please\s+)?(?:(?:can|could) you\s+|i want you to\s+)?(?:save|write|add|create|remember)\s+/i, '')
-    .replace(/^(?:this\s+)?(?:as\s+)?(?:a\s+)?note\b/i, '')
+    .replace(/^(?:this\s+)?(?:as\s+)?(?:a\s+)?notes?\b/i, '')
     .replace(/\b(?:in my notes|to my notes)\b/i, '')
-    .replace(/^[\s:,-]+|[\s.!?]+$/g, '')
     .trim();
-  return { title: '', content };
+  const structured = body.match(/^(?:title|name)\s*(?:is|:)?\s*(.+?)\s+(?:description|content|body)\s*(?:is|:)\s*([\s\S]+)$/i);
+  if (structured) {
+    return {
+      title: structured[1].trim().replace(/[.!?]+$/g, ''),
+      content: structured[2].trim(),
+    };
+  }
+
+  const named = body.match(/^(?:called|named|titled)\s+(.+?)(?:\s*:\s*([\s\S]*))?$/i);
+  if (named) {
+    return {
+      title: named[1].trim().replace(/[.!?]+$/g, ''),
+      content: String(named[2] || '').trim(),
+    };
+  }
+
+  const colonContent = body.match(/^:\s*([\s\S]+)$/);
+  if (colonContent) return { title: '', content: colonContent[1].trim() };
+
+  return {
+    title: '',
+    content: body.replace(/^[\s:,-]+|[\s.!?]+$/g, '').trim(),
+  };
 }
 
 function parseAssistantTransaction(message, timeZone) {

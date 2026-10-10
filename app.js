@@ -82,6 +82,7 @@ noteSearchQuery: '',
     { role: 'assistant', text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress." },
   ],
   assistantLoading: false,
+  assistantGeneration: 0,
   assistantDraft: '',
   voiceListening: false,
   progressPickerOpen: false,
@@ -96,6 +97,7 @@ noteSearchQuery: '',
   financeTypeFilter: 'all',
   financeDetail: null,
   showFinanceResetConfirm: false,
+  financeResetLoading: false,
   tempFinanceType: null,
 };
 let activeRecognition = null;
@@ -141,12 +143,15 @@ window.alert = function(message) {
 
 function showAppConfirm(message, onConfirm, confirmLabel = 'Delete') {
   const overlay = document.createElement('div');
+  overlay.className = 'sahra-confirm-overlay';
   overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);';
   
   const box = document.createElement('div');
+  box.className = 'sahra-confirm-box';
   box.style.cssText = 'background:var(--panel-bg, #1a1a2e); padding:24px; border-radius:16px; width:80%; max-width:320px; text-align:center; border:1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5);';
   
   const text = document.createElement('p');
+  text.className = 'sahra-confirm-message';
   text.textContent = message;
   text.style.cssText = 'color:white; margin-bottom:24px; font-size:1.05rem; font-weight: 500;';
   
@@ -155,15 +160,19 @@ function showAppConfirm(message, onConfirm, confirmLabel = 'Delete') {
   
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.className = 'secondary-btn';
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'secondary-btn sahra-confirm-cancel';
   cancelBtn.style.flex = '1';
   
   const confirmBtn = document.createElement('button');
   confirmBtn.textContent = confirmLabel;
   confirmBtn.className = 'primary-btn compact-btn';
+  confirmBtn.classList.add('sahra-confirm-submit');
   confirmBtn.style.cssText = 'flex: 1; background: #ff4757; color: white; border: none; font-weight: bold;'; 
   
   let confirmed = false;
+
+  cancelBtn.onclick = () => overlay.remove();
 
 confirmBtn.onclick = async () => {
   if (confirmed) return;
@@ -300,6 +309,83 @@ async function updateThemeInDatabase(theme) {
   }
 }
 
+async function saveReminderSettings(settings) {
+  const current = state.user?.preferences?.reminderSettings || {};
+  const response = await apiRequest('/api/profile/preferences', {
+    method: 'PUT',
+    body: JSON.stringify({
+      preferences: {
+        reminderSettings: { ...current, ...settings },
+      },
+    }),
+  });
+  state.user = response.user || {
+    ...state.user,
+    preferences: {
+      ...(state.user?.preferences || {}),
+      reminderSettings: { ...current, ...settings },
+    },
+  };
+  localStorage.setItem('sahraUser', JSON.stringify(state.user));
+}
+
+function areDeviceNotificationsEnabled() {
+  if (state.user?.preferences?.reminderSettings?.enabled === false) return false;
+  if (!window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    return 'Notification' in window && Notification.permission === 'granted';
+  }
+  return true;
+}
+
+async function toggleDeviceNotifications() {
+  const current = state.user?.preferences?.reminderSettings || {};
+  const enabled = areDeviceNotificationsEnabled();
+  if (enabled) {
+    try {
+      await saveReminderSettings({ enabled: false });
+      if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+        await reconcileNativeNotifications();
+      }
+      showToast('Device notifications are off.');
+    } catch (error) {
+      showToast(error.message || 'Unable to turn notifications off.');
+    }
+    return;
+  }
+
+  try {
+    if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+      const permission = await window.SAHRA_NOTIFICATIONS.reconcile([], { requestPermission: true });
+      if (permission.permission !== 'granted') {
+        showToast('Notification permission was not granted. Enable it in device settings to continue.');
+        return;
+      }
+    } else {
+      if (!('Notification' in window)) {
+        showToast('Notifications are not supported in this browser.');
+        return;
+      }
+      const permission = Notification.permission === 'granted'
+        ? 'granted'
+        : await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Notification permission was not granted.');
+        return;
+      }
+    }
+
+    await saveReminderSettings({ enabled: true });
+    if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+      await reconcileNativeNotifications();
+    } else {
+      await checkDueNotifications();
+    }
+    showToast('Device notifications are on for task and event reminders.');
+  } catch (error) {
+    showToast(error.message || 'Unable to turn notifications on.');
+  }
+}
+
 async function loadDashboardData() {
   const token = await getAuthToken();
 
@@ -333,6 +419,9 @@ async function loadDashboardData() {
 
     await loadProgressData(false);
     checkDueNotifications();
+    if (!notificationInterval) {
+      notificationInterval = setInterval(checkDueNotifications, 30_000);
+    }
     renderLayout();
 
  } catch (error) {
@@ -406,8 +495,12 @@ async function createResource(type, body) {
   });
 
   await loadDashboardData();
-  if ((type === 'event' || type === 'task') && payload.reminder) {
-    await reconcileNativeNotifications({ requestPermission: true });
+  if (
+    (type === 'event' || type === 'task') &&
+    payload.reminder &&
+    state.user?.preferences?.reminderSettings?.enabled !== false
+  ) {
+    await reconcileNativeNotifications();
   }
 }
 
@@ -526,6 +619,8 @@ async function showSahraNotification(resource, item) {
   };
 }
 async function checkDueNotifications() {
+  const preferences = state.user?.preferences?.reminderSettings || {};
+  if (preferences.enabled === false) return;
   if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
     await reconcileNativeNotifications();
     return;
@@ -533,8 +628,8 @@ async function checkDueNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const now = Date.now();
   const resources = [
-    ...state.data.tasks.map((item) => ({ resource: 'task', item })),
-    ...state.data.events.map((item) => ({ resource: 'event', item })),
+    ...(preferences.tasksEnabled === false ? [] : state.data.tasks.map((item) => ({ resource: 'task', item }))),
+    ...(preferences.eventsEnabled === false ? [] : state.data.events.map((item) => ({ resource: 'event', item }))),
   ];
   for (const { resource, item } of resources) {
     if (item.reminderNotifiedAt) continue;
@@ -551,27 +646,6 @@ async function checkDueNotifications() {
     }
   }
 }
-async function enableNotifications() {
-  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
-    const result = await reconcileNativeNotifications({ requestPermission: true });
-    if (result.permission === 'granted' && !result.scheduled) {
-      showToast('Notifications are enabled. Add a dated reminder to schedule one.');
-    }
-    return;
-  }
-  if (!('Notification' in window)) {
-    window.alert('Notifications are not supported in this browser.');
-    return;
-  }
-  const permission = await Notification.requestPermission();
-  if (permission === 'granted') {
-    await checkDueNotifications();
-    window.alert('Sahra reminders are enabled.');
-  } else {
-    window.alert('Notification permission was not granted.');
-  }
-}
-
 async function loadSelectedDateData(dateString) {
   if (!state.authenticated || state.calendarCache.has(dateString)) return;
 
@@ -1175,6 +1249,7 @@ const monthLabel = new Date(
   const completedTasks = tasks.filter((task) => task.completed || task.status === 'Completed').length;
   const totalTasks = tasks.length;
   const progressPercent = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
 
   return `
     <section class="screen home-screen">
@@ -1194,7 +1269,11 @@ const monthLabel = new Date(
               <button class="menu-item" type="button" data-menu-action="light-theme"><span>☀️</span> Light Mode</button>
               <button class="menu-item" type="button" data-menu-action="dark-theme"><span>🌙</span> Dark Mode</button>
               <button class="menu-item" type="button" data-menu-action="profile"><span>👤</span> Profile</button>
-              <button class="menu-item" type="button" data-menu-action="notifications"><span>🔔</span> Device notifications</button>
+              <button class="menu-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
+                <span>🔔</span>
+                <span class="notification-menu-label">Device notifications</span>
+                <span class="notification-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+              </button>
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
             </div>
@@ -3092,12 +3171,14 @@ document.addEventListener('input', (e) => {
 
       if (action === 'light-theme') {
         applyTheme('light');
+        renderLayout();
         await updateThemeInDatabase('light');
         return;
       }
 
       if (action === 'dark-theme') {
         applyTheme('dark');
+        renderLayout();
         await updateThemeInDatabase('dark');
         return;
       }
@@ -3115,7 +3196,10 @@ document.addEventListener('input', (e) => {
       }
 
       if (action === 'notifications') {
-        await enableNotifications();
+        state.menuOpen = true;
+        renderLayout();
+        await toggleDeviceNotifications();
+        renderLayout();
         return;
       }
 
@@ -3244,12 +3328,15 @@ document.addEventListener('click', (e) => {
 // 3. Delete Note with Beautiful Custom UI Modal
 function showCustomNotepadConfirm(message, onConfirm) {
   const overlay = document.createElement('div');
+  overlay.className = 'notepad-confirm-overlay';
   overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);';
   
   const box = document.createElement('div');
+  box.className = 'notepad-confirm-box';
   box.style.cssText = 'background: #1e293b; padding: 24px; border-radius: 16px; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid rgba(255,255,255,0.1);';
   
   const text = document.createElement('p');
+  text.className = 'notepad-confirm-message';
   text.style.cssText = 'margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5; color: #f8fafc; font-weight: 500;';
   text.innerText = message;
   
@@ -3258,6 +3345,7 @@ function showCustomNotepadConfirm(message, onConfirm) {
   
   const cancelBtn = document.createElement('button');
   cancelBtn.innerText = 'Cancel';
+  cancelBtn.type = 'button';
   cancelBtn.style.cssText = 'padding: 12px; border-radius: 10px; border: none; background: #334155; color: white; font-weight: 600; cursor: pointer; flex: 1;';
   
   const confirmBtn = document.createElement('button');
@@ -3329,6 +3417,7 @@ document.addEventListener('click', (e) => {
 
   const submitAssistantMessage = async (message, requestId, addUserMessage = true) => {
     if (state.assistantLoading) return;
+    const generation = state.assistantGeneration;
     if (addUserMessage) state.assistantMessages.push({ role: 'user', text: message });
     state.assistantLoading = true;
     renderLayout();
@@ -3357,9 +3446,11 @@ document.addEventListener('click', (e) => {
         }
       }
 
-      state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
+      if (generation === state.assistantGeneration) {
+        state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
+      }
 
-      if (response.action === 'requiresConfirmation' && response.confirmationToken) {
+      if (generation === state.assistantGeneration && response.action === 'requiresConfirmation' && response.confirmationToken) {
         const label = /delete/i.test(response.message || '') ? 'Delete task' : /complete/i.test(response.message || '') ? 'Mark complete' : /event/i.test(response.message || '') ? 'Add event' : 'Add task';
         showAppConfirm('Do you want Sahra to perform this change?', async () => {
           state.assistantLoading = true;
@@ -3385,11 +3476,13 @@ document.addEventListener('click', (e) => {
     } catch (error) {
       const messageText = error.message || 'Sahra is temporarily unavailable.';
       const canRetry = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
-      state.assistantMessages.push({
-        role: 'assistant',
-        text: canRetry ? `${messageText} You can retry safely.` : messageText,
-        ...(canRetry ? { retryRequestId: requestId, retryMessage: message } : {}),
-      });
+      if (generation === state.assistantGeneration) {
+        state.assistantMessages.push({
+          role: 'assistant',
+          text: canRetry ? `${messageText} You can retry safely.` : messageText,
+          ...(canRetry ? { retryRequestId: requestId, retryMessage: message } : {}),
+        });
+      }
     } finally {
       state.assistantLoading = false;
       renderLayout();
@@ -3558,8 +3651,18 @@ function bindGlobalListeners() {
   globalListenersBound = true;
 
   document.addEventListener('click', (event) => {
+    const clearAssistantButton = event.target.closest('[data-action="clear-assistant-chat"]');
+    if (clearAssistantButton) {
+      state.assistantGeneration += 1;
+      state.assistantMessages = [
+        { role: 'assistant', text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress." },
+      ];
+      renderLayout();
+      return;
+    }
+
     const clickedMonthPicker = event.target.closest('.month-picker-wrapper');
-    const clickedMenu = event.target.closest('.menu-wrap');
+    const clickedMenu = event.target.closest('.menu-panel, .menu-button');
     const clickedMoodPicker = event.target.closest('.mood-selector-wrap');
     const clickedMoreMenu = event.target.closest('.more-menu-panel');
     const clickedMoreMenuToggle = event.target.closest('[data-action="toggle-more-menu"]');
@@ -3708,12 +3811,15 @@ function bindFinanceListeners() {
     // DELETE ALL TRANSACTIONS
     // -------------------------------
     if (action === 'confirm-finance-reset') {
-      button.disabled = true;
-      button.textContent = 'Deleting...';
-
+      if (state.financeResetLoading) return;
+      state.financeResetLoading = true;
+      renderLayout();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
       try {
         const response = await apiRequest('/api/transactions', {
-          method: 'DELETE'
+          method: 'DELETE',
+          signal: controller.signal,
         });
 
         state.financeData = [];
@@ -3730,13 +3836,13 @@ function bindFinanceListeners() {
 
       } catch (error) {
         console.error('Reset transactions error:', error);
-
-        button.disabled = false;
-        button.textContent = 'Yes, Reset All';
-
-        showToast(
-          error.message || 'Unable to delete transactions'
-        );
+        showToast(error.name === 'AbortError'
+          ? 'Reset timed out. Check your connection and retry.'
+          : error.message || 'Unable to reset transactions');
+      } finally {
+        clearTimeout(timeout);
+        state.financeResetLoading = false;
+        renderLayout();
       }
 
       return;

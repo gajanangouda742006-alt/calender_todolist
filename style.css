@@ -8011,6 +8011,12 @@ body.theme-light .entry-field select {
   margin-top: 12px !important;
 }
 
+.todo-screen .filter-row {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
 /* Requested mobile interaction/layout corrections. */
 .more-menu-backdrop {
   z-index: 20000 !important;
@@ -8041,11 +8047,12 @@ body.theme-light .entry-field select {
 }
 
 .todo-page-header {
-  position: fixed !important;
-  top: max(12px, env(safe-area-inset-top)) !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: min(calc(100vw - 28px), 382px) !important;
+  position: sticky !important;
+  top: max(8px, env(safe-area-inset-top)) !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
   min-height: 76px;
   margin: 0 !important;
   padding: 14px 16px !important;
@@ -8098,7 +8105,7 @@ body.theme-light .entry-field select {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #6366f1;
+  background: linear-gradient(135deg, #60a5ff, #2563eb);
   color: white;
   border: none;
   font-size: 28px;
@@ -8235,4 +8242,632 @@ body.theme-light .entry-field select {
   margin-right: auto !important;
   background: transparent !important;
   box-sizing: border-box !important;
+}
+
+/* Light theme readability. Keep the floating bottom navigation unchanged. */
+body.theme-light .menu-button {
+  color: #14203a !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(75, 95, 140, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(170, 184, 215, 0.55), 0 7px 14px rgba(75, 95, 140, 0.16) !important;
+}
+
+body.theme-light .calendar-day {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(91, 111, 158, 0.22) !important;
+  border-bottom-color: rgba(91, 111, 158, 0.28) !important;
+  box-shadow: 0 2px 0 rgba(171, 184, 211, 0.38), 0 4px 8px rgba(68, 85, 128, 0.10) !important;
+}
+
+body.theme-light .calendar-day.selected {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: #7183d4 !important;
+  box-shadow: 0 2px 0 rgba(128, 140, 190, 0.38), 0 0 0 2px rgba(101, 87, 255, 0.14) !important;
+}
+
+body.theme-light .show-event,
+body.theme-light .add-event {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(91, 111, 158, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(171, 184, 211, 0.45), 0 7px 14px rgba(68, 85, 128, 0.12) !important;
+}
+
+body.theme-light .todo-page-header {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  min-height: 68px !important;
+  padding: 10px 14px !important;
+  background: linear-gradient(180deg, #ffffff, #f5f7ff) !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.34), 0 12px 24px rgba(99, 117, 165, 0.14) !important;
+}
+
+body.theme-light .todo-page-header .todo-icon {
+  width: 42px !important;
+  height: 42px !important;
+  flex-basis: 42px !important;
+}
+
+body.theme-light .todo-page-header .todo-heading h2 {
+  color: #14203a !important;
+  font-size: clamp(1.2rem, 5vw, 1.5rem) !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .todo-page-header .todo-heading p {
+  color: #5d6f9a !important;
+  font-size: 0.78rem !important;
+}
+
+body.theme-light .todo-page-content {
+  padding-top: 8px !important;
+}
+
+body.theme-light .todo-item {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.30), 0 8px 18px rgba(99, 117, 165, 0.11) !important;
+}
+
+body.theme-light .todo-item .todo-title-row h4,
+body.theme-light .todo-item .todo-meta,
+body.theme-light .todo-item .icon-btn {
+  color: #14203a !important;
+}
+
+body.theme-light .todo-item .icon-btn {
+  background: #ffffff !important;
+  border: 1px solid rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 2px 0 rgba(174, 186, 214, 0.34) !important;
+}
+
+body.theme-light .todo-item .todo-meta {
+  color: #5d6f9a !important;
+}
+
+body.theme-light .motivation-card {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+}
+
+body.theme-light .motivation-card h3,
+body.theme-light .motivation-card p {
+  color: #14203a !important;
+  opacity: 1 !important;
+}
+
+body.theme-light .motivation-card .sparkle {
+  color: #6557ff !important;
+  background: rgba(101, 87, 255, 0.10) !important;
+}
+
+body.theme-light .assistant-bubble {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.30), 0 8px 18px rgba(99, 117, 165, 0.12) !important;
+}
+
+body.theme-light .assistant-bubble p {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-dashboard-page,
+body.theme-light .finance-transactions-page,
+body.theme-light .finance-transactions-empty,
+body.theme-light .finance-type-page,
+body.theme-light .finance-entry-page {
+  background: #ffffff !important;
+  color: #14203a !important;
+}
+
+body.theme-light .finance-dashboard-header {
+  background: linear-gradient(180deg, #ffffff, #f4f7ff) !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+  box-shadow: 0 4px 0 rgba(174, 186, 214, 0.25), 0 10px 20px rgba(99, 117, 165, 0.12) !important;
+}
+
+body.theme-light .finance-dashboard-header h1 {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-dashboard-header div[style*="margin-left: 14px"] {
+  color: #5d6f9a !important;
+}
+
+body.theme-light .finance-dashboard-header button[data-action="show-finance-reset-confirm"] {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(91, 111, 158, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(171, 184, 211, 0.4), 0 7px 14px rgba(68, 85, 128, 0.12) !important;
+}
+
+body.theme-light .finance-period-filter,
+body.theme-light .finance-spending-card,
+body.theme-light .finance-percentages {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.28), 0 9px 18px rgba(99, 117, 165, 0.10) !important;
+}
+
+body.theme-light .finance-spending-card h3,
+body.theme-light .finance-spending-card .finance-percentages,
+body.theme-light .finance-period-filter button:not(.active) {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-period-filter button.active {
+  color: #ffffff !important;
+}
+
+body.theme-light .finance-spending-card div[style*="width: 128px"] {
+  background: #ffffff !important;
+  color: #14203a !important;
+  box-shadow: inset 0 2px 5px rgba(77, 96, 145, 0.12) !important;
+}
+
+body.theme-light .finance-percentages > div:first-child > div:last-child {
+  color: #16834f !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-percentages > div:last-child > div:last-child {
+  color: #c5304f !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-transactions-header {
+  background: #ffffff !important;
+}
+
+body.theme-light .finance-transactions-header h1,
+body.theme-light .finance-transactions-page h1 {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-month-separator,
+body.theme-light .finance-transaction-rows {
+  background: #ffffff !important;
+  border-color: rgba(105, 123, 180, 0.18) !important;
+}
+
+body.theme-light .finance-month-separator div {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-row {
+  color: #14203a !important;
+  background: #ffffff !important;
+  border-bottom-color: rgba(105, 123, 180, 0.18) !important;
+}
+
+body.theme-light .finance-transaction-row div[style*="color: white"] {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-row div[style*="color: #8b92a5"] {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-transaction-row div[style*="color: #ff8f9c"] {
+  color: #c5304f !important;
+}
+
+body.theme-light .finance-transaction-row div[style*="color: #63e6b1"] {
+  color: #16834f !important;
+}
+
+body.theme-light .finance-transaction-row > div:first-child > div:first-child {
+  background: #edf2fc !important;
+}
+
+body.theme-light .finance-transactions-page .transaction-card {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+}
+
+body.theme-light .finance-transactions-page .transaction-card strong[style*="color: white"],
+body.theme-light .finance-transactions-page .transaction-card span {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transactions-page .transaction-card span {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-transactions-page .transaction-card > strong[style*="color: #61f5b0"],
+body.theme-light .finance-transactions-page .transaction-card > strong[style*="color: #63e6b1"] {
+  color: #16834f !important;
+}
+
+body.theme-light .finance-transactions-page .transaction-card > strong[style*="color: #ff4757"],
+body.theme-light .finance-transactions-page .transaction-card > strong[style*="color: #ff8f9c"] {
+  color: #c5304f !important;
+}
+
+body.theme-light .finance-transaction-empty,
+body.theme-light .finance-transactions-empty {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-type-page > div:nth-of-type(2) h1 {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-type-page > div:nth-of-type(2) p,
+body.theme-light .finance-type-page .finance-type-option > div:last-child > div:last-child {
+  color: #5d6f9a !important;
+}
+
+body.theme-light .finance-type-page .finance-type-option {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.32), 0 9px 18px rgba(99, 117, 165, 0.12) !important;
+}
+
+body.theme-light .finance-entry-page h1 {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-entry-page .finance-amount-card {
+  background: #ffffff !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 3px 0 rgba(174, 186, 214, 0.30), 0 10px 20px rgba(99, 117, 165, 0.12) !important;
+}
+
+body.theme-light .finance-entry-page .finance-amount-card > div:first-child,
+body.theme-light .finance-entry-page label {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-entry-page #finance-amount,
+body.theme-light .finance-entry-page #finance-category,
+body.theme-light .finance-entry-page #finance-payment-method,
+body.theme-light .finance-entry-page #finance-date,
+body.theme-light .finance-entry-page #finance-note {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(105, 123, 180, 0.24) !important;
+  box-shadow: inset 0 1px 3px rgba(77, 96, 145, 0.10) !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .finance-entry-page #finance-amount {
+  border: 0 !important;
+}
+
+body.theme-light .finance-entry-page option {
+  background: #ffffff !important;
+  color: #14203a !important;
+}
+
+body.theme-light .finance-entry-page button[data-action="quick-amount"] {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 2px 0 rgba(174, 186, 214, 0.34) !important;
+}
+
+body.theme-light .finance-entry-page button[data-action="set-finance-view"] {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 2px 0 rgba(174, 186, 214, 0.34) !important;
+}
+
+body.theme-light .dashboard-screen .donut-chart::before {
+  background: #ffffff !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+  box-shadow: inset 0 2px 5px rgba(77, 96, 145, 0.10) !important;
+}
+
+body.theme-light .dashboard-screen .donut-center strong {
+  color: #6557ff !important;
+  background: linear-gradient(120deg, #6557ff, #1598cc) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .dashboard-screen .donut-center span {
+  color: #52627f !important;
+}
+
+body.theme-light .monthly-finance-panel .income-card,
+body.theme-light .monthly-finance-panel .income-card * {
+  color: #16834f !important;
+}
+
+body.theme-light .monthly-finance-panel .expense-card,
+body.theme-light .monthly-finance-panel .expense-card * {
+  color: #c5304f !important;
+}
+
+body.theme-light .calendar-arrow,
+body.theme-light .today-button,
+body.theme-light .small-btn,
+body.theme-light .todo-item .icon-btn {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(91, 111, 158, 0.24) !important;
+  box-shadow: 0 2px 0 rgba(171, 184, 211, 0.40), 0 5px 10px rgba(68, 85, 128, 0.10) !important;
+  text-shadow: none !important;
+}
+
+.task-create-button,
+.finance-add-button {
+  background: linear-gradient(135deg, #60a5ff, #2563eb) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.42), inset 0 1px 0 rgba(255,255,255,0.32) !important;
+}
+
+body.theme-light .dashboard-screen .hero {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.22) !important;
+}
+
+body.theme-light .dashboard-screen .hero-quote,
+body.theme-light .dashboard-screen .hero-copy-block,
+body.theme-light .dashboard-screen .hero-copy-block h2,
+body.theme-light .dashboard-screen .hero-copy-block p {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .dashboard-topbar.page-fixed-header {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+}
+
+body.theme-light .dashboard-topbar.page-fixed-header .back-button,
+body.theme-light .dashboard-topbar.page-fixed-header .month-picker,
+body.theme-light .dashboard-topbar.page-fixed-header .month-picker-nav,
+body.theme-light .dashboard-topbar.page-fixed-header .year-chip,
+body.theme-light .dashboard-topbar.page-fixed-header .month-option {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .dashboard-topbar.page-fixed-header .picker-month,
+body.theme-light .dashboard-topbar.page-fixed-header .picker-year,
+body.theme-light .dashboard-topbar.page-fixed-header .caret {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-detail-modal {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-label {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-amount.expense {
+  color: #c5304f !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-amount.income {
+  color: #16834f !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-title,
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-row,
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-description {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-row {
+  background: #f2f5fc !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-row > div:last-child > div:first-child {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-row > div:last-child > div:last-child {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-status {
+  background: #e5ebfa !important;
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-description > div:first-child {
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transaction-detail-modal .finance-transaction-detail-description > div:last-child {
+  color: #52627f !important;
+}
+
+body.theme-light .finance-transaction-detail-modal [data-action="close-transaction-detail"] {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(105, 123, 180, 0.24) !important;
+}
+
+body.theme-light .sahra-confirm-box {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+}
+
+body.theme-light .sahra-confirm-message {
+  color: #14203a !important;
+}
+
+body.theme-light .sahra-confirm-cancel {
+  color: #14203a !important;
+  background: #ffffff !important;
+  border-color: rgba(105, 123, 180, 0.3) !important;
+  touch-action: manipulation;
+}
+
+body.theme-light .app-toast {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(68, 85, 128, 0.2) !important;
+}
+
+body.theme-light .finance-transactions-page,
+body.theme-light .finance-transactions-empty {
+  background: #ffffff !important;
+  color: #14203a !important;
+}
+
+body.theme-light .finance-transactions-page > section,
+body.theme-light .finance-transactions-page > section > div,
+body.theme-light .finance-transactions-empty > div {
+  background: #ffffff !important;
+}
+
+body.theme-light .finance-month-separator {
+  border-color: rgba(105, 123, 180, 0.2) !important;
+}
+
+body.theme-light .finance-month-year,
+body.theme-light .finance-month-name {
+  color: #14203a !important;
+}
+
+body.theme-light .calendar-detail-modal {
+  background: #ffffff !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 18px 48px rgba(44, 58, 91, 0.22) !important;
+}
+
+body.theme-light .calendar-detail-header,
+body.theme-light .calendar-detail-footer {
+  border-color: rgba(105, 123, 180, 0.18) !important;
+}
+
+body.theme-light .calendar-detail-type,
+body.theme-light .calendar-detail-body > h3,
+body.theme-light .calendar-detail-info-row strong,
+body.theme-light .calendar-detail-description h4 {
+  color: #14203a !important;
+}
+
+body.theme-light .calendar-detail-close,
+body.theme-light .calendar-detail-info-row,
+body.theme-light .calendar-detail-close-btn {
+  background: #f2f5fc !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.2) !important;
+}
+
+body.theme-light .calendar-detail-info-row small,
+body.theme-light .calendar-detail-description p {
+  color: #52627f !important;
+}
+
+body.theme-light .calendar-detail-description {
+  border-color: rgba(105, 123, 180, 0.18) !important;
+}
+
+body.theme-light .notepad-page-header {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border-color: rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 6px 18px rgba(68, 85, 128, 0.12) !important;
+}
+
+body.theme-light .notepad-page-header h1,
+body.theme-light .notepad-page-header span {
+  color: #14203a !important;
+  text-shadow: none !important;
+}
+
+body.theme-light .notepad-page-header span {
+  color: #52627f !important;
+}
+
+body.theme-light .dashboard-topbar.page-fixed-header .month-option.active,
+body.theme-light .dashboard-topbar.page-fixed-header .year-chip.active {
+  background: linear-gradient(135deg, #6557ff, #4c6fff) !important;
+  color: #ffffff !important;
+  border-color: #6557ff !important;
+  box-shadow: 0 4px 10px rgba(101, 87, 255, 0.28) !important;
+}
+
+body.theme-light .notification-menu-item {
+  display: flex !important;
+  align-items: center !important;
+}
+
+body.theme-light .notification-menu-label {
+  flex: 1;
+}
+
+.notification-switch {
+  width: 38px;
+  height: 22px;
+  flex: 0 0 38px;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: 999px;
+  background: #7b8496;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease;
+}
+
+.notification-switch > span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 0.2s ease;
+}
+
+.notification-switch.is-on {
+  background: #2563eb;
+}
+
+.notification-switch.is-on > span {
+  transform: translateX(16px);
+}
+
+body.theme-light .notepad-confirm-box {
+  background: #ffffff !important;
+  color: #14203a !important;
+  border: 1px solid rgba(105, 123, 180, 0.24) !important;
+  box-shadow: 0 18px 48px rgba(44, 58, 91, 0.24) !important;
+  animation: sahra-confirm-enter 0.2s ease-out;
+}
+
+body.theme-light .notepad-confirm-message {
+  color: #14203a !important;
+}
+
+@keyframes sahra-confirm-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.notepad-container [data-action="open-add-entry"] {
+  background: linear-gradient(135deg, #60a5ff, #2563eb) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.42), inset 0 1px 0 rgba(255,255,255,0.32) !important;
 }

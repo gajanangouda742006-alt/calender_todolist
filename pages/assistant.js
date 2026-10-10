@@ -12,6 +12,7 @@ export function renderAssistantPage(state = {}) {
     { role: 'assistant', text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress." },
   ];
   const disabled = state.assistantLoading ? 'disabled' : '';
+  const userInitial = String(state.user?.name || 'Sahra').match(/[A-Za-z]/)?.[0]?.toUpperCase() || 'S';
 
   return `
     <section class="screen assistant-screen">
@@ -36,7 +37,7 @@ export function renderAssistantPage(state = {}) {
             <div class="chat-row ${isUser ? 'user-row' : 'assistant-row'}">
               ${!isUser ? '<div class="chat-avatar bot-avatar">🤖</div>' : ''}
               <div class="message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}">${escapeHtml(message.text)}</div>
-              ${isUser ? '<div class="chat-avatar user-avatar">👩</div>' : ''}
+              ${isUser ? `<div class="chat-avatar user-avatar" aria-label="Your profile">${userInitial}</div>` : ''}
             </div>
             ${!isUser && message.retryRequestId ? `<div class="chat-row assistant-row"><div class="chat-avatar bot-avatar">🤖</div><button class="link-btn" type="button" data-assistant-retry="${escapeHtml(message.retryRequestId)}" data-retry-message="${escapeHtml(message.retryMessage || '')}" ${disabled}>Retry request</button></div>` : ''}
           `;

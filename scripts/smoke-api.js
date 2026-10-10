@@ -130,6 +130,27 @@ async function main() {
     });
     assert(secondaryLogin.response.status === 200 && secondaryLogin.payload.token, 'Secondary login failed.');
 
+    const notificationOff = await request('/api/profile/preferences', {
+      token: primaryLogin.payload.token,
+      method: 'PUT',
+      body: { preferences: { reminderSettings: { enabled: false } } },
+    });
+    assert(
+      notificationOff.response.status === 200 &&
+      notificationOff.payload.user?.preferences?.reminderSettings?.enabled === false,
+      'Device notification opt-out did not persist.'
+    );
+    const notificationOn = await request('/api/profile/preferences', {
+      token: primaryLogin.payload.token,
+      method: 'PUT',
+      body: { preferences: { reminderSettings: { enabled: true } } },
+    });
+    assert(
+      notificationOn.response.status === 200 &&
+      notificationOn.payload.user?.preferences?.reminderSettings?.enabled === true,
+      'Device notification opt-in did not persist.'
+    );
+
     const eventPayload = {
       title: `Planning ${tag}`,
       date: '2099-01-15',

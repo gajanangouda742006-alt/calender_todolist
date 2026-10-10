@@ -60,7 +60,7 @@ const searchAndFilterHTML = `
 
   // ADDED: Inject Reset Confirmation Modal
   if (state.showFinanceResetConfirm) {
-    html += renderResetConfirmModal();
+    html += renderResetConfirmModal(state);
   }
 
   return html;
@@ -299,6 +299,7 @@ function renderDashboard(transactions, state) {
       <!-- TOTAL BALANCE -->
       <!-- WIDTH = FULL INNER FINANCE WIDTH -->
       <div
+        class="finance-balance-card"
         style="
           width: 100%;
           max-width: 100%;
@@ -426,6 +427,7 @@ function renderDashboard(transactions, state) {
       <!-- TIME FRAME -->
       <!-- WIDTH = SAME AS TOTAL BALANCE -->
       <div
+        class="finance-period-filter"
         style="
           width: 100%;
           max-width: 100%;
@@ -445,6 +447,7 @@ function renderDashboard(transactions, state) {
       >
 
         <button
+          class="${filter === 'week' ? 'active' : ''}"
           data-action="set-finance-filter"
           data-filter="week"
           style="
@@ -475,6 +478,7 @@ function renderDashboard(transactions, state) {
         </button>
 
         <button
+          class="${filter === 'month' ? 'active' : ''}"
           data-action="set-finance-filter"
           data-filter="month"
           style="
@@ -505,6 +509,7 @@ function renderDashboard(transactions, state) {
         </button>
 
         <button
+          class="${filter === 'year' ? 'active' : ''}"
           data-action="set-finance-filter"
           data-filter="year"
           style="
@@ -540,6 +545,7 @@ function renderDashboard(transactions, state) {
       <!-- WEEKLY / MONTHLY / YEARLY BREAKDOWN -->
       <!-- WIDTH = SAME AS OTHER TWO -->
       <div
+        class="finance-spending-card"
         style="
           width: 100%;
           max-width: 100%;
@@ -665,6 +671,7 @@ function renderDashboard(transactions, state) {
 
         <!-- PERCENTAGES -->
         <div
+          class="finance-percentages"
           style="
             display: flex;
             gap: 12px;
@@ -765,6 +772,7 @@ function renderDashboard(transactions, state) {
         "
       >
         <button
+          class="finance-add-button"
           data-action="set-finance-view"
           data-view="add-choice"
           style="
@@ -819,6 +827,7 @@ function renderTransactions(transactions, state) {
   if (allTransactions.length === 0) {
     return `
       <div
+        class="finance-transactions-empty"
         style="
           background: #0c0e14;
           min-height: 100vh;
@@ -829,6 +838,7 @@ function renderTransactions(transactions, state) {
         "
       >
         <div
+          class="finance-month-separator"
           style="
             display: flex;
             align-items: center;
@@ -868,6 +878,7 @@ function renderTransactions(transactions, state) {
         </div>
 
         <div
+          class="finance-transaction-rows"
           style="
             text-align: center;
             color: #8b92a5;
@@ -961,6 +972,7 @@ function renderTransactions(transactions, state) {
 
         return `
           <button
+            class="finance-transaction-row"
             type="button"
             data-action="show-transaction-detail"
             data-id="${txId}"
@@ -1072,6 +1084,7 @@ function renderTransactions(transactions, state) {
 
     return `
       <section
+        class="finance-transaction-month"
         style="
           margin: 0;
         "
@@ -1079,6 +1092,7 @@ function renderTransactions(transactions, state) {
 
         <!-- MONTH SEPARATOR -->
         <div
+          class="finance-month-separator"
           style="
             width: 100%;
 
@@ -1097,7 +1111,7 @@ function renderTransactions(transactions, state) {
           "
         >
 
-          <div
+          <div class="finance-month-year"
             style="
               color: #aeb4be;
               font-size: 0.95rem;
@@ -1108,7 +1122,7 @@ function renderTransactions(transactions, state) {
             ${group.year}
           </div>
 
-          <div
+          <div class="finance-month-name"
             style="
               color: #f2f3f5;
               font-size: 1.75rem;
@@ -1123,6 +1137,7 @@ function renderTransactions(transactions, state) {
 
         <!-- ONLY TRANSACTIONS OF THIS MONTH -->
         <div
+          class="finance-transaction-rows"
           style="
             padding: 0 20px;
             background: #0f1012;
@@ -1235,7 +1250,7 @@ function renderTransactions(transactions, state) {
 // ==========================================
 function renderAddChoice(state) {
   return `
-    <div style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; position: relative;">
+    <div class="finance-type-page" style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; position: relative;">
       
       <div style="position: absolute; top: 24px; left: 20px;">
         <button data-action="set-finance-view" data-view="dashboard" style="background: linear-gradient(135deg, #222634, #14161c); border: 1px solid rgba(255,255,255,0.12); border-top: 1px solid rgba(255,255,255,0.25); width: 42px; height: 42px; border-radius: 14px; color: white; font-size: 1.2rem; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2);">←</button>
@@ -1247,7 +1262,7 @@ function renderAddChoice(state) {
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 340px;">
-        <button data-action="select-finance-type" data-type="income" style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(52, 211, 153, 0.4); border-top: 1px solid rgba(52, 211, 153, 0.7); border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px; cursor: pointer; color: white; text-align: left; box-shadow: 0 12px 35px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.15);">
+        <button class="finance-type-option income-type-option" data-action="select-finance-type" data-type="income" style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(52, 211, 153, 0.4); border-top: 1px solid rgba(52, 211, 153, 0.7); border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px; cursor: pointer; color: white; text-align: left; box-shadow: 0 12px 35px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.15);">
           <div style="width: 56px; height: 56px; border-radius: 18px; background: rgba(52, 211, 153, 0.2); color: #34d399; display: grid; place-items: center; font-size: 1.6rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);">💰</div>
           <div>
             <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; color: #34d399; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Income Money</div>
@@ -1255,7 +1270,7 @@ function renderAddChoice(state) {
           </div>
         </button>
 
-        <button data-action="select-finance-type" data-type="expense" style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(96, 165, 255, 0.4); border-top: 1px solid rgba(96, 165, 255, 0.7); border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px; cursor: pointer; color: white; text-align: left; box-shadow: 0 12px 35px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.15);">
+        <button class="finance-type-option expense-type-option" data-action="select-finance-type" data-type="expense" style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(96, 165, 255, 0.4); border-top: 1px solid rgba(96, 165, 255, 0.7); border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px; cursor: pointer; color: white; text-align: left; box-shadow: 0 12px 35px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.15);">
           <div style="width: 56px; height: 56px; border-radius: 18px; background: rgba(96, 165, 255, 0.2); color: #60a5ff; display: grid; place-items: center; font-size: 1.6rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);">💸</div>
           <div>
             <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; color: #60a5ff; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Expense Money</div>
@@ -1276,7 +1291,7 @@ function renderAddExpense(state) {
   const isIncome = type === 'income';
 
   return `
-    <div style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; display: flex; flex-direction: column; box-sizing: border-box;">
+    <div class="finance-entry-page" style="background-color: #0c0e14; min-height: 100vh; padding: 24px 20px; padding-bottom: 130px; font-family: 'Segoe UI', system-ui, sans-serif; color: white; display: flex; flex-direction: column; box-sizing: border-box;">
       
       <!-- Top Bar -->
       <div style="display: flex; align-items: center; margin-bottom: 24px;">
@@ -1285,7 +1300,7 @@ function renderAddExpense(state) {
       </div>
 
       <!-- Amount Input Card -->
-      <div style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.25); border-radius: 24px; padding: 24px; text-align: center; margin-bottom: 24px; box-shadow: 0 16px 35px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);">
+      <div class="finance-amount-card" style="background: linear-gradient(145deg, #191c26, #11131a); border: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.25); border-radius: 24px; padding: 24px; text-align: center; margin-bottom: 24px; box-shadow: 0 16px 35px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.15);">
         <div style="color: #8b92a5; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; margin-bottom: 8px;">ENTER AMOUNT</div>
         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
           <span style="font-size: 2.2rem; font-weight: 700; color: ${isIncome ? '#34d399' : '#60a5ff'}; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">₹</span>
@@ -1389,30 +1404,30 @@ function renderTransactionDetailModal(transaction) {
 
     return `
         <!-- Modal Backdrop -->
-        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; font-family: 'Segoe UI', system-ui, sans-serif; animation: fadeIn 0.2s ease-out;">
+        <div class="finance-transaction-detail-backdrop" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; font-family: 'Segoe UI', system-ui, sans-serif; animation: fadeIn 0.2s ease-out;">
             
             <!-- Modal Container -->
-            <div style="background: #141827; width: 100%; max-width: 420px; border-radius: 20px; border: 1px solid #232a3e; box-shadow: 0 25px 50px rgba(0,0,0,0.5); padding: 24px; display: flex; flex-direction: column; box-sizing: border-box; animation: scaleIn 0.2s ease-out;">
+            <div class="finance-transaction-detail-modal" style="background: #141827; width: 100%; max-width: 420px; border-radius: 20px; border: 1px solid #232a3e; box-shadow: 0 25px 50px rgba(0,0,0,0.5); padding: 24px; display: flex; flex-direction: column; box-sizing: border-box; animation: scaleIn 0.2s ease-out;">
                 
                 <!-- Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 1.1rem;">📊</span>
-                        <span style="color: #a0aec0; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">TRANSACTION</span>
+                        <span class="finance-transaction-detail-label" style="color: #a0aec0; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">TRANSACTION</span>
                     </div>
                     <button data-action="close-transaction-detail" style="background: #232a3e; border: none; width: 32px; height: 32px; border-radius: 8px; color: #a0aec0; font-size: 1.1rem; display: grid; place-items: center; cursor: pointer; transition: background 0.2s;">✕</button>
                 </div>
 
                 <!-- Main Title (Category & Amount) -->
-                <h2 style="margin: 0 0 20px 0; font-size: 1.7rem; font-weight: 700; color: white;">
-                    ${transaction.category || 'Transaction'} <span style="color: ${isExpense ? '#fca5a5' : '#6ee7b7'}; font-size: 1.4rem; margin-left: 8px;">${sign}₹${Math.abs(transaction.amount).toFixed(2)}</span>
+                <h2 class="finance-transaction-detail-title" style="margin: 0 0 20px 0; font-size: 1.7rem; font-weight: 700; color: white;">
+                    ${transaction.category || 'Transaction'} <span class="finance-transaction-detail-amount ${isExpense ? 'expense' : 'income'}" style="color: ${isExpense ? '#fca5a5' : '#6ee7b7'}; font-size: 1.4rem; margin-left: 8px;">${sign}₹${Math.abs(transaction.amount).toFixed(2)}</span>
                 </h2>
 
                 <!-- Detail Cards -->
                 <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
                     
                     <!-- Date Row -->
-                    <div style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
+                    <div class="finance-transaction-detail-row" style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
                         <div style="width: 36px; height: 36px; border-radius: 10px; background: #283046; display: grid; place-items: center; font-size: 1.1rem; color: #93c5fd;">📅</div>
                         <div>
                             <div style="color: #7d8ea9; font-size: 0.75rem; font-weight: 600; margin-bottom: 2px;">Date</div>
@@ -1421,7 +1436,7 @@ function renderTransactionDetailModal(transaction) {
                     </div>
 
                     <!-- Payment Method Row -->
-                    <div style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
+                    <div class="finance-transaction-detail-row" style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
                         <div style="width: 36px; height: 36px; border-radius: 10px; background: #283046; display: grid; place-items: center; font-size: 1.1rem; color: #d8b4fe;">💳</div>
                         <div>
                             <div style="color: #7d8ea9; font-size: 0.75rem; font-weight: 600; margin-bottom: 2px;">Payment Method</div>
@@ -1430,18 +1445,18 @@ function renderTransactionDetailModal(transaction) {
                     </div>
 
                     <!-- Status / Type Row -->
-                    <div style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
+                    <div class="finance-transaction-detail-row" style="background: #1e2438; border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 16px;">
                         <div style="width: 36px; height: 36px; border-radius: 10px; background: #283046; display: grid; place-items: center; font-size: 1.1rem; color: #fca5a5;">📌</div>
                         <div>
                             <div style="color: #7d8ea9; font-size: 0.75rem; font-weight: 600; margin-bottom: 6px;">Status</div>
-                            <div style="display: inline-block; background: ${isExpense ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isExpense ? '#fca5a5' : '#6ee7b7'}; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; text-transform: capitalize;">${transaction.type}</div>
+                            <div class="finance-transaction-detail-status" style="display: inline-block; background: ${isExpense ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isExpense ? '#fca5a5' : '#6ee7b7'}; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; text-transform: capitalize;">${transaction.type}</div>
                         </div>
                     </div>
 
                 </div>
 
                 <!-- Description -->
-                <div style="margin-bottom: 24px;">
+                <div class="finance-transaction-detail-description" style="margin-bottom: 24px;">
                     <div style="color: #e2e8f0; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px;">Description</div>
                     <div style="color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">
                         ${safeNote}
@@ -1473,7 +1488,7 @@ function renderTransactionDetailModal(transaction) {
 }
 
 // Add this to the bottom of finance.js
-function renderResetConfirmModal() {
+function renderResetConfirmModal(state) {
     return `
         <!-- Modal Backdrop -->
         <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; font-family: 'Segoe UI', system-ui, sans-serif; animation: fadeIn 0.2s ease-out;">
@@ -1487,18 +1502,18 @@ function renderResetConfirmModal() {
                 </div>
 
                 <!-- Text -->
-                <h2 style="margin: 0 0 12px 0; font-size: 1.4rem; font-weight: 800; color: white;">Reset Entire App?</h2>
+                <h2 style="margin: 0 0 12px 0; font-size: 1.4rem; font-weight: 800; color: white;">Reset Transactions?</h2>
                 <p style="margin: 0 0 28px 0; color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">
-                    This will permanently delete all your transactions, tasks, events, and data from the database, resetting your account to a clean state. This <strong>cannot be undone</strong>.
+                This permanently deletes all of your income and expense transactions. Your tasks, events, notes, and account will not be deleted. This <strong>cannot be undone</strong>.
                 </p>
 
                 <!-- Action Buttons (Cancel / Confirm) -->
                 <div style="display: flex; gap: 12px; width: 100%;">
-                    <button data-action="cancel-finance-reset" style="flex: 1; background: #202638; border: 1px solid #2e364f; color: white; padding: 14px; border-radius: 14px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                    <button data-action="cancel-finance-reset" ${state.financeResetLoading ? 'disabled' : ''} style="flex: 1; background: #202638; border: 1px solid #2e364f; color: white; padding: 14px; border-radius: 14px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                         Cancel
                     </button>
-                    <button data-action="confirm-finance-reset" style="flex: 1; background: linear-gradient(135deg, #ef4444, #b91c1c); border: none; color: white; padding: 14px; border-radius: 14px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);">
-                        Yes, Reset All
+                    <button data-action="confirm-finance-reset" ${state.financeResetLoading ? 'disabled' : ''} style="flex: 1; background: linear-gradient(135deg, #ef4444, #b91c1c); border: none; color: white; padding: 14px; border-radius: 14px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);">
+                        ${state.financeResetLoading ? 'Resetting…' : 'Yes, Reset Transactions'}
                     </button>
                 </div>
             </div>
