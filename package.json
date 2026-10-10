@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test:smoke": "node scripts/smoke-api.js",
+    "test:smoke:assistant": "node scripts/smoke-assistant.js",
     "mobile:stage": "node scripts/stage-mobile.js",
     "mobile:sync": "npm run mobile:stage && cap sync",
     "android:sync": "npm run mobile:stage && cap sync android",

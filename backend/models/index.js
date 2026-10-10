@@ -24,9 +24,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Legacy accounts predate verification. Defaulting existing documents to
-    // verified preserves their ability to sign in; registration explicitly
-    // sets this to false until the owner completes the email challenge.
+    // Retained for compatibility with existing account and client data.
     emailVerified: {
       type: Boolean,
       default: true,
@@ -193,6 +191,8 @@ const eventSchema = new mongoose.Schema(
       default: '',
     },
 
+    assistantRequestId: { type: String, default: undefined, select: false },
+
     reminderNotifiedAt: {
       type: Date,
       default: null,
@@ -262,6 +262,8 @@ const taskSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+
+    assistantRequestId: { type: String, default: undefined, select: false },
 
     reminderNotifiedAt: {
       type: Date,
@@ -626,6 +628,7 @@ const transactionSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    assistantRequestId: { type: String, default: undefined, select: false },
   },
   {
     collection: 'transactions',
@@ -664,6 +667,8 @@ const assetSchema = new mongoose.Schema(
       type: String,
       default: 'Note',
     },
+
+    assistantRequestId: { type: String, default: undefined, select: false },
 
     createdAt: {
       type: Date,
@@ -724,11 +729,15 @@ eventSchema.index({
   userId: 1,
   date: 1,
 });
+eventSchema.index({ userId: 1, assistantRequestId: 1 }, { unique: true, partialFilterExpression: { assistantRequestId: { $type: 'string' } } });
 
 taskSchema.index({
   userId: 1,
   date: 1,
 });
+taskSchema.index({ userId: 1, assistantRequestId: 1 }, { unique: true, partialFilterExpression: { assistantRequestId: { $type: 'string' } } });
+assetSchema.index({ userId: 1, assistantRequestId: 1 }, { unique: true, partialFilterExpression: { assistantRequestId: { $type: 'string' } } });
+transactionSchema.index({ userId: 1, assistantRequestId: 1 }, { unique: true, partialFilterExpression: { assistantRequestId: { $type: 'string' } } });
 
 moodSchema.index({
   userId: 1,

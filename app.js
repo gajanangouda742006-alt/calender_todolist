@@ -251,7 +251,9 @@ async function apiRequest(path, options = {}) {
       }
     }
 
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return payload;
@@ -3325,54 +3327,91 @@ document.addEventListener('click', (e) => {
     });
   });
 
+  const submitAssistantMessage = async (message, requestId, addUserMessage = true) => {
+    if (state.assistantLoading) return;
+    if (addUserMessage) state.assistantMessages.push({ role: 'user', text: message });
+    state.assistantLoading = true;
+    renderLayout();
+
+    try {
+      let response;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+          response = await apiRequest('/api/assistant/chat', {
+            method: 'POST',
+            signal: controller.signal,
+            body: JSON.stringify({ message, requestId }),
+          });
+          break;
+        } catch (error) {
+          const retryable = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
+          if (attempt === 0 && retryable) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            continue;
+          }
+          throw error;
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
+
+      if (response.action === 'requiresConfirmation' && response.confirmationToken) {
+        const label = /delete/i.test(response.message || '') ? 'Delete task' : /complete/i.test(response.message || '') ? 'Mark complete' : /event/i.test(response.message || '') ? 'Add event' : 'Add task';
+        showAppConfirm('Do you want Sahra to perform this change?', async () => {
+          state.assistantLoading = true;
+          renderLayout();
+          try {
+            const execution = await apiRequest('/api/assistant/execute', {
+              method: 'POST',
+              body: JSON.stringify({ confirmationToken: response.confirmationToken }),
+            });
+            state.assistantMessages.push({ role: 'assistant', text: execution.message || 'The change was completed.' });
+            await loadDashboardData();
+          } catch (error) {
+            state.assistantMessages.push({ role: 'assistant', text: error.message || 'Sahra could not complete that change.' });
+          } finally {
+            state.assistantLoading = false;
+            renderLayout();
+          }
+        }, label);
+      } else if (['createdTask', 'createdEvent', 'createdNote', 'createdTransaction'].includes(response.action)) {
+        await loadDashboardData();
+        if (response.action === 'createdTransaction') await fetchFinanceData();
+      }
+    } catch (error) {
+      const messageText = error.message || 'Sahra is temporarily unavailable.';
+      const canRetry = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
+      state.assistantMessages.push({
+        role: 'assistant',
+        text: canRetry ? `${messageText} You can retry safely.` : messageText,
+        ...(canRetry ? { retryRequestId: requestId, retryMessage: message } : {}),
+      });
+    } finally {
+      state.assistantLoading = false;
+      renderLayout();
+    }
+  };
+
   document.querySelectorAll('.composer-send').forEach((button) => {
     button.addEventListener('click', async () => {
       const input = document.querySelector('.assistant-input');
       const message = input?.value?.trim();
       if (!message || state.assistantLoading) return;
-
-      state.assistantMessages.push({ role: 'user', text: message });
-      state.assistantLoading = true;
       if (input) input.value = '';
-      renderLayout();
+      const requestId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await submitAssistantMessage(message, requestId);
+    });
+  });
 
-      try {
-        const response = await apiRequest('/api/assistant/chat', {
-          method: 'POST',
-          body: JSON.stringify({ message }),
-        });
-
-        state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
-
-        if (response.action === 'requiresConfirmation' && response.confirmationToken) {
-          const label = /complete/i.test(response.message || '') ? 'Mark complete' : /event/i.test(response.message || '') ? 'Add event' : 'Add task';
-          showAppConfirm('Do you want Sahra to perform this change?', async () => {
-            state.assistantLoading = true;
-            renderLayout();
-            try {
-              const execution = await apiRequest('/api/assistant/execute', {
-                method: 'POST',
-                body: JSON.stringify({ confirmationToken: response.confirmationToken }),
-              });
-              state.assistantMessages.push({ role: 'assistant', text: execution.message || 'The change was completed.' });
-              await loadDashboardData();
-            } catch (error) {
-              state.assistantMessages.push({ role: 'assistant', text: error.message || 'Sahra could not complete that change.' });
-            } finally {
-              state.assistantLoading = false;
-              renderLayout();
-            }
-          }, label);
-        }
-      } catch (error) {
-        state.assistantMessages.push({
-          role: 'assistant',
-          text: error.message || 'Sahra is temporarily unavailable.',
-        });
-      } finally {
-        state.assistantLoading = false;
-        renderLayout();
-      }
+  document.querySelectorAll('[data-assistant-retry]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const message = button.dataset.retryMessage || '';
+      const requestId = button.dataset.assistantRetry || '';
+      if (message && requestId) await submitAssistantMessage(message, requestId, false);
     });
   });
 

@@ -73,10 +73,6 @@ function codeDigest(userId, purpose, code) {
     .digest('hex');
 }
 
-function stateKeyForPurpose(purpose) {
-  return purpose === 'password-reset' ? 'passwordReset' : 'emailVerification';
-}
-
 function statusError(message, statusCode, code) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -85,7 +81,7 @@ function statusError(message, statusCode, code) {
 }
 
 async function issueCode(user, purpose) {
-  const key = stateKeyForPurpose(purpose);
+  const key = 'passwordReset';
   const now = new Date();
   const existing = user[key] || {};
   const resendAvailableAt = existing.resendAvailableAt ? new Date(existing.resendAvailableAt) : null;
@@ -99,7 +95,7 @@ async function issueCode(user, purpose) {
   const withinWindow = currentWindowStartedAt && now.getTime() - currentWindowStartedAt.getTime() < SEND_WINDOW_MS;
   const sendsInWindow = withinWindow ? Number(existing.sendsInWindow || 0) : 0;
   if (sendsInWindow >= MAX_SENDS_PER_WINDOW) {
-    throw statusError('Too many verification emails were requested. Please try again in an hour.', 429, 'SEND_LIMIT');
+    throw statusError('Too many password reset emails were requested. Please try again in an hour.', 429, 'SEND_LIMIT');
   }
 
   const code = crypto.randomInt(100000, 1_000_000).toString();
@@ -117,7 +113,12 @@ async function issueCode(user, purpose) {
   await user.save();
 
   try {
-    await sendOneTimeCode({ to: user.email, code, purpose });
+    await sendOneTimeCode({
+      to: user.email,
+      code,
+      purpose,
+      expiresInMinutes: Math.ceil(OTP_TTL_MS / 60_000),
+    });
   } catch (error) {
     // The code was never accepted by the provider, so invalidate it and let
     // the user retry rather than claiming delivery or trapping the account.
@@ -140,11 +141,11 @@ async function issueCode(user, purpose) {
 }
 
 async function verifyCode(user, purpose, suppliedCode) {
-  const key = stateKeyForPurpose(purpose);
+  const key = 'passwordReset';
   const current = user[key] || {};
   const now = new Date();
   const code = typeof suppliedCode === 'string' ? suppliedCode.trim() : '';
-  const invalid = () => statusError('The verification code is invalid or has expired.', 400, 'INVALID_CODE');
+  const invalid = () => statusError('The password reset code is invalid or has expired.', 400, 'INVALID_CODE');
 
   if (!/^\d{6}$/.test(code) || !current.codeHash || !current.expiresAt || new Date(current.expiresAt) <= now) {
     throw invalid();
@@ -197,33 +198,25 @@ router.post('/register', authRateLimit, async (req, res) => {
       return res.status(400).json({ message: 'Date of birth is invalid.' });
     }
 
-    // Fail early if a real provider is not configured; no account is claimed
-    // as verified and no simulated message is shown to the user.
-    getEmailConfiguration();
-
-    let user = await User.findOne({ email: normalizedEmail });
-    if (user?.emailVerified) {
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
       return res.status(409).json({ message: 'An account already exists for this email address.' });
     }
 
-    if (!user) {
-      const passwordHash = await bcrypt.hash(password, 12);
-      user = await User.create({
-        name: cleanName,
-        email: normalizedEmail,
-        passwordHash,
-        emailVerified: false,
-        profile: { dateOfBirth: dateOfBirth || null },
-        preferences: { theme: 'light', goals: [], interests: [] },
-      });
-    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await User.create({
+      name: cleanName,
+      email: normalizedEmail,
+      passwordHash,
+      emailVerified: true,
+      profile: { dateOfBirth: dateOfBirth || null },
+      preferences: { theme: 'light', goals: [], interests: [] },
+    });
 
-    const timing = await issueCode(user, 'email-verification');
     return res.status(201).json({
-      message: 'Verification code sent.',
-      verificationRequired: true,
-      email: user.email,
-      ...timing,
+      message: 'Account created successfully.',
+      token: generateToken(user),
+      user: publicUser(user),
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -232,53 +225,6 @@ router.post('/register', authRateLimit, async (req, res) => {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
     console.error('Registration failed:', error.message);
     return res.status(500).json({ message: 'Registration could not be completed.' });
-  }
-});
-
-router.post('/verification/resend', codeRateLimit, async (req, res) => {
-  try {
-    const email = normalizeEmail(req.body?.email);
-    if (!hasValidEmailShape(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
-    getEmailConfiguration();
-
-    const user = await User.findOne({ email });
-    if (!user || user.emailVerified) {
-      return res.status(400).json({ message: 'This account does not need email verification.' });
-    }
-
-    const timing = await issueCode(user, 'email-verification');
-    return res.status(200).json({ message: 'Verification code sent.', email: user.email, ...timing });
-  } catch (error) {
-    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
-    console.error('Verification resend failed:', error.message);
-    return res.status(500).json({ message: 'Unable to send a verification code.' });
-  }
-});
-
-router.post('/verification/confirm', authRateLimit, async (req, res) => {
-  try {
-    const email = normalizeEmail(req.body?.email);
-    const code = req.body?.code;
-    if (!hasValidEmailShape(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
-
-    const user = await User.findOne({ email });
-    if (!user || user.emailVerified) {
-      return res.status(400).json({ message: 'The verification code is invalid or has expired.' });
-    }
-
-    await verifyCode(user, 'email-verification', code);
-    user.emailVerified = true;
-    await user.save();
-
-    return res.status(200).json({
-      message: 'Email verified successfully.',
-      token: generateToken(user),
-      user: publicUser(user),
-    });
-  } catch (error) {
-    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
-    console.error('Verification failed:', error.message);
-    return res.status(500).json({ message: 'Unable to verify this email.' });
   }
 });
 
@@ -295,11 +241,8 @@ router.post('/login', authRateLimit, async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
     if (!user.emailVerified) {
-      return res.status(403).json({
-        message: 'Verify your email address before signing in.',
-        code: 'EMAIL_VERIFICATION_REQUIRED',
-        email: user.email,
-      });
+      user.emailVerified = true;
+      await user.save();
     }
 
     return res.status(200).json({ message: 'Login successful.', token: generateToken(user), user: publicUser(user) });
@@ -315,7 +258,7 @@ router.post('/password-reset/request', codeRateLimit, async (req, res) => {
     if (!hasValidEmailShape(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
 
     const user = await User.findOne({ email });
-    if (!user || !user.emailVerified) {
+    if (!user) {
       return res.status(200).json({ message: 'If an eligible account exists, a reset code has been sent.' });
     }
 
@@ -338,7 +281,7 @@ router.post('/password-reset/confirm', authRateLimit, async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'The verification code is invalid or has expired.' });
+    if (!user) return res.status(400).json({ message: 'The password reset code is invalid or has expired.' });
     await verifyCode(user, 'password-reset', code);
     user.passwordHash = await bcrypt.hash(password, 12);
     await user.save();

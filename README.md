@@ -48,14 +48,25 @@ Open the `/login` route at the URL printed by the server. The default preferred 
 | `GEMINI_MODEL` | Optional Gemini model name; defaults to `gemini-2.5-flash`. |
 | `AI_API_KEY` | Optional OpenAI-compatible provider key. When present, Sahra uses this provider before Gemini. Keep it server-side. |
 | `AI_API_URL` / `AI_MODEL` | OpenAI-compatible chat-completions endpoint and model name for `AI_API_KEY`. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | SMTP connection details for real verification and password-reset email. |
-| `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | SMTP credentials and the verified sender address. All are required before an OTP can be sent. |
-| `OTP_SECRET` | A separate random secret used to hash email and password-reset codes. |
-| `OTP_TTL_MINUTES` / `OTP_RESEND_COOLDOWN_SECONDS` | Optional code lifetime and resend cooldown; bounded to safe server limits. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | Optional SMTP connection details for password-reset email. |
+| `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | Optional SMTP credentials and sender; needed only for email-based password resets. |
+| `OTP_SECRET` | A separate random secret used to hash password-reset codes. |
+| `OTP_TTL_MINUTES` / `OTP_RESEND_COOLDOWN_SECONDS` | Optional password-reset code lifetime and resend cooldown; bounded to safe server limits. |
 | `ASSISTANT_ACTION_SECRET` | Optional separate signing secret for one-time Sahra action confirmations. |
 | `SEED_DEMO_DATA` | Set to `true` only when intentionally seeding the development demo account. Defaults to disabled. |
 
-Email verification uses SMTP only. Until the SMTP variables and a verified `EMAIL_FROM` sender are configured, registration returns a clear configuration error instead of pretending that an OTP was delivered. Codes are hashed, expire after ten minutes by default, have a five-attempt limit, and are protected by resend and request rate limits.
+Account creation and sign-in do not require email delivery or email verification. Registration creates the account and signs the user in immediately using the supplied email and password. SMTP is optional and is used only by password-reset codes. For SendGrid, create an API key with Mail Send access, verify a sender identity, and configure the server environment if you want email-based password resets:
+
+```dotenv
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=apikey
+SMTP_PASS=<SendGrid API key>
+EMAIL_FROM="Sahra Life Calendar <verified-sender@your-domain.example>"
+```
+
+Set `SMTP_PASS` and `EMAIL_FROM` in the hosting provider's secret/environment settings (or the ignored local `.env` file), then restart the server. Do not commit real credentials or paste them into chat. Without SMTP, signup and login still work normally; only password-reset email delivery is unavailable. Password-reset codes are hashed, expire after ten minutes by default, have a five-attempt limit, and are protected by resend and request rate limits.
 
 The checked-in `.env.example` contains placeholders only. `.env` is ignored by Git.
 
@@ -118,13 +129,16 @@ node --check backend/routes/auth.js
 node --check backend/routes/dashboard.js
 ```
 
-There is not yet a complete browser or device-test suite in the repository. Browser/API smoke checks should use a dedicated test account and clean up that account and its records afterwards; never run tests against production user data.
+There is not yet a complete device-test suite in the repository. Browser/API smoke checks should use a dedicated test account and clean up that account and its records afterwards; never run tests against production user data.
 
-An isolated smoke workflow is included for a local, already-running server. It creates two uniquely named accounts, validates event conflicts, task persistence, finance, user isolation, and confirmed assistant actions, then removes its records in a `finally` cleanup path:
+Isolated smoke workflows are included for a local, already-running server. They create temporary accounts, exercise authenticated API and assistant actions, and remove their records in a `finally` cleanup path:
 
 ```bash
 npm run test:smoke
+npm run test:smoke:assistant
 ```
+
+Explicit Sahra requests create routine tasks, events, notes, and INR transactions immediately. Event conflicts and missing details are surfaced instead of guessed; assistant retries reuse a request ID to avoid duplicate records. Deletion and task completion continue to require an explicit confirmation.
 
 ## Known release prerequisites
 

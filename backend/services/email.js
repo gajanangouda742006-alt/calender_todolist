@@ -49,7 +49,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-async function sendOneTimeCode({ to, code, purpose }) {
+async function sendOneTimeCode({ to, code, purpose, expiresInMinutes = 10 }) {
   const configuration = getEmailConfiguration();
   const isPasswordReset = purpose === 'password-reset';
   const heading = isPasswordReset ? 'Reset your Sahra password' : 'Verify your Sahra email';
@@ -60,8 +60,8 @@ async function sendOneTimeCode({ to, code, purpose }) {
       from: configuration.from,
       to,
       subject: `${heading} — Sahra Life Calendar`,
-      text: `Your Sahra verification code is ${code}. Use it to ${action}. It expires in 10 minutes. If you did not request this, you can safely ignore this email.`,
-      html: `<p>Your Sahra verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${escapeHtml(code)}</p><p>Use it to ${escapeHtml(action)}. It expires in 10 minutes.</p><p>If you did not request this, you can safely ignore this email.</p>`,
+      text: `Your Sahra verification code is ${code}. Use it to ${action}. It expires in ${expiresInMinutes} minutes. If you did not request this, you can safely ignore this email.`,
+      html: `<p>Your Sahra verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${escapeHtml(code)}</p><p>Use it to ${escapeHtml(action)}. It expires in ${expiresInMinutes} minutes.</p><p>If you did not request this, you can safely ignore this email.</p>`,
     });
 
     if (!Array.isArray(info.accepted) || !info.accepted.length) {

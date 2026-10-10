@@ -78,7 +78,46 @@ async function main() {
       emailVerified: true,
       preferences: { theme: 'dark' },
     });
-    testIds.push(primary._id, secondary._id);
+    const legacyUnverified = await User.create({
+      name: 'Sahra Smoke Legacy',
+      email: `${tag}-legacy@example.invalid`,
+      passwordHash,
+      emailVerified: false,
+      preferences: { theme: 'dark' },
+    });
+    testIds.push(primary._id, secondary._id, legacyUnverified._id);
+
+    const registration = await request('/api/auth/register', {
+      method: 'POST',
+      body: {
+        name: 'Sahra Smoke Registration',
+        email: `${tag}-registration@example.invalid`,
+        password: 'SmokePassword123!',
+      },
+    });
+    assert(
+      registration.response.status === 201 &&
+      registration.payload.token &&
+      registration.payload.user?.emailVerified === true,
+      'Registration did not create and sign in a verified account without email.'
+    );
+    testIds.push(new mongoose.Types.ObjectId(registration.payload.user.id));
+
+    const registrationLogin = await request('/api/auth/login', {
+      method: 'POST',
+      body: { email: registration.payload.user.email, password: 'SmokePassword123!' },
+    });
+    assert(registrationLogin.response.status === 200 && registrationLogin.payload.token, 'Newly registered account could not sign in.');
+
+    const legacyLogin = await request('/api/auth/login', {
+      method: 'POST',
+      body: { email: legacyUnverified.email, password: 'SmokePassword123!' },
+    });
+    assert(
+      legacyLogin.response.status === 200 &&
+      legacyLogin.payload.user?.emailVerified === true,
+      'Legacy unverified account could not sign in without email.'
+    );
 
     const primaryLogin = await request('/api/auth/login', {
       method: 'POST',
@@ -131,27 +170,31 @@ async function main() {
     });
     assert(finance.response.status === 201, 'Finance transaction creation failed.');
 
-    const assistantProposal = await request('/api/assistant/chat', {
+    const assistantRequest = {
+      message: 'Add a task to verify assistant creation',
+      requestId: crypto.randomUUID(),
+    };
+    const assistantCreation = await request('/api/assistant/chat', {
       token: primaryLogin.payload.token,
       method: 'POST',
-      body: { message: `Add task ${tag} tomorrow` },
+      body: assistantRequest,
     });
     assert(
-      assistantProposal.response.status === 200 && assistantProposal.payload.confirmationToken,
-      `Assistant did not return a confirmation token (HTTP ${assistantProposal.response.status}: ${assistantProposal.payload.message || 'no message'}).`
+      assistantCreation.response.status === 200 &&
+      assistantCreation.payload.action === 'createdTask' &&
+      assistantCreation.payload.message.includes('verify assistant creation'),
+      `Assistant did not create the explicit task (HTTP ${assistantCreation.response.status}: ${assistantCreation.payload.message || 'no message'}).`
     );
-    const assistantExecution = await request('/api/assistant/execute', {
+    const assistantRetry = await request('/api/assistant/chat', {
       token: primaryLogin.payload.token,
       method: 'POST',
-      body: { confirmationToken: assistantProposal.payload.confirmationToken },
+      body: assistantRequest,
     });
-    assert(assistantExecution.response.status === 201, 'Confirmed assistant task creation failed.');
-    const replay = await request('/api/assistant/execute', {
-      token: primaryLogin.payload.token,
-      method: 'POST',
-      body: { confirmationToken: assistantProposal.payload.confirmationToken },
-    });
-    assert(replay.response.status === 409, 'Assistant confirmation token was replayable.');
+    assert(assistantRetry.response.status === 200, 'Assistant retry did not return the saved result.');
+    assert(
+      await Task.countDocuments({ userId: primary._id, assistantRequestId: assistantRequest.requestId }) === 1,
+      'Assistant retry created a duplicate task.'
+    );
 
     const dashboard = await request('/api/dashboard', { token: primaryLogin.payload.token });
     assert(

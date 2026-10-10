@@ -38,6 +38,7 @@ export function renderAssistantPage(state = {}) {
               <div class="message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}">${escapeHtml(message.text)}</div>
               ${isUser ? '<div class="chat-avatar user-avatar">👩</div>' : ''}
             </div>
+            ${!isUser && message.retryRequestId ? `<div class="chat-row assistant-row"><div class="chat-avatar bot-avatar">🤖</div><button class="link-btn" type="button" data-assistant-retry="${escapeHtml(message.retryRequestId)}" data-retry-message="${escapeHtml(message.retryMessage || '')}" ${disabled}>Retry request</button></div>` : ''}
           `;
         }).join('')}
 
