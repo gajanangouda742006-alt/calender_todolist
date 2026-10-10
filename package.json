@@ -1,11 +1,16 @@
 {
   "name": "sahra-calendar",
   "version": "1.0.0",
-  "description": "Sahra Life Calendar with Node.js, Express and MySQL authentication",
+  "description": "Sahra Life Calendar with Node.js, Express, and MongoDB",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "node --watch server.js",
+    "test:smoke": "node scripts/smoke-api.js",
+    "mobile:stage": "node scripts/stage-mobile.js",
+    "mobile:sync": "npm run mobile:stage && cap sync",
+    "android:sync": "npm run mobile:stage && cap sync android",
+    "ios:sync": "npm run mobile:stage && cap sync ios"
   },
   "keywords": [
     "calendar",
@@ -16,15 +21,30 @@
   "author": "Sahra",
   "license": "MIT",
   "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/status-bar": "^8.0.0",
     "bcryptjs": "^2.4.3",
+    "capacitor-secure-storage-plugin": "^0.13.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.3",
-    "mysql2": "^3.4.1"
+    "mysql2": "^3.4.1",
+    "nodemailer": "10.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "@capacitor/cli": "8.4.3",
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

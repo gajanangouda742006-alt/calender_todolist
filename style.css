@@ -7639,6 +7639,26 @@ body.theme-light .entry-field select {
   max-width: 100%;
 }
 
+:root[data-sahra-native="true"] .mobile-frame {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root[data-sahra-native="true"] #app {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+
+:root[data-sahra-native="true"] .bottom-nav {
+  bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+}
+
 /* Smooth native-style scrolling inside the application. */
 #app {
   overscroll-behavior-y: contain !important;
@@ -7989,6 +8009,222 @@ body.theme-light .entry-field select {
 }
 .todo-screen .todo-header {
   margin-top: 12px !important;
+}
+
+/* Requested mobile interaction/layout corrections. */
+.more-menu-backdrop {
+  z-index: 20000 !important;
+}
+
+.more-menu-panel {
+  z-index: 20001 !important;
+}
+
+.entry-modal-backdrop,
+.entry-modal-backdrop.visible {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 30000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)) !important;
+  overflow: hidden !important;
+  overscroll-behavior: contain;
+}
+
+.entry-modal {
+  width: min(100%, 420px) !important;
+  max-height: calc(100dvh - 32px) !important;
+  margin: 0 !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.todo-page-header {
+  position: fixed !important;
+  top: max(12px, env(safe-area-inset-top)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(calc(100vw - 28px), 382px) !important;
+  min-height: 76px;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  box-sizing: border-box;
+  z-index: 8000 !important;
+  border: 1px solid rgba(126, 172, 255, 0.34);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(28, 48, 94, 0.98), rgba(11, 23, 52, 0.98));
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34), inset 0 1px 1px rgba(255,255,255,0.16);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.todo-page-header .todo-heading {
+  min-width: 0;
+}
+
+.todo-page-header .todo-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border: 1px solid rgba(205, 226, 255, 0.52);
+  background: linear-gradient(145deg, #9fcfff, #7276f1 58%, #4546a9);
+  box-shadow: 0 4px 0 rgba(31, 41, 116, 0.9), 0 12px 20px rgba(69, 102, 255, 0.36), inset 0 2px 2px rgba(255,255,255,0.55);
+}
+
+.todo-page-header .todo-heading h2 {
+  color: #ffffff;
+  font-size: clamp(1.35rem, 6vw, 1.8rem);
+  text-shadow: 0 2px 0 rgba(3, 12, 34, 0.76), 0 8px 18px rgba(102, 157, 255, 0.35);
+}
+
+.todo-page-header .todo-heading p {
+  color: #bcd4ff;
+}
+
+.todo-page-content {
+  padding-top: 112px;
+  padding-bottom: 116px;
+}
+
+.task-create-action {
+  position: fixed;
+  right: max(20px, calc((100vw - 382px) / 2));
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 88px));
+  z-index: 7000;
+}
+
+.task-create-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: white;
+  border: none;
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(99,102,241,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-create-button:active {
+  transform: translateY(2px);
+}
+
+.dashboard-topbar.page-fixed-header {
+  gap: 10px;
+}
+
+.dashboard-topbar.page-fixed-header .month-picker-wrapper {
+  margin-left: auto;
+  min-width: 0;
+}
+
+.notepad-container [data-action="notepad-search-input"] {
+  color: #15233f !important;
+  caret-color: #15233f !important;
+}
+
+.notepad-container [data-action="notepad-search-input"]::placeholder {
+  color: #52627f !important;
+  opacity: 1 !important;
+}
+
+.finance-income-expense-row {
+  width: 100%;
+  min-width: 0;
+  gap: 12px;
+}
+
+.finance-income-expense-row > div {
+  min-width: 0 !important;
+}
+
+.finance-income-expense-row > div > div:last-child {
+  font-size: clamp(0.94rem, 4.5vw, 1.25rem) !important;
+  overflow-wrap: anywhere;
+  white-space: normal !important;
+}
+
+@media (max-width: 430px) {
+  .dashboard-topbar.page-fixed-header {
+    padding: 10px 12px !important;
+  }
+
+  .dashboard-topbar.page-fixed-header .month-picker {
+    max-width: calc(100vw - 140px);
+    padding: 8px 10px !important;
+    gap: 6px;
+  }
+
+  .dashboard-topbar.page-fixed-header .picker-label {
+    min-width: 0;
+  }
+
+  .dashboard-topbar.page-fixed-header .picker-month,
+  .dashboard-topbar.page-fixed-header .picker-year {
+    white-space: nowrap;
+  }
+
+  .progress-panel {
+    padding: 14px 12px !important;
+  }
+
+  .progress-grid {
+    grid-template-columns: minmax(118px, 0.9fr) minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .progress-grid .focus-card {
+    display: none;
+  }
+
+  .donut-chart {
+    width: min(34vw, 132px) !important;
+    height: min(34vw, 132px) !important;
+  }
+
+  .donut-chart::before {
+    inset: 11px;
+  }
+
+  .donut-center strong {
+    font-size: clamp(1.65rem, 7vw, 2.1rem);
+  }
+
+  .donut-center span {
+    font-size: 0.68rem;
+  }
+
+  .progress-metrics {
+    gap: 8px;
+    padding-left: 8px;
+  }
+
+  .metric-item {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .metric-label {
+    font-size: 0.78rem;
+  }
+
+  .metric-item strong {
+    font-size: 0.96rem;
+  }
+
+  .finance-income-expense-row {
+    gap: 8px;
+    padding: 12px 10px !important;
+  }
+
+  .finance-income-expense-row > div:nth-of-type(2) {
+    padding-left: 10px !important;
+  }
 }
 
 /* FIX FINANCE DASHBOARD */

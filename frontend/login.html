@@ -2,272 +2,77 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sahra Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Sign in to Sahra</title>
+    <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
     <style>
-      :root {
-        --bg-1: #090f1b;
-        --bg-2: #121d38;
-        --card: rgba(18, 30, 58, 0.9);
-        --text: #edf4ff;
-        --muted: #a5b4d8;
-        --purple: #8e72ff;
-        --cyan: #63d6ff;
-        --green: #6ee7b7;
-        --danger: #ff7c9a;
-      }
-
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: radial-gradient(circle at top, #1a244a, #090f1b 55%);
-        color: var(--text);
-        font-family: Arial, sans-serif;
-      }
-
-      .auth-shell {
-        width: min(420px, 92vw);
-        background: linear-gradient(180deg, rgba(19, 28, 48, 0.95), rgba(9, 16, 30, 0.98));
-        border: 1px solid rgba(163, 180, 255, 0.2);
-        border-radius: 28px;
-        padding: 24px 20px 18px;
-        box-shadow: 0 24px 50px rgba(0,0,0,0.35);
-      }
-
-      .brand {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-
-      .logo {
-        width: 72px;
-        height: 72px;
-        margin: 0 auto 14px;
-        display: grid;
-        place-items: center;
-        background: transparent;
-        box-shadow: none;
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(2rem, 5vw, 2.8rem);
-      }
-
-      .subtitle {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 0.9rem;
-      }
-
-      .tab-row {
-        display: flex;
-        gap: 8px;
-        background: rgba(255,255,255,0.04);
-        padding: 6px;
-        border-radius: 14px;
-        margin-bottom: 18px;
-      }
-
-      .tab {
-        flex: 1;
-        padding: 10px;
-        border-radius: 12px;
-        border: none;
-        background: transparent;
-        color: var(--muted);
-        cursor: pointer;
-        font-weight: 700;
-      }
-
-      .tab.active {
-        background: linear-gradient(135deg, rgba(142,114,255,0.3), rgba(99,214,255,0.2));
-        color: var(--text);
-      }
-
-      form {
-        display: grid;
-        gap: 14px;
-      }
-
-      label {
-        display: grid;
-        gap: 8px;
-        font-size: 0.85rem;
-        color: var(--muted);
-      }
-
-      input {
-        width: 100%;
-        border: 1px solid rgba(160, 177, 255, 0.18);
-        background: rgba(255,255,255,0.03);
-        border-radius: 12px;
-        padding: 13px 12px;
-        color: var(--text);
-        font-size: 1rem;
-      }
-
-      .primary-btn {
-        border: none;
-        border-radius: 14px;
-        padding: 14px 16px;
-        margin-top: 8px;
-        cursor: pointer;
-        font-weight: 800;
-        color: white;
-        background: linear-gradient(135deg, #9d82ff, #68d5ff);
-        box-shadow: 0 12px 25px rgba(111, 94, 255, 0.4);
-      }
-
-      .status {
-        min-height: 18px;
-        margin-top: 8px;
-        font-size: 0.82rem;
-        color: var(--muted);
-      }
-
-      .status.error { color: var(--danger); }
-      .status.success { color: var(--green); }
+      :root { color-scheme:dark; --ink:#edf4ff; --muted:#a5b4d8; --line:rgba(160,177,255,.18); --panel:rgba(18,30,58,.93); --tab:#ffffff0a; --field:#ffffff08; --primary:#9d82ff; --primary-2:#68d5ff; --danger:#ff7c9a; --success:#6ee7b7; --page:radial-gradient(circle at top,#1a244a,#090f1b 55%); }
+      :root[data-theme="light"] { color-scheme:light; --ink:#17203b; --muted:#617092; --line:#dbe3f5; --panel:rgba(255,255,255,.94); --tab:#f1f4fb; --field:#ffffff; --primary:#6255e8; --primary-2:#2796dc; --danger:#c23361; --success:#16724d; --page:radial-gradient(circle at 12% 8%,#e5e0ff 0,transparent 32%),radial-gradient(circle at 88% 82%,#dcefff 0,transparent 34%),#f8faff; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:24px 16px; color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--page); }
+      .auth-shell { width:min(100%,430px); background:linear-gradient(180deg,var(--panel),rgba(9,16,30,.98)); border:1px solid var(--line); border-radius:28px; padding:28px 22px 22px; box-shadow:0 24px 50px rgba(0,0,0,.35); }
+      :root[data-theme="light"] .auth-shell { background:var(--panel); box-shadow:0 24px 60px rgba(58,72,130,.18); }
+      .brand { text-align:center; margin-bottom:22px; } .logo { width:72px; height:72px; margin:0 auto 12px; } .logo img { width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 16px rgba(145,118,255,.7)); }
+      h1 { margin:0; font-size:clamp(2rem,8vw,2.5rem); letter-spacing:-.045em; } .subtitle { margin:7px 0 0; color:var(--muted); font-size:.95rem; }
+      .tab-row { display:flex; gap:6px; padding:5px; border-radius:14px; background:var(--tab); margin-bottom:18px; } .tab { flex:1; border:0; border-radius:10px; padding:10px; background:transparent; color:var(--muted); font-weight:750; cursor:pointer; } .tab.active { color:var(--ink); background:linear-gradient(135deg,rgba(142,114,255,.30),rgba(99,214,255,.20)); box-shadow:0 2px 8px rgba(66,77,126,.12); }
+      :root[data-theme="light"] .tab.active { color:var(--primary); background:#fff; }
+      form { display:grid; gap:14px; } .pane[hidden] { display:none; } label { display:grid; gap:7px; color:var(--muted); font-size:.88rem; font-weight:700; } input { width:100%; min-height:48px; padding:12px 13px; border:1px solid var(--line); border-radius:13px; color:var(--ink); background:var(--field); font:inherit; outline:none; } input:focus { border-color:#8177ed; box-shadow:0 0 0 4px rgba(110,97,232,.18); } input::placeholder { color:var(--muted); opacity:.8; } .otp { text-align:center; letter-spacing:.42em; font-size:1.35rem; font-weight:800; }
+      .primary-btn { min-height:50px; border:0; border-radius:14px; padding:13px 16px; cursor:pointer; color:#fff; font:800 1rem inherit; background:linear-gradient(135deg,var(--primary),var(--primary-2)); box-shadow:0 12px 22px rgba(78,85,211,.24); } .primary-btn:disabled,.link-btn:disabled { cursor:not-allowed; opacity:.55; }
+      .link-btn { justify-self:start; border:0; padding:0; background:transparent; color:var(--primary-2); font:700 .9rem inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; } :root[data-theme="light"] .link-btn { color:var(--primary); } .button-row { display:flex; justify-content:space-between; align-items:center; gap:12px; } .button-row .link-btn + .link-btn { margin-left:auto; }
+      .verify-copy { margin:-2px 0 2px; color:var(--muted); font-size:.92rem; line-height:1.45; } .verify-copy strong { color:var(--ink); overflow-wrap:anywhere; } .status { min-height:20px; margin-top:14px; color:var(--muted); font-size:.88rem; line-height:1.4; } .status.error { color:var(--danger); } .status.success { color:var(--success); }
+      :root[data-sahra-native="true"] body { padding-top:calc(24px + env(safe-area-inset-top)); padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+      @media (max-width:360px) { .auth-shell { padding:22px 16px 18px; border-radius:22px; } body { padding-inline:10px; } }
     </style>
   </head>
   <body>
-    <div class="auth-shell">
-      <div class="brand">
-        <div class="logo">
-          <img class="sahra-logo" src="/images/sahra.png" alt="Sahra logo" width="72" height="72" />
-        </div>
-        <h1>SAHRA</h1>
-        <p class="subtitle">Your Life Calendar</p>
-      </div>
+    <main class="auth-shell">
+      <header class="brand"><div class="logo"><img src="/images/sahra.png" alt="Sahra logo" /></div><h1>SAHRA</h1><p class="subtitle">Your calm life calendar</p></header>
+      <div id="authTabs" class="tab-row" role="tablist" aria-label="Account options"><button class="tab active" type="button" data-pane="login" role="tab">Sign in</button><button class="tab" type="button" data-pane="signup" role="tab">Create account</button></div>
 
-      <div class="tab-row">
-        <button class="tab active" type="button" data-mode="login">Login</button>
-        <button class="tab" type="button" data-mode="signup">Sign Up</button>
-      </div>
+      <section class="pane" data-pane="login">
+        <form id="loginForm"><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" placeholder="At least 8 characters" required /></label><button class="link-btn" type="button" data-pane="reset-request">Forgot password?</button><button class="primary-btn" type="submit">Sign in</button></form>
+      </section>
 
-      <form id="loginForm">
-        <label>
-          Email
-          <input name="email" type="email" placeholder="you@example.com" required />
-        </label>
+      <section class="pane" data-pane="signup" hidden>
+        <form id="signupForm"><label>Full name<input name="name" type="text" autocomplete="name" maxlength="100" placeholder="Your name" required /></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label><label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required /></label><label>Date of birth <span style="font-weight:500">(optional)</span><input name="dateOfBirth" type="date" autocomplete="bday" /></label><button class="primary-btn" type="submit">Send verification code</button></form>
+      </section>
 
-        <label>
-          Password
-          <input name="password" type="password" placeholder="••••••••" required />
-        </label>
+      <section class="pane" data-pane="verify" hidden>
+        <form id="verifyForm"><p class="verify-copy">We sent a six-digit code to <strong id="verificationEmail"></strong>. Enter it to finish setting up your account.</p><label>Verification code<input class="otp" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label><button class="primary-btn" type="submit">Verify email</button><div class="button-row"><button class="link-btn" type="button" data-pane="signup">Use a different email</button><button id="resendButton" class="link-btn" type="button">Resend code</button></div></form>
+      </section>
 
-        <button class="primary-btn" type="submit">Login</button>
-      </form>
+      <section class="pane" data-pane="reset-request" hidden>
+        <form id="resetRequestForm"><p class="verify-copy">Enter your verified email and we’ll send a password reset code.</p><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label><div class="button-row"><button class="link-btn" type="button" data-pane="login">Back to sign in</button></div><button class="primary-btn" type="submit">Send reset code</button></form>
+      </section>
 
-      <form id="signupForm" style="display:none;">
-        <label>
-          Full Name
-          <input name="name" type="text" placeholder="Gajanan" required />
-        </label>
-
-        <label>
-          Email
-          <input name="email" type="email" placeholder="you@example.com" required />
-        </label>
-
-        <label>
-          Password
-          <input name="password" type="password" placeholder="••••••••" required />
-        </label>
-
-        <label>
-          Date of Birth
-          <input name="dateOfBirth" type="date" />
-        </label>
-
-        <button class="primary-btn" type="submit">Create Account</button>
-      </form>
-
-      <div id="status" class="status" aria-live="polite"></div>
-    </div>
-
+      <section class="pane" data-pane="reset-confirm" hidden>
+        <form id="resetConfirmForm"><p class="verify-copy">Enter the code sent to <strong id="resetEmail"></strong> and choose a new password.</p><label>Reset code<input class="otp" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label><label>New password<input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required /></label><button class="primary-btn" type="submit">Update password</button><button class="link-btn" type="button" data-pane="login">Back to sign in</button></form>
+      </section>
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+    <script src="/app-config.js"></script>
     <script>
-      const tabs = document.querySelectorAll('.tab');
-      const loginForm = document.getElementById('loginForm');
-      const signupForm = document.getElementById('signupForm');
       const statusBox = document.getElementById('status');
+      const panes = [...document.querySelectorAll('.pane')];
+      const tabs = [...document.querySelectorAll('.tab')];
+      let verificationEmail = '';
+      let resetEmail = '';
+      let resendTimer;
 
-      function setStatus(message, type = '') {
-        statusBox.textContent = message;
-        statusBox.className = 'status';
-        if (type) statusBox.classList.add(type);
-      }
-
-      tabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          tabs.forEach((item) => item.classList.toggle('active', item === tab));
-          const mode = tab.dataset.mode;
-          loginForm.style.display = mode === 'login' ? 'grid' : 'none';
-          signupForm.style.display = mode === 'signup' ? 'grid' : 'none';
-          setStatus('');
-        });
-      });
-
-      loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(loginForm);
-        const payload = {
-          email: formData.get('email'),
-          password: formData.get('password')
-        };
-
-        try {
-          setStatus('Logging in...');
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.message || 'Login failed');
-
-          localStorage.setItem('sahraToken', data.token);
-          localStorage.setItem('sahraUser', JSON.stringify(data.user));
-          setStatus('Login successful. Redirecting...', 'success');
-          setTimeout(() => window.location.href = '/dashboard', 800);
-        } catch (error) {
-          setStatus(error.message, 'error');
-        }
-      });
-
-      signupForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(signupForm);
-        const payload = {
-          name: formData.get('name'),
-          email: formData.get('email'),
-          password: formData.get('password'),
-          dateOfBirth: formData.get('dateOfBirth') || null
-        };
-
-        try {
-          setStatus('Creating account...');
-          const response = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.message || 'Registration failed');
-
-          localStorage.setItem('sahraToken', data.token);
-          localStorage.setItem('sahraUser', JSON.stringify(data.user));
-          setStatus('Account created. Redirecting...', 'success');
-          setTimeout(() => window.location.href = '/dashboard', 800);
-        } catch (error) {
-          setStatus(error.message, 'error');
-        }
-      });
+      function setStatus(message, type = '') { statusBox.textContent = message; statusBox.className = `status ${type}`; }
+      function getApiUrl(path) { const base = String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, ''); return base ? `${base}/${String(path).replace(/^\/+/, '')}` : path; }
+      function showPane(name) { panes.forEach((pane) => pane.hidden = pane.dataset.pane !== name); tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.pane === name)); document.getElementById('authTabs').hidden = !['login','signup'].includes(name); setStatus(''); const firstInput = document.querySelector(`.pane[data-pane="${name}"] input`); firstInput?.focus(); }
+      function applyCooldown(seconds) { const button = document.getElementById('resendButton'); clearInterval(resendTimer); let remaining = Number(seconds) || 0; const render = () => { button.disabled = remaining > 0; button.textContent = remaining > 0 ? `Resend in ${remaining}s` : 'Resend code'; }; render(); resendTimer = setInterval(() => { remaining -= 1; render(); if (remaining <= 0) clearInterval(resendTimer); }, 1000); }
+      async function request(path, body) { const response = await fetch(getApiUrl(path), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); const data = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(data.message || 'Request failed.'); error.code = data.code; error.email = data.email; throw error; } return data; }
+      async function saveAuth(data) { if (window.SAHRA_IS_NATIVE) { if (!window.SAHRA_AUTH_STORAGE) throw new Error('Secure native sign-in storage is unavailable.'); await window.SAHRA_AUTH_STORAGE.set('sahraToken', data.token); } else { localStorage.setItem('sahraToken', data.token); } localStorage.setItem('sahraUser', JSON.stringify(data.user)); }
+      function dashboardPath() { return window.SAHRA_IS_NATIVE ? '/index.html' : '/dashboard'; }
+      document.querySelectorAll('button[data-pane]').forEach((button) => button.addEventListener('click', () => showPane(button.dataset.pane)));
+      document.getElementById('loginForm').addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { setStatus('Signing in…'); const data = await request('/api/auth/login',{email:form.get('email'),password:form.get('password')}); await saveAuth(data); setStatus('Signed in. Redirecting…','success'); setTimeout(() => location.href = dashboardPath(),350); } catch (error) { if (error.code === 'EMAIL_VERIFICATION_REQUIRED') { verificationEmail = error.email || form.get('email').trim().toLowerCase(); document.getElementById('verificationEmail').textContent = verificationEmail; applyCooldown(0); showPane('verify'); setStatus('Verify this email before signing in.','error'); } else setStatus(error.message,'error'); } });
+      document.getElementById('signupForm').addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { setStatus('Sending verification code…'); const data = await request('/api/auth/register',{name:form.get('name'),email:form.get('email'),password:form.get('password'),dateOfBirth:form.get('dateOfBirth') || null}); verificationEmail = data.email; document.getElementById('verificationEmail').textContent = verificationEmail; applyCooldown(data.resendInSeconds); showPane('verify'); setStatus('Verification code sent.','success'); } catch (error) { setStatus(error.message,'error'); } });
+      document.getElementById('verifyForm').addEventListener('submit', async (event) => { event.preventDefault(); const code = new FormData(event.currentTarget).get('code'); try { setStatus('Verifying…'); const data = await request('/api/auth/verification/confirm',{email:verificationEmail,code}); await saveAuth(data); setStatus('Email verified. Redirecting…','success'); setTimeout(() => location.href = dashboardPath(),350); } catch (error) { setStatus(error.message,'error'); } });
+      document.getElementById('resendButton').addEventListener('click', async () => { try { setStatus('Sending another code…'); const data = await request('/api/auth/verification/resend',{email:verificationEmail}); applyCooldown(data.resendInSeconds); setStatus('Verification code sent.','success'); } catch (error) { setStatus(error.message,'error'); } });
+      document.getElementById('resetRequestForm').addEventListener('submit', async (event) => { event.preventDefault(); const email = new FormData(event.currentTarget).get('email'); try { setStatus('Sending reset code…'); const data = await request('/api/auth/password-reset/request',{email}); resetEmail = data.email || String(email).trim().toLowerCase(); document.getElementById('resetEmail').textContent = resetEmail; showPane('reset-confirm'); setStatus(data.message,'success'); } catch (error) { setStatus(error.message,'error'); } });
+      document.getElementById('resetConfirmForm').addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { setStatus('Updating password…'); const data = await request('/api/auth/password-reset/confirm',{email:resetEmail,code:form.get('code'),password:form.get('password')}); showPane('login'); setStatus(data.message,'success'); } catch (error) { setStatus(error.message,'error'); } });
     </script>
   </body>
 </html>

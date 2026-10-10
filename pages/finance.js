@@ -342,6 +342,7 @@ function renderDashboard(transactions, state) {
         </div>
 
         <div
+          class="finance-income-expense-row"
           style="
             display: flex;
             align-items: center;

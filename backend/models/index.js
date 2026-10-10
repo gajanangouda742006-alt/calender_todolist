@@ -24,6 +24,34 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Legacy accounts predate verification. Defaulting existing documents to
+    // verified preserves their ability to sign in; registration explicitly
+    // sets this to false until the owner completes the email challenge.
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+
+    emailVerification: {
+      codeHash: { type: String, default: null },
+      expiresAt: { type: Date, default: null },
+      attempts: { type: Number, default: 0 },
+      lastSentAt: { type: Date, default: null },
+      resendAvailableAt: { type: Date, default: null },
+      windowStartedAt: { type: Date, default: null },
+      sendsInWindow: { type: Number, default: 0 },
+    },
+
+    passwordReset: {
+      codeHash: { type: String, default: null },
+      expiresAt: { type: Date, default: null },
+      attempts: { type: Number, default: 0 },
+      lastSentAt: { type: Date, default: null },
+      resendAvailableAt: { type: Date, default: null },
+      windowStartedAt: { type: Date, default: null },
+      sendsInWindow: { type: Number, default: 0 },
+    },
+
     profile: {
       dateOfBirth: {
         type: Date,
@@ -54,7 +82,8 @@ const userSchema = new mongoose.Schema(
     preferences: {
       theme: {
         type: String,
-        default: 'dark',
+        enum: ['light', 'dark'],
+        default: 'light',
       },
 
       goals: [
@@ -68,6 +97,37 @@ const userSchema = new mongoose.Schema(
           type: String,
         },
       ],
+      timeZone: {
+        type: String,
+        default: 'Asia/Kolkata',
+      },
+      planningStyle: {
+        type: String,
+        default: '',
+      },
+      onboardingCompleted: {
+        type: Boolean,
+        default: false,
+      },
+      reminderSettings: {
+        enabled: {
+          type: Boolean,
+          default: true,
+        },
+        eventsEnabled: {
+          type: Boolean,
+          default: true,
+        },
+        tasksEnabled: {
+          type: Boolean,
+          default: true,
+        },
+        defaultLeadMinutes: {
+          type: Number,
+          enum: [0, 5, 10, 15, 30, 60],
+          default: 15,
+        },
+      },
     },
 
     createdAt: {
@@ -547,16 +607,10 @@ const transactionSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
+      enum: ['UPI', 'Bank', 'Card', 'Cash'],
       default: 'Cash',
       trim: true,
     },
-
-    paymentMethod: {
-  type: String,
-  enum: ['UPI', 'Bank', 'Card', 'Cash'],
-  default: 'Cash',
-  trim: true,
-},
 
     date: {
       type: String,
@@ -621,6 +675,17 @@ const assetSchema = new mongoose.Schema(
   }
 );
 
+// Short-lived receipt used to make signed Sahra assistant confirmations
+// single-use. A TTL index removes receipts after the signed proposal expires.
+const assistantActionReceiptSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    actionId: { type: String, required: true, unique: true },
+    expiresAt: { type: Date, required: true, expires: 0 },
+  },
+  { collection: 'assistantActionReceipts' }
+);
+
 
 // ==========================================
 // CREATE MODELS
@@ -648,6 +713,8 @@ const Transaction = mongoose.model('Transaction', transactionSchema);
 
 const Asset = mongoose.model('Asset', assetSchema);
 
+const AssistantActionReceipt = mongoose.model('AssistantActionReceipt', assistantActionReceiptSchema);
+
 
 // ==========================================
 // INDEXES
@@ -673,6 +740,10 @@ habitLogSchema.index({
   date: 1,
 });
 
+// One completion per person, habit, and calendar day. This is the database
+// guard in addition to the upsert used by the API.
+habitLogSchema.index({ userId: 1, habitId: 1, date: 1 }, { unique: true });
+
 
 // ==========================================
 // EXPORT ALL MODELS
@@ -688,5 +759,6 @@ module.exports = {
   Reminder,
   Note,
   Asset,
-  Transaction
+  Transaction,
+  AssistantActionReceipt
 };

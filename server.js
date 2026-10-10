@@ -4,10 +4,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcryptjs');
-const { testConnection } = require('./backend/config/db');
 const { connectMongo } = require('./backend/config/mongo');
-const { User, Event, Task, Mood, Habit, Goal } = require('./backend/models');
+const { User, Event, Task, Mood, Habit, Goal, Transaction } = require('./backend/models');
 const { seedData } = require('./backend/data/seedData');
+const { verifyToken } = require('./backend/middleware/auth');
 const authRoutes = require('./backend/routes/auth');
 const dashboardRoutes = require('./backend/routes/dashboard');
 
@@ -16,7 +16,28 @@ const dashboardRoutes = require('./backend/routes/dashboard');
 const app = express();
 const preferredPorts = [Number(process.env.PORT) || 9090, 9091, 9200, 9300, 9400];
 
-app.use(cors());
+const allowedOrigins = new Set([
+  'capacitor://localhost',
+  'http://localhost',
+  'https://localhost',
+  ...(process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+]);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  },
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,8 +62,8 @@ app.get('/', (req, res) => {
 app.get('/api/health', async (req, res) => {
   const mongoStatus = await connectMongo();
 
-  return res.json({
-    status: 'ok',
+  return res.status(mongoStatus ? 200 : 503).json({
+    status: mongoStatus ? 'ok' : 'unavailable',
     database: {
       mysql: 'not used',
       mongo: mongoStatus ? 'connected' : 'not connected',
@@ -89,7 +110,22 @@ async function seedMongoDatabase() {
 
 
 async function startServer(portIndex = 0) {
-  await connectMongo();
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.JWT_SECRET || Buffer.byteLength(process.env.JWT_SECRET, 'utf8') < 32) {
+      throw new Error('JWT_SECRET must contain at least 32 bytes in production.');
+    }
+    if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
+      throw new Error('MONGODB_URI or MONGO_URI must be configured in production.');
+    }
+    if (String(process.env.SEED_DEMO_DATA || '').toLowerCase() === 'true') {
+      throw new Error('SEED_DEMO_DATA must be disabled in production.');
+    }
+  }
+
+  const mongoConnected = await connectMongo();
+  if (!mongoConnected) {
+    throw new Error('MongoDB is unavailable; refusing to start the API server.');
+  }
   await seedMongoDatabase();
 
   const port = preferredPorts[portIndex];
@@ -102,7 +138,10 @@ async function startServer(portIndex = 0) {
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE' && portIndex < preferredPorts.length - 1) {
       console.warn(`Port ${port} is busy. Retrying on http://localhost:${preferredPorts[portIndex + 1]}...`);
-      startServer(portIndex + 1);
+      startServer(portIndex + 1).catch((startError) => {
+        console.error('Server failed to start:', startError.message);
+        process.exit(1);
+      });
       return;
     }
 
@@ -111,94 +150,66 @@ async function startServer(portIndex = 0) {
   });
 }
 
-// 1. GET: Fetch all transactions for the logged-in user
-app.get('/api/finance', async (req, res) => {
+app.get('/api/finance', verifyToken, async (req, res) => {
   try {
-    // Assuming req.user.id is set by your authentication middleware
-    const transactions = await Transaction.find({ userId: req.user.id }).sort({ date: -1 });
-    res.json(transactions);
+    const transactions = await Transaction.find({ userId: req.user.id }).sort({ date: -1, createdAt: -1 });
+    return res.json(
+      transactions.map((transaction) => ({
+        ...transaction.toObject(),
+        id: transaction._id.toString(),
+      }))
+    );
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch transactions' });
+    console.error('Finance fetch error:', error);
+    return res.status(500).json({ error: 'Failed to fetch transactions' });
   }
 });
 
-// 2. POST: Save a new transaction
-app.post('/api/finance', async (req, res) => {
+app.post('/api/finance', verifyToken, async (req, res) => {
   try {
-    const { type, amount, category, note, date } = req.body;
-    
-    const newTransaction = new Transaction({
-      userId: req.user.id, // Ensure user is logged in
-      type,
-      amount: Number(amount),
-      category,
-      note,
-      date: date || Date.now()
-    });
+    const { type, amount, category = 'General', note = '', date, paymentMethod = 'Cash' } = req.body;
+    const numericAmount = Number(amount);
 
-    await newTransaction.save();
-    res.status(201).json(newTransaction);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to save transaction' });
-  }
-});
-
-
-
-
-
-// GET: Fetch all transactions
-app.get('/api/transactions', async (req, res) => {
-  try {
-    const transactions = await Transaction.find().sort({ date: -1 });
-    res.json(transactions);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST: Save a new transaction
-app.post('/api/transactions', async (req, res) => {
-  try {
-    // 1. ADD paymentMethod HERE to extract it from the incoming request
-    const { type, amount, category, note, date, paymentMethod } = req.body; 
-    
-    const newTransaction = new Transaction({
-      type,
-      amount: Number(amount),
-      category,
-      note,
-      date: date || Date.now(),
-      // 2. ADD paymentMethod HERE so it actually saves to MongoDB
-      paymentMethod: paymentMethod || 'Cash' 
-    });
-
-    await newTransaction.save();
-    res.status(201).json(newTransaction);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-// ==========================================
-// DELETE ALL TRANSACTIONS ROUTE
-// ==========================================
-app.delete('/api/transactions', async (req, res) => {
-    try {
-        // Delete all transactions from the MongoDB collection
-        await Transaction.deleteMany({});
-        
-        res.status(200).json({ 
-            success: true, 
-            message: 'All transactions permanently deleted from database.' 
-        });
-
-    } catch (error) {
-        console.error("Database deletion error:", error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Server error while deleting transactions.' 
-        });
+    if (!['income', 'expense'].includes(type)) {
+      return res.status(400).json({ message: 'Transaction type must be income or expense' });
     }
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be greater than 0' });
+    }
+
+    if (!date) {
+      return res.status(400).json({ message: 'Transaction date is required' });
+    }
+
+    const cleanPaymentMethod = ['UPI', 'Bank', 'Card', 'Cash'].includes(paymentMethod)
+      ? paymentMethod
+      : 'Cash';
+
+    const newTransaction = await Transaction.create({
+      userId: req.user.id,
+      type,
+      amount: numericAmount,
+      category: String(category).trim() || 'General',
+      note: String(note).trim(),
+      paymentMethod: cleanPaymentMethod,
+      date,
+    });
+
+    return res.status(201).json({
+      message: 'Transaction created',
+      transaction: {
+        ...newTransaction.toObject(),
+        id: newTransaction._id.toString(),
+      },
+    });
+  } catch (error) {
+    console.error('Finance save error:', error);
+    return res.status(500).json({ error: 'Failed to save transaction' });
+  }
 });
 
-startServer();
+startServer().catch((error) => {
+  console.error('Server startup failed:', error.message);
+  process.exit(1);
+});

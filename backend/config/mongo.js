@@ -12,10 +12,10 @@ async function connectMongo() {
       serverSelectionTimeoutMS: 5000,
     });
 
-    console.log('MongoDB connected successfully:', mongoUri);
+    console.log('MongoDB connected successfully.');
     return true;
   } catch (error) {
-    console.error('MongoDB connection failed:', error.message);
+    console.error('MongoDB connection failed:', error.name || 'UnknownError');
     return false;
   }
 }

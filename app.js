@@ -63,6 +63,7 @@ const state = {
   currentMonth: new Date().getMonth(),
   currentYear: new Date().getFullYear(),
   selectedDate: hasNotificationTarget ? notificationTargetDate : formatDateKey(new Date()),
+  authenticated: false,
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'Sahra' },
   theme: localStorage.getItem('theme') || 'dark',
@@ -138,7 +139,7 @@ window.alert = function(message) {
   showToast(message);
 };
 
-function showAppConfirm(message, onConfirm) {
+function showAppConfirm(message, onConfirm, confirmLabel = 'Delete') {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);';
   
@@ -158,7 +159,7 @@ function showAppConfirm(message, onConfirm) {
   cancelBtn.style.flex = '1';
   
   const confirmBtn = document.createElement('button');
-  confirmBtn.textContent = 'Delete';
+  confirmBtn.textContent = confirmLabel;
   confirmBtn.className = 'primary-btn compact-btn';
   confirmBtn.style.cssText = 'flex: 1; background: #ff4757; color: white; border: none; font-weight: bold;'; 
   
@@ -169,7 +170,7 @@ confirmBtn.onclick = async () => {
 
   confirmed = true;
   confirmBtn.disabled = true;
-  confirmBtn.textContent = 'Deleting...';
+  confirmBtn.textContent = `${confirmLabel}…`;
   confirmBtn.style.opacity = '0.6';
   confirmBtn.style.pointerEvents = 'none';
 
@@ -189,10 +190,40 @@ function getStoredTheme() {
   return localStorage.getItem('theme') || 'dark';
 }
 
-async function apiRequest(path, options = {}) {
-  const token = localStorage.getItem('sahraToken');
+function getLoginPath() {
+  return window.SAHRA_IS_NATIVE ? '/login.html' : '/login';
+}
 
-  const response = await fetch(path, {
+function getApiUrl(path) {
+  const baseUrl = String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, '');
+  return baseUrl ? `${baseUrl}/${String(path).replace(/^\/+/, '')}` : path;
+}
+
+async function getAuthToken() {
+  if (window.SAHRA_IS_NATIVE) {
+    if (!window.SAHRA_AUTH_STORAGE) {
+      throw new Error('Secure native sign-in storage is unavailable.');
+    }
+    return await window.SAHRA_AUTH_STORAGE.get('sahraToken');
+  }
+  return localStorage.getItem('sahraToken');
+}
+
+async function removeAuthToken() {
+  if (window.SAHRA_IS_NATIVE) {
+    if (!window.SAHRA_AUTH_STORAGE) {
+      throw new Error('Secure native sign-in storage is unavailable.');
+    }
+    await window.SAHRA_AUTH_STORAGE.remove('sahraToken');
+    return;
+  }
+  localStorage.removeItem('sahraToken');
+}
+
+async function apiRequest(path, options = {}) {
+  const token = await getAuthToken();
+
+  const response = await fetch(getApiUrl(path), {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -206,11 +237,20 @@ async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const message = typeof payload === 'string' ? payload : payload?.message || 'Request failed';
-    if (response.status === 401) {
-      localStorage.removeItem('sahraToken');
+    const isExpiredSession = response.status === 401 || (
+      response.status === 404 && message.toLowerCase().includes('user not found')
+    );
+
+    if (isExpiredSession) {
+      await removeAuthToken();
       localStorage.removeItem('sahraUser');
-      window.location.href = '/login';
+      state.authenticated = false;
+
+      if (!window.location.pathname.endsWith('/login') && !window.location.pathname.endsWith('/login.html')) {
+        window.location.href = getLoginPath();
+      }
     }
+
     throw new Error(message);
   }
 
@@ -259,12 +299,14 @@ async function updateThemeInDatabase(theme) {
 }
 
 async function loadDashboardData() {
-  const token = localStorage.getItem('sahraToken');
+  const token = await getAuthToken();
 
   if (!token) {
-    window.location.href = '/login';
+    state.authenticated = false;
+    window.location.href = getLoginPath();
     return;
   }
+  state.authenticated = true;
 
   try {
     const payload = await apiRequest('/api/dashboard');
@@ -335,21 +377,65 @@ async function createResource(type, body) {
     mood: '/api/moods',
     habit: '/api/habits',
     goal: '/api/goals',
-    expense: '/api/expenses',           // NEW
-    subscription: '/api/subscriptions', // NEW
-    asset: '/api/assets',               // NEW
+    expense: '/api/expenses',
+    subscription: '/api/subscriptions',
+    asset: '/api/assets',
   };
-  // ... rest of the function remains the same
 
   const endpoint = endpoints[type];
   if (!endpoint) return;
 
+  let payload = body;
+  if (type === 'expense' || type === 'subscription') {
+    payload = {
+      ...body,
+      type: 'expense',
+      amount: Number(body.amount),
+      note: String(body.title || body.note || '').trim(),
+      category: String(body.category || 'General').trim() || 'General',
+      date: body.date || state.selectedDate,
+      paymentMethod: body.paymentMethod || 'Cash',
+    };
+  }
+
   await apiRequest(endpoint, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 
   await loadDashboardData();
+  if ((type === 'event' || type === 'task') && payload.reminder) {
+    await reconcileNativeNotifications({ requestPermission: true });
+  }
+}
+
+async function addQuickTaskFromInput(input) {
+  if (!input) return;
+
+  const title = input.value.trim();
+  if (!title) {
+    showToast('Please enter a task title.');
+    input.focus();
+    return;
+  }
+
+  try {
+    await createResource('task', {
+      title,
+      description: '',
+      date: state.selectedDate,
+      time: null,
+      priority: 'Normal',
+      status: 'Pending',
+      completed: false,
+      reminder: '',
+      category: 'General',
+    });
+    input.value = '';
+    showToast('Task added');
+  } catch (error) {
+    showToast(error.message || 'Unable to add task');
+  }
 }
 function getReminderOffsetMs(reminder) {
   const match = String(reminder || '').toLowerCase().match(/(\d+)\s*(min(?:ute)?s?|hours?|days?)/);
@@ -366,6 +452,56 @@ function getReminderMoment(item, resource) {
   const scheduled = new Date(`${item.date}T${time}:00`);
   if (Number.isNaN(scheduled.getTime())) return null;
   return new Date(scheduled.getTime() - getReminderOffsetMs(item.reminder));
+}
+function stableNotificationId(resource, itemId) {
+  const source = `${resource}:${itemId || ''}`;
+  let hash = resource === 'event' ? 17 : 23;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash * 31) + source.charCodeAt(index)) | 0;
+  }
+  return (Math.abs(hash) % 2_147_483_646) + 1;
+}
+function nativeReminderPayload(resource, item) {
+  const scheduledAt = getReminderMoment(item, resource);
+  const itemId = item.id || item._id;
+  if (!scheduledAt || !itemId || scheduledAt.getTime() <= Date.now()) return null;
+  const time = resource === 'event' ? item.startTime : item.time;
+  return {
+    id: stableNotificationId(resource, itemId),
+    title: 'Sahra reminder',
+    body: `${resource === 'event' ? 'Event' : 'Task'}: ${item.title}${time ? ` • ${time}` : ''}`,
+    schedule: { at: scheduledAt, allowWhileIdle: true },
+    channelId: 'sahra-reminders',
+    sound: 'default',
+    extra: { date: item.date, resource, id: String(itemId) },
+  };
+}
+async function reconcileNativeNotifications({ requestPermission = false } = {}) {
+  const bridge = window.SAHRA_NOTIFICATIONS;
+  if (!bridge?.isNative?.()) return { native: false };
+
+  const preferences = state.user?.preferences?.reminderSettings || {};
+  const remindersEnabled = preferences.enabled !== false;
+  const notifications = remindersEnabled
+    ? [
+      ...(preferences.tasksEnabled === false ? [] : state.data.tasks.filter((task) => !task.completed && task.status !== 'Completed').map((item) => nativeReminderPayload('task', item))),
+      ...(preferences.eventsEnabled === false ? [] : state.data.events.map((item) => nativeReminderPayload('event', item))),
+    ].filter(Boolean)
+    : [];
+
+  try {
+    const result = await bridge.reconcile(notifications, { requestPermission });
+    if (requestPermission && result.permission !== 'granted') {
+      showToast('Notifications are disabled. You can enable them in your device settings.');
+    } else if (requestPermission && result.scheduled) {
+      showToast(`${result.scheduled} reminder${result.scheduled === 1 ? '' : 's'} registered on this device.`);
+    }
+    return result;
+  } catch (error) {
+    console.warn('Native reminder reconciliation failed:', error.message);
+    if (requestPermission) showToast('Sahra could not register this device reminder.');
+    return { native: true, error };
+  }
 }
 async function showSahraNotification(resource, item) {
   const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
@@ -388,6 +524,10 @@ async function showSahraNotification(resource, item) {
   };
 }
 async function checkDueNotifications() {
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    await reconcileNativeNotifications();
+    return;
+  }
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const now = Date.now();
   const resources = [
@@ -410,6 +550,13 @@ async function checkDueNotifications() {
   }
 }
 async function enableNotifications() {
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    const result = await reconcileNativeNotifications({ requestPermission: true });
+    if (result.permission === 'granted' && !result.scheduled) {
+      showToast('Notifications are enabled. Add a dated reminder to schedule one.');
+    }
+    return;
+  }
   if (!('Notification' in window)) {
     window.alert('Notifications are not supported in this browser.');
     return;
@@ -424,7 +571,7 @@ async function enableNotifications() {
 }
 
 async function loadSelectedDateData(dateString) {
-  if (!localStorage.getItem('sahraToken') || state.calendarCache.has(dateString)) return;
+  if (!state.authenticated || state.calendarCache.has(dateString)) return;
 
 state.calendarCache.add(dateString);
 
@@ -591,6 +738,46 @@ function closeEntryModal() {
   renderLayout();
 }
 
+window.sahraHandleNativeBack = () => {
+  if (state.entryModalOpen) {
+    closeEntryModal();
+    return true;
+  }
+  if (state.profileModalOpen) {
+    state.profileModalOpen = false;
+    state.profileEditing = false;
+    renderLayout();
+    return true;
+  }
+  if (state.showFinanceResetConfirm) {
+    state.showFinanceResetConfirm = false;
+    renderLayout();
+    return true;
+  }
+  if (state.financeDetail) {
+    state.financeDetail = null;
+    renderLayout();
+    return true;
+  }
+  if (state.calendarDetail) {
+    state.calendarDetail = null;
+    renderLayout();
+    return true;
+  }
+  if (state.moreMenuOpen || state.menuOpen || state.moodPickerOpen) {
+    state.moreMenuOpen = false;
+    state.menuOpen = false;
+    state.moodPickerOpen = false;
+    renderLayout();
+    return true;
+  }
+  if (state.view !== 'home') {
+    goBackFromView();
+    return true;
+  }
+  return false;
+};
+
 function renderProfileModal() {
   if (!state.profileModalOpen) return '';
   const user = state.user || {};
@@ -739,6 +926,17 @@ function renderEntryModal() {
                 </select>
               </label>
             </div>
+            <label class="entry-field">
+              <span>Reminder</span>
+              <select data-entry-field="reminder">
+                <option value="" ${!draft.reminder ? 'selected' : ''}>No reminder</option>
+                <option value="5 minutes before" ${draft.reminder === '5 minutes before' ? 'selected' : ''}>5 minutes before</option>
+                <option value="10 minutes before" ${draft.reminder === '10 minutes before' ? 'selected' : ''}>10 minutes before</option>
+                <option value="15 minutes before" ${draft.reminder === '15 minutes before' ? 'selected' : ''}>15 minutes before</option>
+                <option value="30 minutes before" ${draft.reminder === '30 minutes before' ? 'selected' : ''}>30 minutes before</option>
+                <option value="1 hour before" ${draft.reminder === '1 hour before' ? 'selected' : ''}>1 hour before</option>
+              </select>
+            </label>
           ` : ''}
 
           <!-- 3. EVENT FORM -->
@@ -764,6 +962,17 @@ function renderEntryModal() {
             <label class="entry-field">
               <span>Category</span>
               <input type="text" data-entry-field="category" value="${(draft.category || 'General').replace(/"/g, '&quot;')}" placeholder="General" />
+            </label>
+            <label class="entry-field">
+              <span>Reminder</span>
+              <select data-entry-field="reminder">
+                <option value="" ${!draft.reminder ? 'selected' : ''}>No reminder</option>
+                <option value="5 minutes before" ${draft.reminder === '5 minutes before' ? 'selected' : ''}>5 minutes before</option>
+                <option value="10 minutes before" ${draft.reminder === '10 minutes before' ? 'selected' : ''}>10 minutes before</option>
+                <option value="15 minutes before" ${draft.reminder === '15 minutes before' ? 'selected' : ''}>15 minutes before</option>
+                <option value="30 minutes before" ${draft.reminder === '30 minutes before' ? 'selected' : ''}>30 minutes before</option>
+                <option value="1 hour before" ${draft.reminder === '1 hour before' ? 'selected' : ''}>1 hour before</option>
+              </select>
             </label>
             <label class="entry-field">
               <span>Description</span>
@@ -983,6 +1192,7 @@ const monthLabel = new Date(
               <button class="menu-item" type="button" data-menu-action="light-theme"><span>☀️</span> Light Mode</button>
               <button class="menu-item" type="button" data-menu-action="dark-theme"><span>🌙</span> Dark Mode</button>
               <button class="menu-item" type="button" data-menu-action="profile"><span>👤</span> Profile</button>
+              <button class="menu-item" type="button" data-menu-action="notifications"><span>🔔</span> Device notifications</button>
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
             </div>
@@ -1331,10 +1541,7 @@ function renderProgressPage() {
         item.timeLabel ||
         formatActivityTime(item.occurredAt)
     }))
-    .slice(
-      0,
-      state.showAllActivity ? 20 : 5
-    );
+    .slice(0, 10);
 
   /*
    * ---------------------------------------------------------
@@ -1359,17 +1566,6 @@ function renderProgressPage() {
         >
           ← Back
         </button>
-
-        <div class="brand-panel">
-          <div class="brand-icon">
-            ${renderSahraLogo(52)}
-          </div>
-
-          <div class="brand-copy">
-            <h1>Sahra</h1>
-            <span>LIFE CALENDAR</span>
-          </div>
-        </div>
 
         <!-- MONTH SELECTOR -->
 
@@ -1730,19 +1926,6 @@ function renderProgressPage() {
             Recent Activity
           </h3>
 
-          <button
-            class="panel-link"
-            type="button"
-            data-action="toggle-all-activity"
-          >
-            ${
-              state.showAllActivity
-                ? 'Show less'
-                : 'View all'
-            }
-            &gt;
-          </button>
-
         </div>
 
         <div class="activity-list">
@@ -1818,7 +2001,7 @@ function renderLayout() {
   isRendering = true;
   const app = document.getElementById('app');
 
-  if (state.view === 'calendar' && localStorage.getItem('sahraToken') && !state.calendarCache.has(state.selectedDate)) {
+  if (state.view === 'calendar' && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
     loadSelectedDateData(state.selectedDate);
   }
 
@@ -1884,7 +2067,7 @@ function renderLayout() {
     }
   }); // Small delay ensures DOM calculates sizes correctly
 
-  document.querySelectorAll('[data-view]').forEach((button) => {
+  app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
       if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault'].includes(button.dataset.view)) {
@@ -1903,7 +2086,9 @@ let idleTimer;
 let pauseTimer;
 
 // Detect if the app is running as a compiled Native APK/iOS app via Capacitor
-const isNativeApp = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
+const getNativeSpeechRecognition = () =>
+  window.SAHRA_SPEECH_RECOGNITION || window.Capacitor?.Plugins?.SpeechRecognition || null;
 
 // Setup Web Fallback (For when you test on your computer browser)
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1931,18 +2116,35 @@ document.querySelectorAll('[data-action="toggle-mic"]').forEach((button) => {
       stopListening();
     } else {
       // If Native App, we must ask the phone for microphone permission first
-      if (isNativeApp) {
-        const { speechRecognition } = await Capacitor.Plugins.SpeechRecognition.checkPermissions();
-        if (speechRecognition !== 'granted') {
-          await Capacitor.Plugins.SpeechRecognition.requestPermissions();
+      try {
+        if (isNativeApp) {
+          const nativeSpeech = getNativeSpeechRecognition();
+          if (!nativeSpeech) {
+            showToast('Voice input is unavailable in this mobile build. Please update the app.');
+            return;
+          }
+
+          let permissions = await nativeSpeech.checkPermissions();
+          if (permissions.speechRecognition !== 'granted') {
+            permissions = await nativeSpeech.requestPermissions();
+          }
+          if (permissions.speechRecognition !== 'granted') {
+            showToast('Microphone permission is required for voice input.');
+            return;
+          }
         }
+        await startListening(micImg, chatInput);
+      } catch (error) {
+        console.error('Unable to start voice input:', error);
+        showToast('Voice input could not be started.');
       }
-      startListening(micImg, chatInput);
     }
   });
 });
 
-function startListening(micImg, chatInput) {
+async function startListening(micImg, chatInput) {
+  if (!micImg) return;
+
   micImg.classList.add('listening');
   if (chatInput) chatInput.value = ''; 
 
@@ -1954,25 +2156,47 @@ function startListening(micImg, chatInput) {
 
   if (isNativeApp) {
     // --- NATIVE APP LOGIC (Capacitor Plugin) ---
-    Capacitor.Plugins.SpeechRecognition.start({
+    const nativeSpeech = getNativeSpeechRecognition();
+    if (!nativeSpeech) throw new Error('Native speech recognition plugin is unavailable.');
+
+    await nativeSpeech.start({
       language: "en-US",
       partialResults: true,
       popup: false
     });
 
-    Capacitor.Plugins.SpeechRecognition.addListener('partialResults', (data) => {
-      handleSpeechResult(data.matches[0], chatInput);
+    await nativeSpeech.addListener('partialResults', (data) => {
+      if (data.matches?.[0]) handleSpeechResult(data.matches[0], chatInput);
     });
   } else {
+    if (webRecognition && webRecognition.state === 'listening') {
+      return;
+    }
+
     // --- WEB BROWSER LOGIC ---
-    webRecognition.start();
-    webRecognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
+    try {
+      webRecognition.start();
+      webRecognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        handleSpeechResult(transcript, chatInput);
+      };
+      webRecognition.onend = () => {
+        const micImgEl = document.getElementById('chat-mic-img');
+        if (micImgEl) micImgEl.classList.remove('listening');
+      };
+    } catch (error) {
+      if (error && error.name !== 'InvalidStateError') {
+        throw error;
       }
-      handleSpeechResult(transcript, chatInput);
-    };
+      // Another start attempt already happened; keep the current listening state stable.
+      if (webRecognition && webRecognition.state === 'listening') {
+        return;
+      }
+      console.warn('Speech recognition already active; ignoring duplicate start request.');
+    }
   }
 }
 
@@ -1996,10 +2220,15 @@ async function stopListening() {
   if (micImg) micImg.classList.remove('listening');
 
   if (isNativeApp) {
-    await Capacitor.Plugins.SpeechRecognition.stop();
-    Capacitor.Plugins.SpeechRecognition.removeAllListeners();
+    const nativeSpeech = getNativeSpeechRecognition();
+    if (nativeSpeech) {
+      await nativeSpeech.stop();
+      await nativeSpeech.removeAllListeners();
+    }
   } else if (webRecognition) {
-    webRecognition.stop();
+    if (webRecognition.state === 'listening') {
+      webRecognition.stop();
+    }
   }
 
   // Automatically trigger the SEND button
@@ -2427,6 +2656,22 @@ document.querySelectorAll(
     });
   });
 
+  document.querySelectorAll('.task-input').forEach((input) => {
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addQuickTaskFromInput(input);
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-action="quick-task-add"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const input = document.querySelector('.task-input');
+      addQuickTaskFromInput(input);
+    });
+  });
+
   document.querySelectorAll('[data-action="show-selected-day"]').forEach((button) => {
     button.addEventListener('click', () => {
       setView('calendar');
@@ -2478,20 +2723,6 @@ document.querySelectorAll(
     });
   });
 
-
-
-// INITIALIZE APP
-applyTheme(getStoredTheme());
-bindBottomNav();
-bindGlobalListeners();
-
-if (!localStorage.getItem('sahraToken')) {
-  window.location.href = '/login';
-} else {
-  loadDashboardData().then(() => {
-    renderLayout();
-  });
-}
 
 
 // ==========================================
@@ -2659,6 +2890,7 @@ document.addEventListener('input', (e) => {
           startTime: draft.startTime || '09:00',
           endTime: draft.endTime || '10:00',
           category: draft.category || 'General',
+          reminder: draft.reminder || '',
         });
 
       // ==========================================
@@ -2688,6 +2920,7 @@ document.addEventListener('input', (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(taskPayload),
           });
+          await loadDashboardData();
         } else {
           await createResource('task', taskPayload);
         }
@@ -2879,12 +3112,18 @@ document.addEventListener('input', (e) => {
         return;
       }
 
+      if (action === 'notifications') {
+        await enableNotifications();
+        return;
+      }
+
       if (action === 'logout') {
-        localStorage.removeItem('sahraToken');
+        await removeAuthToken();
         localStorage.removeItem('sahraUser');
+        state.authenticated = false;
         state.user = { name: 'Sahra' };
         state.view = 'home';
-        window.location.href = '/login';
+        window.location.href = getLoginPath();
       }
     });
   });
@@ -3097,88 +3336,6 @@ document.addEventListener('click', (e) => {
       if (input) input.value = '';
       renderLayout();
 
-      const lower = message.toLowerCase();
-      const isTask = lower.includes('add task');
-      const isEvent = lower.includes('add event');
-
-      if (isTask || isEvent) {
-        try {
-          const type = isTask ? 'task' : 'event';
-          let date = formatDateKey(new Date());
-          if (lower.includes('tomorrow')) {
-            const tmrw = new Date();
-            tmrw.setDate(tmrw.getDate() + 1);
-            date = formatDateKey(tmrw);
-          } else {
-            const dateMatch = message.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-            if (dateMatch) {
-              date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-            }
-          }
-
-          let time = '09:00'; 
-          const timeMatch = message.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) || message.match(/(\d{2}):(\d{2})/);
-          if (timeMatch) {
-             if (timeMatch[3]) {
-                 let hours = parseInt(timeMatch[1], 10);
-                 const mins = timeMatch[2] || '00';
-                 const ampm = timeMatch[3].toLowerCase();
-                 if (ampm === 'pm' && hours < 12) hours += 12;
-                 if (ampm === 'am' && hours === 12) hours = 0;
-                 time = `${hours.toString().padStart(2, '0')}:${mins}`;
-             } else {
-                 time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
-             }
-          }
-
-          let title = message
-            .replace(/hi+?\s*/i, '')
-            .replace(/add task(?: of| on| to)?\s*/i, '')
-            .replace(/add event(?: of| on| to)?\s*/i, '')
-            .replace(new RegExp(`(?:at |by )?${timeMatch ? timeMatch[0] : ''}\\s*`, 'i'), '')
-            .replace(/today|tomorrow/i, '')
-            .replace(/\d{4}[\/\-]\d{2}[\/\-]\d{2}/, '')
-            .replace(/\s+(at|by|on)\s*$/i, '')
-            .trim();
-            
-          title = title || 'New Entry';
-
-          if (type === 'event') {
-            await createResource('event', {
-              title,
-              description: 'Scheduled by Sahra Assistant',
-              date,
-              startTime: time,
-              endTime: time,
-              category: 'Assistant',
-            });
-          } else {
-            await createResource('task', {
-              title,
-              description: 'Added by Sahra Assistant',
-              date,
-              time,
-              priority: 'Normal',
-              status: 'Pending',
-              completed: false,
-              category: 'Assistant',
-            });
-          }
-
-          state.assistantMessages.push({ 
-            role: 'assistant', 
-            text: `Got it! I have successfully added the ${type} "**${title}**" for **${date}** at **${time}**.` 
-          });
-
-        } catch (err) {
-          state.assistantMessages.push({ role: 'assistant', text: 'I tried to add that, but something went wrong.' });
-        } finally {
-          state.assistantLoading = false;
-          renderLayout();
-        }
-        return;
-      }
-
       try {
         const response = await apiRequest('/api/assistant/chat', {
           method: 'POST',
@@ -3187,11 +3344,31 @@ document.addEventListener('click', (e) => {
 
         state.assistantMessages.push({ role: 'assistant', text: response.message || 'Sahra is temporarily unavailable.' });
 
-        if (response.action === 'createTask' || response.action === 'createEvent') {
-          await loadDashboardData();
+        if (response.action === 'requiresConfirmation' && response.confirmationToken) {
+          const label = /complete/i.test(response.message || '') ? 'Mark complete' : /event/i.test(response.message || '') ? 'Add event' : 'Add task';
+          showAppConfirm('Do you want Sahra to perform this change?', async () => {
+            state.assistantLoading = true;
+            renderLayout();
+            try {
+              const execution = await apiRequest('/api/assistant/execute', {
+                method: 'POST',
+                body: JSON.stringify({ confirmationToken: response.confirmationToken }),
+              });
+              state.assistantMessages.push({ role: 'assistant', text: execution.message || 'The change was completed.' });
+              await loadDashboardData();
+            } catch (error) {
+              state.assistantMessages.push({ role: 'assistant', text: error.message || 'Sahra could not complete that change.' });
+            } finally {
+              state.assistantLoading = false;
+              renderLayout();
+            }
+          }, label);
         }
       } catch (error) {
-        state.assistantMessages.push({ role: 'assistant', text: 'Sahra is temporarily unavailable.' });
+        state.assistantMessages.push({
+          role: 'assistant',
+          text: error.message || 'Sahra is temporarily unavailable.',
+        });
       } finally {
         state.assistantLoading = false;
         renderLayout();
@@ -3293,24 +3470,14 @@ document.addEventListener('click', (e) => {
     });
   });
 
-  document.querySelectorAll('[data-action="toggle-more-menu"]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.moreMenuOpen = !state.moreMenuOpen;
-      renderLayout();
-    });
-  });
-
-  document.querySelectorAll('[data-action="close-more-menu"]').forEach((btn) => {
+  app.querySelectorAll('[data-action="close-more-menu"]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.moreMenuOpen = false;
       renderLayout();
     });
   });
 
-  setTimeout(() => {
-    isRendering = false;
-  }, 50);
+  isRendering = false;
 }
 
 
@@ -3355,6 +3522,8 @@ function bindGlobalListeners() {
     const clickedMonthPicker = event.target.closest('.month-picker-wrapper');
     const clickedMenu = event.target.closest('.menu-wrap');
     const clickedMoodPicker = event.target.closest('.mood-selector-wrap');
+    const clickedMoreMenu = event.target.closest('.more-menu-panel');
+    const clickedMoreMenuToggle = event.target.closest('[data-action="toggle-more-menu"]');
 
     let needsRender = false;
 
@@ -3370,6 +3539,11 @@ function bindGlobalListeners() {
 
     if (state.moodPickerOpen && !clickedMoodPicker) {
       state.moodPickerOpen = false;
+      needsRender = true;
+    }
+
+    if (state.moreMenuOpen && !clickedMoreMenu && !clickedMoreMenuToggle) {
+      state.moreMenuOpen = false;
       needsRender = true;
     }
 
@@ -3398,6 +3572,11 @@ function bindGlobalListeners() {
       changed = true;
     }
 
+    if (state.moreMenuOpen) {
+      state.moreMenuOpen = false;
+      changed = true;
+    }
+
     if (changed) {
       renderLayout();
     }
@@ -3413,7 +3592,7 @@ function triggerAppRender() {
 }
 
 async function fetchFinanceData() {
-  if (!localStorage.getItem('sahraToken')) return;
+  if (!state.authenticated) return;
 
   try {
     const payload = await apiRequest('/api/transactions');
@@ -3689,28 +3868,25 @@ if (action === 'delete-finance-transaction') {
   });
 }
 
-document.addEventListener("click", (e) => {
-  const target = e.target.closest('[data-action="open-add-entry"]');
+async function initializeApp() {
+  applyTheme(getStoredTheme());
+  bindBottomNav();
+  bindGlobalListeners();
+  bindFinanceListeners();
 
-  if (!target) return;
-
-  const type = target.dataset.type;
-
-  if (type === "task") {
-    openAddTaskModal();
+  const token = await getAuthToken();
+  state.authenticated = Boolean(token);
+  if (!token) {
+    window.location.href = getLoginPath();
+    return;
   }
-});
 
-// INITIALIZE APP
-applyTheme(getStoredTheme());
-
-bindBottomNav();
-bindGlobalListeners();
-bindFinanceListeners();
-
-if (!localStorage.getItem('sahraToken')) {
-  window.location.href = '/login';
-} else {
-  loadDashboardData();
-  fetchFinanceData();
+  await loadDashboardData();
+  await fetchFinanceData();
 }
+
+initializeApp().catch((error) => {
+  console.error('App initialization failed:', error);
+  showToast(error.message || 'Unable to initialize Sahra.');
+  renderLayout();
+});

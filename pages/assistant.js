@@ -1,3 +1,12 @@
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export function renderAssistantPage(state = {}) {
   const messages = Array.isArray(state.assistantMessages) && state.assistantMessages.length ? state.assistantMessages : [
     { role: 'assistant', text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress." },
@@ -26,7 +35,7 @@ export function renderAssistantPage(state = {}) {
           return `
             <div class="chat-row ${isUser ? 'user-row' : 'assistant-row'}">
               ${!isUser ? '<div class="chat-avatar bot-avatar">🤖</div>' : ''}
-              <div class="message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}">${message.text}</div>
+              <div class="message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}">${escapeHtml(message.text)}</div>
               ${isUser ? '<div class="chat-avatar user-avatar">👩</div>' : ''}
             </div>
           `;

@@ -63,6 +63,8 @@ export function renderTasksPage(state) {
   return `
    
 
+    <section class="screen todo-screen">
+      <header class="todo-header todo-page-header page-fixed-header">
         <div class="todo-heading">
           <div class="todo-icon">☑️</div>
           <div>
@@ -71,8 +73,9 @@ export function renderTasksPage(state) {
           </div>
         </div>
 
-      </div>
+      </header>
 
+      <main class="todo-page-content">
       <div class="filter-row">
         ${filters.map((filter) => {
           const label = filter === 'All' ? 'All' : filter === 'Pending' ? 'Pending' : filter === 'Completed' ? 'Completed' : 'Today';
@@ -82,35 +85,9 @@ export function renderTasksPage(state) {
         }).join('')}
       </div>
 
-      <div class="task-input-row">
-  <button
-    class="task-plus"
-    type="button"
-    data-action="open-add-entry"
-    data-type="task"
-    aria-label="Add new task"
-  >
-    ＋
-  </button>
-
-  <input
-    type="text"
-    placeholder="Add a new task..."
-    aria-label="Add new task"
-    readonly
-    data-action="open-add-entry"
-    data-type="task"
-  />
-
-  <button
-    class="task-add"
-    type="button"
-    data-action="open-add-entry"
-    data-type="task"
-  >
-    Add
-  </button>
-</div>
+      <div class="task-create-action">
+        <button class="task-create-button" type="button" data-action="open-add-entry" data-type="task" aria-label="Add new task">+</button>
+      </div>
 
       <div class="todo-list">
         ${taskRows}
@@ -123,6 +100,7 @@ export function renderTasksPage(state) {
           <p>Keep going, you're doing great.</p>
         </div>
       </div>
+      </main>
     </section>
   `;
 }
