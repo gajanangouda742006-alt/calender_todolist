@@ -1,0 +1,16 @@
+﻿SAHRA LOCAL-ONLY MIGRATION CHECKLIST
+
+1. Initialize SQLite before dashboard rendering.
+2. Load local profile and all supported collections.
+3. Remove the mandatory authentication-token check.
+4. Save profile and preferences locally.
+5. Convert event, task, mood, habit, goal, reminder, note, and asset CRUD to local storage.
+6. Convert finance transactions to local storage.
+7. Replace server-based calendar and progress loading with local calculations.
+8. Replace server notification status updates with local record updates.
+9. Review assistant AI endpoints and clearly separate optional online AI from offline features.
+10. Update mobile staging to support local-only mode without requiring an HTTPS API.
+11. Verify the Android SQLite plugin, JavaScript syntax, and generated entry points.
+12. Test create, read, update, delete, restart persistence, and local profile persistence.
+13. Only then stage and build a new APK.
+14. Preserve the current APK and all existing backups.

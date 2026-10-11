@@ -7,6 +7,15 @@ import { renderGoalsPage } from './pages/goals.js';
 import { renderAssistantPage } from './pages/assistant.js';
 import { renderVaultPage } from './pages/notepad.js';
 import { renderFinancePage } from './pages/finance.js';
+import {
+  initializeLocalDatabase,
+  getCollection,
+  saveRecord,
+  deleteRecord,
+  getLocalProfile,
+  saveLocalProfile,
+} from './scripts/local-database.js';
+import { OfflineSync } from './scripts/offline-sync.js';
 
 
 
@@ -103,6 +112,7 @@ noteSearchQuery: '',
 let activeRecognition = null;
 let speechSilenceTimer = null;
 let notificationInterval = null;
+const offlineSync = new OfflineSync({ getToken: getAuthToken, baseUrl: () => String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, '') });
 
 
 function applyTheme(theme) {
@@ -231,21 +241,66 @@ async function removeAuthToken() {
 
 async function apiRequest(path, options = {}) {
   const token = await getAuthToken();
-
-  const response = await fetch(getApiUrl(path), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const method = String(options.method || 'GET').toUpperCase();
+  const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const idempotencyKey = isWrite ? (options.headers?.['Idempotency-Key'] || globalThis.crypto?.randomUUID?.() || `sahra-${Date.now()}-${Math.random().toString(36).slice(2)}`) : null;
+  let response;
+  try {
+    response = await fetch(getApiUrl(path), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (networkError) {
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+      const cached = await offlineSync.dashboardFallback(token);
+      if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) {
+        showOfflineBannerOnce();
+        return cached;
+      }
+    }
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+      const cached = await offlineSync.transactionFallback(token);
+      if (cached.length) { showOfflineBannerOnce(); return cached; }
+    }
+    if (token && isWrite) {
+      try {
+        const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+        showOfflineBannerOnce();
+        return queued;
+      } catch (queueError) {
+        console.warn('Offline save could not be queued:', queueError.message);
+      }
+    }
+    throw networkError;
+  }
 
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json() : await response.text();
 
   if (!response.ok) {
     const message = typeof payload === 'string' ? payload : payload?.message || 'Request failed';
+    if ([502, 503, 504].includes(response.status) && token) {
+      try {
+        if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+          const cached = await offlineSync.dashboardFallback(token);
+          if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) { showOfflineBannerOnce(); return cached; }
+        }
+        if (method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+          const cached = await offlineSync.transactionFallback(token);
+          if (cached.length) { showOfflineBannerOnce(); return cached; }
+        }
+        if (isWrite) {
+          const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+          showOfflineBannerOnce();
+          return queued;
+        }
+      } catch (offlineError) { console.warn('Offline fallback unavailable:', offlineError.message); }
+    }
     const isExpiredSession = response.status === 401 || (
       response.status === 404 && message.toLowerCase().includes('user not found')
     );
@@ -265,9 +320,27 @@ async function apiRequest(path, options = {}) {
     throw error;
   }
 
+  if (token) {
+    try {
+      if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') await offlineSync.cacheDashboard(token, payload);
+      else if (method === 'GET' && cleanApiPath(path) === 'api/transactions') await offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []));
+      else if (isWrite) await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
+      if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
+    } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+  }
   return payload;
 }
 
+function cleanApiPath(path) { return String(path || '').split('?')[0].replace(/^\/+/, ''); }
+let offlineBannerShown = false;
+function showOfflineBannerOnce() {
+  // Keep connectivity handling silent; normal save confirmations remain visible.
+}
+window.addEventListener('online', async () => {
+  offlineBannerShown = false;
+  try { const token = await getAuthToken(); await offlineSync.flush(token); await loadDashboardData(); await fetchFinanceData(); }
+  catch (error) { console.warn('Reconnect sync failed:', error.message); }
+});
 
 function renderMoreMenu() {
   if (!state.moreMenuOpen) return '';
@@ -3746,6 +3819,10 @@ async function fetchFinanceData() {
     renderLayout();
   } catch (error) {
     console.error('Failed to load finance data:', error);
+    try {
+      const cached = await offlineSync.transactionFallback(await getAuthToken());
+      if (cached.length) { state.financeData = cached; showOfflineBannerOnce(); renderLayout(); }
+    } catch (cacheError) { console.warn('Finance cache unavailable:', cacheError.message); }
   }
 }
 
@@ -3995,6 +4072,7 @@ if (action === 'delete-finance-transaction') {
 
         await fetchFinanceData();
 
+
         showToast('Transaction saved successfully');
 
       } catch (error) {
@@ -4014,6 +4092,7 @@ if (action === 'delete-finance-transaction') {
 }
 
 async function initializeApp() {
+  await initializeLocalDatabase();
   applyTheme(getStoredTheme());
   bindBottomNav();
   bindGlobalListeners();
@@ -4026,8 +4105,14 @@ async function initializeApp() {
     return;
   }
 
+  if (globalThis.navigator?.onLine) await offlineSync.flush(token);
   await loadDashboardData();
   await fetchFinanceData();
+
+  if (window.Capacitor?.isNativePlatform()) {
+    const { markSahraOtaReady } = await import('./scripts/mobile-ota.js');
+    await markSahraOtaReady();
+  }
 }
 
 initializeApp().catch((error) => {

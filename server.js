@@ -8,6 +8,7 @@ const { connectMongo } = require('./backend/config/mongo');
 const { User, Event, Task, Mood, Habit, Goal, Transaction } = require('./backend/models');
 const { seedData } = require('./backend/data/seedData');
 const { verifyToken } = require('./backend/middleware/auth');
+const { getJwtSecret } = require('./backend/config/jwt');
 const authRoutes = require('./backend/routes/auth');
 const dashboardRoutes = require('./backend/routes/dashboard');
 
@@ -35,7 +36,7 @@ app.use(cors({
     }
     callback(null, false);
   },
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 app.use(express.json());
@@ -111,9 +112,7 @@ async function seedMongoDatabase() {
 
 async function startServer(portIndex = 0) {
   if (process.env.NODE_ENV === 'production') {
-    if (!process.env.JWT_SECRET || Buffer.byteLength(process.env.JWT_SECRET, 'utf8') < 32) {
-      throw new Error('JWT_SECRET must contain at least 32 bytes in production.');
-    }
+    getJwtSecret();
     if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
       throw new Error('MONGODB_URI or MONGO_URI must be configured in production.');
     }

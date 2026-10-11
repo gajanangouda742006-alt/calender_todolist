@@ -754,6 +754,20 @@ habitLogSchema.index({
 habitLogSchema.index({ userId: 1, habitId: 1, date: 1 }, { unique: true });
 
 
+// Idempotency receipts prevent duplicate creates when mobile connectivity drops
+// after the server commits a mutation but before the client receives its response.
+const mutationReceiptSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  key: { type: String, required: true },
+  requestHash: { type: String, required: true },
+  statusCode: { type: Number, default: 202 },
+  responseBody: { type: mongoose.Schema.Types.Mixed, default: null },
+  completed: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now, expires: 60 * 60 * 24 * 14 },
+}, { collection: 'mutation_receipts' });
+mutationReceiptSchema.index({ userId: 1, key: 1 }, { unique: true });
+const MutationReceipt = mongoose.models.MutationReceipt || mongoose.model('MutationReceipt', mutationReceiptSchema);
+
 // ==========================================
 // EXPORT ALL MODELS
 // ==========================================
@@ -769,5 +783,6 @@ module.exports = {
   Note,
   Asset,
   Transaction,
-  AssistantActionReceipt
+  AssistantActionReceipt,
+  MutationReceipt
 };

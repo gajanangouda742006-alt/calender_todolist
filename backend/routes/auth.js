@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwt');
 const { rateLimit } = require('express-rate-limit');
 const { verifyToken } = require('../middleware/auth');
 const { User } = require('../models');
@@ -51,7 +52,7 @@ function validatePassword(password) {
 function generateToken(user) {
   return jwt.sign(
     { id: user._id.toString(), email: user.email, name: user.name, emailVerified: true },
-    process.env.JWT_SECRET || 'sahra-development-secret-not-for-production',
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 }

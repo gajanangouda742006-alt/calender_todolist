@@ -1,5 +1,15 @@
-{
+﻿{
   "appId": "com.sahra.lifecalendar",
   "appName": "Sahra Life Calendar",
-  "webDir": "www"
+  "webDir": "www",
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": "onlyDownload",
+      "appReadyTimeout": 10000,
+      "responseTimeout": 20,
+      "autoDeleteFailed": false,
+      "autoDeletePrevious": false,
+      "resetWhenUpdate": false
+    }
+  }
 }

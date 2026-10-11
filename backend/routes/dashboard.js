@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { rateLimit } = require('express-rate-limit');
 const { verifyToken } = require('../middleware/auth');
+const { idempotencyMiddleware } = require('../middleware/idempotency');
 const {
   User,
   Event,
@@ -19,6 +20,13 @@ const {
 } = require('../models');
 
 const router = express.Router();
+
+// Apply idempotency only to writes that explicitly carry a key. The guard
+// authenticates those requests before checking account-scoped receipts.
+router.use((req, res, next) => {
+  if (!req.get('Idempotency-Key') || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  return verifyToken(req, res, () => idempotencyMiddleware(req, res, next));
+});
 
 router.get('/dashboard', verifyToken, async (req, res) => {
   try {
