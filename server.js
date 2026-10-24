@@ -45,6 +45,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api', dashboardRoutes);
 
+app.use('/assets', express.static(path.join(__dirname, 'www', 'assets')));
 app.use(express.static(path.join(__dirname, 'frontend')));
 app.use(express.static(__dirname));
 

@@ -47,10 +47,12 @@ for (const directory of ['images']) {
 }
 const assetsDir = path.join(webDir, 'assets');
 fs.mkdirSync(assetsDir, { recursive: true });
+
 fs.copyFileSync(
-  path.join(root, 'openingvideo.mp4'),
+  path.join(root, 'app-intro.mp4'),
   path.join(assetsDir, 'app-intro.mp4')
 );
+
 fs.copyFileSync(
   path.join(root, 'icon-512.jpeg'),
   path.join(assetsDir, 'intro-poster.jpeg')
@@ -65,13 +67,20 @@ const config = [
 fs.writeFileSync(path.join(webDir, 'app-config.js'), config);
 
 const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-if (!indexHtml.includes('<script type="module" src="./app.js"></script>')) {
+
+const appScript = [
+  '<script type="module" src="./app.js"></script>',
+  '<script type="module" src="./web-app.js"></script>',
+].find((script) => indexHtml.includes(script));
+
+if (!appScript) {
   throw new Error('Could not locate the application entry script in index.html.');
 }
+
 fs.writeFileSync(
   path.join(webDir, 'index.html'),
   indexHtml.replace(
-    '<script type="module" src="./app.js"></script>',
+    appScript,
     '<script type="module" src="./mobile-entry.js"></script>'
   )
 );
