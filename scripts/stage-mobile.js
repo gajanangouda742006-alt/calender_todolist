@@ -45,6 +45,16 @@ for (const entry of ['style.css', 'menubars.png', 'mic.png']) {
 for (const directory of ['images']) {
   fs.cpSync(path.join(root, directory), path.join(webDir, directory), { recursive: true });
 }
+const assetsDir = path.join(webDir, 'assets');
+fs.mkdirSync(assetsDir, { recursive: true });
+fs.copyFileSync(
+  path.join(root, 'openingvideo.mp4'),
+  path.join(assetsDir, 'app-intro.mp4')
+);
+fs.copyFileSync(
+  path.join(root, 'icon-512.jpeg'),
+  path.join(assetsDir, 'intro-poster.jpeg')
+);
 
 const config = [
   `window.SAHRA_API_BASE_URL = ${JSON.stringify(apiOrigin)};`,

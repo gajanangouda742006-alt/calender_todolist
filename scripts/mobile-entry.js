@@ -1,3 +1,4 @@
+import './startup-intro.js';
 import './mobile-auth-storage.js';
 import './mobile-notifications.js';
 import '../app.js';

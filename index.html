@@ -11,6 +11,17 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <div id="app-startup-intro" class="startup-intro" aria-hidden="true" hidden>
+      <img
+        class="startup-intro-poster"
+        src="./assets/intro-poster.jpeg"
+        alt=""
+        aria-hidden="true"
+      />
+      <video muted playsinline autoplay preload="auto" poster="./assets/intro-poster.jpeg">
+        <source src="./assets/app-intro.mp4" type="video/mp4" />
+      </video>
+    </div>
     <div class="mobile-frame">
       <main id="app" aria-live="polite"></main>
 
