@@ -15,7 +15,7 @@ async function connectMongo() {
     console.log('MongoDB connected successfully.');
     return true;
   } catch (error) {
-    console.error('MongoDB connection failed:', error.name || 'UnknownError');
+   console.error('MongoDB connection failed:', error.name, error.message);
     return false;
   }
 }
