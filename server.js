@@ -111,7 +111,29 @@ async function seedMongoDatabase() {
 
 
 
-async function startServer(portIndex = 0) {
+async function initializeDatabaseWithRetry() {
+  let attempt = 0;
+
+  while (true) {
+    attempt += 1;
+    const mongoConnected = await connectMongo();
+
+    if (mongoConnected) {
+      try {
+        await seedMongoDatabase();
+        console.log('Database initialization completed.');
+      } catch (error) {
+        console.error('Database seeding failed:', error.message);
+      }
+      return;
+    }
+
+    console.error(`MongoDB is unavailable (attempt ${attempt}). The HTTP server remains online; retrying in 10 seconds.`);
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+  }
+}
+
+function startServer() {
   if (process.env.NODE_ENV === 'production') {
     getJwtSecret();
     if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
@@ -122,29 +144,18 @@ async function startServer(portIndex = 0) {
     }
   }
 
-  const mongoConnected = await connectMongo();
-  if (!mongoConnected) {
-    throw new Error('MongoDB is unavailable; refusing to start the API server.');
-  }
-  await seedMongoDatabase();
-
-  const port = preferredPorts[portIndex];
-
-  const server = app.listen(port, () => {
-    console.log(`Sahra server running on http://localhost:${port}`);
+  // Bind to Render's assigned port immediately. Do not wait for MongoDB before
+  // opening the HTTP port, otherwise Render's port scan can time out.
+  const port = Number(process.env.PORT) || 9090;
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`Sahra server listening on 0.0.0.0:${port}`);
     console.log('Open /login to access the auth flow.');
+    initializeDatabaseWithRetry().catch((error) => {
+      console.error('Database initialization loop failed:', error.message);
+    });
   });
 
   server.on('error', (error) => {
-    if (error.code === 'EADDRINUSE' && portIndex < preferredPorts.length - 1) {
-      console.warn(`Port ${port} is busy. Retrying on http://localhost:${preferredPorts[portIndex + 1]}...`);
-      startServer(portIndex + 1).catch((startError) => {
-        console.error('Server failed to start:', startError.message);
-        process.exit(1);
-      });
-      return;
-    }
-
     console.error('Server failed to start:', error);
     process.exit(1);
   });
@@ -209,7 +220,9 @@ app.post('/api/finance', verifyToken, async (req, res) => {
   }
 });
 
-startServer().catch((error) => {
+try {
+  startServer();
+} catch (error) {
   console.error('Server startup failed:', error.message);
   process.exit(1);
-});
+}
