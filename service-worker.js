@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahra-shell-v4-ui-polish';
+const CACHE_NAME = 'sahra-shell-v5-chat-menu-finance-fixes';
 
 
 const APP_SHELL = [

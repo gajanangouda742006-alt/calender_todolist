@@ -9425,3 +9425,135 @@ body.theme-light .settings-toggle-copy small {
     transition-duration: 1ms !important;
   }
 }
+
+
+/* =========================================================
+   SAHRA FOLLOW-UP FIXES: assistant auto-follow, centered Menu,
+   sticky To Do filters, working quick amount feedback, and vertical nav reveal.
+========================================================= */
+
+/* Preserve the nav's horizontal centering while it slides vertically off-screen. */
+.bottom-nav.scroll-hidden,
+.bottom-nav.keyboard-hidden,
+body.keyboard-open .bottom-nav {
+  transform: translate3d(-50%, calc(100% + 26px), 0) !important;
+}
+
+/* Center the Menu options as a single balanced group and space the buttons clearly. */
+.menu-screen {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 24px !important;
+  min-height: calc(var(--sahra-visual-height, 100dvh) - 104px) !important;
+  padding: 24px 12px 28px !important;
+  box-sizing: border-box !important;
+}
+
+.menu-page-heading {
+  flex: 0 0 auto;
+  text-align: center !important;
+}
+
+.menu-page-options.more-menu-panel {
+  align-self: center !important;
+  margin: 0 auto !important;
+  width: min(90%, 340px) !important;
+  gap: 14px !important;
+  padding: 14px !important;
+}
+
+.menu-page-options .menu-item {
+  width: 100% !important;
+  min-height: 50px !important;
+  box-sizing: border-box !important;
+}
+
+/* Keep the To Do heading and its filter chips anchored together while tasks scroll. */
+.todo-screen .todo-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1200 !important;
+  margin-top: 0 !important;
+  background: linear-gradient(180deg, rgba(7, 17, 38, .98), rgba(7, 17, 38, .94)) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.todo-screen .todo-page-content {
+  padding-top: 6px !important;
+  padding-bottom: 142px !important;
+}
+
+.todo-screen .filter-row {
+  position: sticky !important;
+  top: 72px !important;
+  z-index: 1100 !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  width: 100% !important;
+  margin: 0 0 14px !important;
+  padding: 8px 5px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(146, 169, 226, .18) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(180deg, rgba(10, 23, 49, .98), rgba(8, 19, 42, .96)) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .22) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.todo-screen .filter-btn {
+  min-width: 0 !important;
+  padding: 10px 2px !important;
+  gap: 3px !important;
+  font-size: clamp(.66rem, 2.55vw, .82rem) !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  border-radius: 11px !important;
+}
+
+body.theme-light .todo-screen .todo-header,
+html[data-theme="light"] .todo-screen .todo-header {
+  background: linear-gradient(180deg, rgba(244, 247, 255, .98), rgba(234, 240, 253, .96)) !important;
+}
+
+body.theme-light .todo-screen .filter-row,
+html[data-theme="light"] .todo-screen .filter-row {
+  background: linear-gradient(180deg, rgba(246, 249, 255, .98), rgba(232, 239, 253, .97)) !important;
+  border-color: rgba(99, 119, 172, .2) !important;
+  box-shadow: 0 8px 18px rgba(49, 66, 111, .12) !important;
+}
+
+/* Quick amount buttons provide visible confirmation when tapped. */
+.finance-entry-page button[data-action="quick-amount"] {
+  transition: transform 160ms var(--sahra-motion), filter 160ms ease, box-shadow 160ms ease !important;
+  touch-action: manipulation;
+}
+
+.finance-entry-page button[data-action="quick-amount"].quick-amount-applied {
+  transform: translateY(-1px) scale(1.04) !important;
+  filter: brightness(1.3) !important;
+  box-shadow: 0 0 0 2px rgba(127, 151, 255, .24), 0 6px 14px rgba(0, 0, 0, .2) !important;
+}
+
+@media (max-width: 430px) {
+  .menu-screen {
+    min-height: calc(100dvh - 110px) !important;
+    padding: 20px 12px 24px !important;
+  }
+  .menu-page-options.more-menu-panel {
+    width: min(90%, 340px) !important;
+    gap: 13px !important;
+  }
+  .todo-screen .filter-row {
+    top: 68px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-entry-page button[data-action="quick-amount"] {
+    transition: none !important;
+  }
+}

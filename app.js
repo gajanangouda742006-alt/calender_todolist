@@ -2171,6 +2171,8 @@ function renderProgressPage() {
   `;
 }
 let isRendering = false;
+let lastAssistantMessageCount = null;
+let lastAssistantLoadingState = null;
 
 function renderLayout() {
   if (isRendering) return; // Prevent overlapping render cycles
@@ -2218,6 +2220,28 @@ function renderLayout() {
 
   // Appends active modals and menus over the main content
   app.innerHTML = content + renderEntryModal() + renderProfileModal();
+
+  // Follow the newest assistant conversation message after a chat update,
+  // without stealing scroll when the user first opens the Assistant page.
+  const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
+  const assistantLoadingNow = Boolean(state.assistantLoading);
+  const assistantConversationChanged = state.view === 'assistant' && !viewChanged && (
+    assistantMessageCount !== lastAssistantMessageCount ||
+    assistantLoadingNow !== lastAssistantLoadingState
+  );
+  lastAssistantMessageCount = assistantMessageCount;
+  lastAssistantLoadingState = assistantLoadingNow;
+  if (assistantConversationChanged) {
+    requestAnimationFrame(() => {
+      if (state.view !== 'assistant') return;
+      const currentApp = document.getElementById('app');
+      if (!currentApp) return;
+      currentApp.scrollTo({
+        top: Math.max(0, currentApp.scrollHeight - currentApp.clientHeight),
+        behavior: 'smooth'
+      });
+    });
+  }
 
   // Every real page change starts at the top; re-renders within the same page
   // preserve scroll so form edits and data refreshes do not jump unexpectedly.
@@ -3955,6 +3979,23 @@ function bindFinanceListeners() {
     if (!button) return;
 
     const action = button.dataset.action;
+
+    // Quick amount chips add their value to the current amount.
+    // This handler supports both income and expense forms because they share the same input.
+    if (action === 'quick-amount') {
+      event.preventDefault();
+      const amountInput = document.getElementById('finance-amount');
+      const increment = Number(button.dataset.val);
+      if (!amountInput || !Number.isFinite(increment) || increment <= 0) return;
+      const currentAmount = Number.parseFloat(amountInput.value);
+      const current = Number.isFinite(currentAmount) && currentAmount > 0 ? currentAmount : 0;
+      amountInput.value = String(Number((current + increment).toFixed(2)));
+      amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+      amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+      button.classList.add('quick-amount-applied');
+      window.setTimeout(() => button.classList.remove('quick-amount-applied'), 240);
+      return;
+    }
 
     // -------------------------------
     // CHANGE FINANCE VIEW
