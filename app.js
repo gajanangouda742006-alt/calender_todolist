@@ -1723,7 +1723,7 @@ function renderFocusPage() {
         <p class="focus-tip">${light ? 'A clear mind starts with one focused session.' : 'One session. One goal. Keep your momentum.'}</p>
       </div>
       <div class="focus-stats"><div class="focus-stat glass-card"><span>Today’s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x)=>x.completed).length}</strong></div></div>
-      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
+    
     </section>`;
 }
 
