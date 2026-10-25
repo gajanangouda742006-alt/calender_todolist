@@ -5411,6 +5411,7 @@ var EMPTY_DATA = {
   assets: []
 };
 var notepadEventsBound = false;
+var lastRenderedView = null;
 function formatDateKey2(date) {
   const normalized = new Date(date.getTime() - date.getTimezoneOffset() * 6e4);
   return normalized.toISOString().slice(0, 10);
@@ -5693,39 +5694,12 @@ function renderMenuPage() {
         <p>Choose a feature</p>
       </header>
       <div class="more-menu-panel menu-page-options" role="navigation" aria-label="Menu options">
-        <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
-        <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
-        <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
-        <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
+        <button class="menu-item" type="button" data-view="tasks">\u2705 To Do List</button>
+        <button class="menu-item" type="button" data-view="vault">\u{1F4DD} Notepad (Vault)</button>
+        <button class="menu-item" type="button" data-view="finance">\u{1F4B0} Expense Tracker</button>
+        <button class="menu-item" type="button" data-view="progress">\u{1F4C8} Progress &amp; Stats</button>
       </div>
     </section>
-  `;
-}
-function renderMoreMenu() {
-  if (!state.moreMenuOpen) return "";
-  return `
-    <div class="more-menu-backdrop" data-action="close-more-menu" style="position: fixed; inset: 0; z-index: 1000;"></div>
-    
-    <!-- Added height: fit-content; and min-height: 0; to remove the empty space -->
-    <div class="more-menu-panel" style="position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 1001; width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); height: fit-content; min-height: 0;">
-      
-      <button class="menu-item" type="button" data-view="tasks" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
-        \u2705 To Do List
-      </button>
-
-      <button class="menu-item" type="button" data-view="vault" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
-        \u{1F4DD} Notepad (Vault)
-      </button>
-      
-      <button class="menu-item" type="button" data-view="finance" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
-        \u{1F4B0} Expense Tracker
-      </button>
-      
-      <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
-        \u{1F4C8} Progress & Stats
-      </button>
-      
-    </div>
   `;
 }
 async function updateThemeInDatabase(theme) {
@@ -7162,7 +7136,6 @@ function renderProgressPage() {
 var isRendering = false;
 var lastAssistantMessageCount = null;
 var lastAssistantLoadingState = null;
-var lastRenderedView = null;
 function renderLayout() {
   if (isRendering) return;
   isRendering = true;
@@ -7195,14 +7168,9 @@ function renderLayout() {
     content = renderProgressPage();
   }
   app.innerHTML = content + renderEntryModal() + renderProfileModal();
-
-  // Follow the newest assistant message after a conversation update.
   const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
   const assistantLoadingNow = Boolean(state.assistantLoading);
-  const assistantConversationChanged = state.view === "assistant" && !viewChanged && (
-    assistantMessageCount !== lastAssistantMessageCount ||
-    assistantLoadingNow !== lastAssistantLoadingState
-  );
+  const assistantConversationChanged = state.view === "assistant" && !viewChanged && (assistantMessageCount !== lastAssistantMessageCount || assistantLoadingNow !== lastAssistantLoadingState);
   lastAssistantMessageCount = assistantMessageCount;
   lastAssistantLoadingState = assistantLoadingNow;
   if (assistantConversationChanged) {
@@ -7219,7 +7187,8 @@ function renderLayout() {
   if (viewChanged) {
     app.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    document.querySelector(".bottom-nav")?.classList.remove("scroll-hidden");
+    const nav = document.querySelector(".bottom-nav");
+    nav?.classList.remove("scroll-hidden");
   }
   syncKeyboardViewport();
   const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals"];
@@ -8324,7 +8293,6 @@ function renderLayout() {
 function bindBottomNav() {
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     button.addEventListener("click", async (e) => {
-      // The Menu button opens a dedicated page instead of a popup over the current page.
       if (button.dataset.action === "toggle-more-menu") {
         e.stopPropagation();
         state.entryModalOpen = false;
@@ -8362,13 +8330,15 @@ function isEditableControl(element) {
 function syncKeyboardViewport() {
   const viewport = window.visualViewport;
   const activeEditable = isEditableControl(document.activeElement);
-  const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
+  const isSmallScreen = window.matchMedia?.("(max-width: 760px)").matches || window.innerWidth <= 760;
   const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
   const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
-  document.body.classList.toggle('keyboard-open', keyboardOpen);
-  document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
-  document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
-  if (viewport) document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
+  document.body.classList.toggle("keyboard-open", keyboardOpen);
+  document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
+  document.querySelector(".bottom-nav")?.classList.toggle("keyboard-hidden", keyboardOpen);
+  if (viewport) {
+    document.documentElement.style.setProperty("--sahra-visual-height", `${Math.max(220, viewport.height)}px`);
+  }
 }
 function revealFocusedControl(element) {
   if (!isEditableControl(element)) return;
@@ -8380,7 +8350,7 @@ function revealFocusedControl(element) {
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       const rect = target.getBoundingClientRect();
       if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
-        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
+        target.scrollIntoView({ block: "center", behavior: delay > 100 ? "smooth" : "auto" });
       }
     }, delay);
   });
@@ -8388,38 +8358,44 @@ function revealFocusedControl(element) {
 function bindSmartNavigationAndKeyboard() {
   if (smartNavBound) return;
   smartNavBound = true;
-  const app = document.getElementById('app');
-  const nav = document.querySelector('.bottom-nav');
+  const app = document.getElementById("app");
+  const nav = document.querySelector(".bottom-nav");
   if (app && nav) {
     lastAppScrollTop = app.scrollTop;
-    app.addEventListener('scroll', () => {
+    app.addEventListener("scroll", () => {
       const currentTop = app.scrollTop;
-      if (document.body.classList.contains('keyboard-open')) {
-        nav.classList.add('keyboard-hidden');
+      if (document.body.classList.contains("keyboard-open")) {
+        nav.classList.add("keyboard-hidden");
         lastAppScrollTop = currentTop;
         return;
       }
       const delta = currentTop - lastAppScrollTop;
-      if (currentTop <= 8) nav.classList.remove('scroll-hidden');
-      else if (delta > 5) nav.classList.add('scroll-hidden');
-      else if (delta < -5) nav.classList.remove('scroll-hidden');
+      if (currentTop <= 8) {
+        nav.classList.remove("scroll-hidden");
+      } else if (delta > 5) {
+        nav.classList.add("scroll-hidden");
+      } else if (delta < -5) {
+        nav.classList.remove("scroll-hidden");
+      }
       lastAppScrollTop = currentTop;
     }, { passive: true });
   }
-  document.addEventListener('focusin', (event) => {
+  document.addEventListener("focusin", (event) => {
     if (!isEditableControl(event.target)) return;
     syncKeyboardViewport();
     revealFocusedControl(event.target);
   });
-  document.addEventListener('focusout', () => {
+  document.addEventListener("focusout", () => {
     window.setTimeout(() => {
       syncKeyboardViewport();
-      if (!document.body.classList.contains('keyboard-open')) document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
+      if (!document.body.classList.contains("keyboard-open")) {
+        document.querySelector(".bottom-nav")?.classList.remove("keyboard-hidden");
+      }
     }, 180);
   });
-  window.addEventListener('resize', syncKeyboardViewport, { passive: true });
-  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
-  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
+  window.addEventListener("resize", syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener("resize", syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener("scroll", syncKeyboardViewport, { passive: true });
 }
 function bindGlobalListeners() {
   if (globalListenersBound) return;
@@ -8516,8 +8492,6 @@ function bindFinanceListeners() {
     const button = event.target.closest("[data-action]");
     if (!button) return;
     const action = button.dataset.action;
-
-    // Quick amount chips add their value for both income and expense forms.
     if (action === "quick-amount") {
       event.preventDefault();
       const amountInput = document.getElementById("finance-amount");
