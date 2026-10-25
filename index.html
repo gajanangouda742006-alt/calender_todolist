@@ -21,7 +21,7 @@
         alt=""
         aria-hidden="true"
       />
-      <video muted playsinline autoplay preload="auto" poster="./assets/intro-poster.jpeg">
+      <video muted playsinline preload="auto" poster="./assets/intro-poster.jpeg">
         <source src="./assets/app-intro.mp4" type="video/mp4" />
       </video>
     </div>
@@ -54,6 +54,79 @@
 
     <script src="./app-config.js"></script>
 <script type="module" src="./web-app.js"></script>
+
+<script>
+(() => {
+  const INTRO_FLAG = 'sahra:play-intro-after-auth';
+  const intro = document.getElementById('app-startup-intro');
+  const video = intro?.querySelector('video');
+  let shouldPlay = false;
+
+  // The animation is opt-in: only a successful login/signup sets this flag.
+  // Consume it immediately so refreshes and normal navigation do not replay it.
+  try {
+    shouldPlay = window.sessionStorage.getItem(INTRO_FLAG) === '1';
+    window.sessionStorage.removeItem(INTRO_FLAG);
+  } catch (_error) {
+    // Storage can be unavailable in restricted browsing modes; the app still works.
+  }
+
+  if (!intro || !video || !shouldPlay) {
+    if (video) {
+      video.pause();
+      video.removeAttribute('autoplay');
+    }
+    if (intro) {
+      intro.hidden = true;
+      intro.setAttribute('aria-hidden', 'true');
+    }
+    return;
+  }
+
+  intro.hidden = false;
+  intro.setAttribute('aria-hidden', 'false');
+  video.muted = true;
+  video.playsInline = true;
+  video.removeAttribute('autoplay');
+  try { video.currentTime = 0; } catch (_error) {}
+
+  let finished = false;
+  let fallbackTimer;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(fallbackTimer);
+    video.removeEventListener('ended', finish);
+    video.removeEventListener('error', finish);
+    intro.classList.add('is-exiting');
+    window.setTimeout(() => {
+      video.pause();
+      intro.hidden = true;
+      intro.setAttribute('aria-hidden', 'true');
+      intro.classList.remove('is-playing', 'is-exiting');
+      try { video.currentTime = 0; } catch (_error) {}
+    }, 650);
+  };
+
+  fallbackTimer = window.setTimeout(finish, 90000);
+  video.addEventListener('playing', () => intro.classList.add('is-playing'), { once: true });
+  video.addEventListener('ended', finish, { once: true });
+  video.addEventListener('error', finish, { once: true });
+
+  try {
+    const playback = video.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch((error) => {
+        console.warn('Sahra intro playback failed; continuing into the app.', error);
+        finish();
+      });
+    }
+  } catch (error) {
+    console.warn('Sahra intro playback failed; continuing into the app.', error);
+    finish();
+  }
+})();
+</script>
 
 <script>
   if ('serviceWorker' in navigator) {

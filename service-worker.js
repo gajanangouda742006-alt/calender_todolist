@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahra-shell-v2';
+const CACHE_NAME = 'sahra-shell-v3';
 
 
 const APP_SHELL = [
