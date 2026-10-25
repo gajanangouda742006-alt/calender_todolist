@@ -16,6 +16,7 @@ import {
   saveLocalProfile,
 } from './scripts/local-database.js';
 import { OfflineSync } from './scripts/offline-sync.js';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 
 
@@ -77,6 +78,12 @@ const state = {
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'Sahra' },
   theme: localStorage.getItem('theme') || 'dark',
+  focusSeconds: 25 * 60,
+  focusInitialSeconds: 25 * 60,
+  focusRunning: false,
+  focusStartedAt: null,
+  focusSessions: JSON.parse(localStorage.getItem('sahraFocusSessions') || '[]'),
+  focusLabel: 'Study session',
   menuOpen: false,
   profileEditing: false,
   profileDraft: null,
@@ -355,6 +362,7 @@ function renderMenuPage() {
         <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
         <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
         <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
+        <button class="menu-item" type="button" data-view="focus">⏱️ Focus &amp; Study Timer</button>
       </div>
     </section>
   `;
@@ -384,6 +392,7 @@ function renderMoreMenu() {
       <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
         📈 Progress & Stats
       </button>
+      <button class="menu-item" type="button" data-view="focus" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⏱️ Focus &amp; Study Timer</button>
       
     </div>
   `;
@@ -1481,6 +1490,142 @@ const monthLabel = new Date(
   `;
 }
 
+
+function renderFocusPage() {
+  const total = Math.max(1, Number(state.focusInitialSeconds) || 1500);
+  const left = Math.max(0, Number(state.focusSeconds) || 0);
+  const progress = Math.min(100, Math.max(0, ((total - left) / total) * 100));
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const today = formatDateKey(new Date());
+  const todaySessions = sessions.filter((x) => x.date === today && x.completed);
+  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
+  const light = state.theme === 'light';
+  return `
+    <section class="screen focus-screen" aria-label="Focus timer">
+      <header class="focus-header">
+        <button class="focus-back" type="button" data-action="focus-back" aria-label="Back">‹</button>
+        <div><p class="focus-eyebrow">SAHRA • DEEP WORK</p><h1>Focus &amp; Study</h1></div>
+        <span class="focus-mode-pill">${state.focusRunning ? 'FOCUSING' : 'READY'}</span>
+      </header>
+      <div class="focus-card glass-card">
+        <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || 'Study session')}" placeholder="Study session" /></div>
+        <div class="focus-ring-wrap">
+          <svg class="focus-ring" viewBox="0 0 240 240" role="img" aria-label="Timer progress">
+            <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
+            <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2*Math.PI*101}; stroke-dashoffset: ${(2*Math.PI*101)*(1-progress/100)}"></circle>
+          </svg>
+          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? 'STAY IN THE FLOW' : 'READY WHEN YOU ARE'}</span></div>
+        </div>
+        <div class="focus-controls">
+          <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">↺</button>
+          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? 'Pause timer' : 'Start timer'}">${state.focusRunning ? 'Ⅱ' : '▶'}</button>
+          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">■</button>
+        </div>
+        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round(total/60))}" ${state.focusRunning ? 'disabled' : ''}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? 'disabled' : ''}>Set time</button></div></div>
+        <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? 'disabled' : ''}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? 'disabled' : ''}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? 'disabled' : ''}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? 'disabled' : ''}>60 min</button></div>
+        <p class="focus-tip">${light ? 'A clear mind starts with one focused session.' : 'One session. One goal. Keep your momentum.'}</p>
+      </div>
+      <div class="focus-stats"><div class="focus-stat glass-card"><span>Today’s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x)=>x.completed).length}</strong></div></div>
+      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
+    </section>`;
+}
+
+let focusTicker = null;
+let focusCompletionNotificationId = 941207;
+function focusBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    [0, 0.35, 0.7].forEach((delay) => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + delay + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.22);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.24);
+    });
+    setTimeout(() => ctx.close().catch(()=>{}), 1500);
+  } catch (error) { console.warn('Focus alarm audio unavailable:', error); }
+}
+async function focusCancelNotification() {
+  try { if (window.Capacitor?.isNativePlatform?.()) await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] }); } catch (error) { console.warn('Could not cancel focus notification:', error.message); }
+}
+async function focusScheduleNotification(seconds) {
+  if (window.Capacitor?.isNativePlatform?.()) {
+    try {
+      let permission = await LocalNotifications.checkPermissions();
+      if (permission.display !== 'granted') permission = await LocalNotifications.requestPermissions();
+      if (permission.display === 'granted') {
+        await LocalNotifications.schedule({ notifications: [{ id: focusCompletionNotificationId, title: 'Focus session complete 🎉', body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.`, schedule: { at: new Date(Date.now() + seconds * 1000), allowWhileIdle: true }, sound: 'default', channelId: 'sahra-reminders' }] });
+      }
+    } catch (error) { console.warn('Native focus notification unavailable:', error.message); }
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch (_) {}
+  }
+}
+function focusFinish() {
+  clearInterval(focusTicker); focusTicker = null;
+  state.focusRunning = false; state.focusSeconds = 0;
+  const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  sessions.unshift({ date: formatDateKey(new Date()), minutes, label: state.focusLabel || 'Study session', completed: true, completedAt: new Date().toISOString() });
+  state.focusSessions = sessions.slice(0, 500);
+  try { localStorage.setItem('sahraFocusSessions', JSON.stringify(state.focusSessions)); } catch (_) {}
+  focusBeep();
+  if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('Focus session complete 🎉', { body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.` }); } catch (_) {} }
+  void focusCancelNotification();
+  showToast('Focus session complete! Great work.');
+  renderLayout();
+}
+function focusStartTicker() {
+  clearInterval(focusTicker);
+  state.focusRunning = true; state.focusStartedAt = Date.now();
+  void focusScheduleNotification(state.focusSeconds);
+  focusTicker = setInterval(() => {
+    if (!state.focusRunning) return;
+    const elapsed = Math.floor((Date.now() - state.focusStartedAt) / 1000);
+    state.focusSeconds = Math.max(0, state.focusInitialSeconds - elapsed);
+    const clock = document.getElementById('focus-clock');
+    if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds/60)).padStart(2,'0')}:${String(state.focusSeconds%60).padStart(2,'0')}`;
+    const progress = document.querySelector('.focus-ring-progress');
+    if (progress) progress.style.strokeDashoffset = `${(2*Math.PI*101)*(1-(state.focusInitialSeconds-state.focusSeconds)/Math.max(1,state.focusInitialSeconds))}`;
+    if (state.focusSeconds <= 0) focusFinish();
+  }, 250);
+  renderLayout();
+}
+function focusPause() {
+  if (!state.focusRunning) return;
+  state.focusSeconds = Math.max(0, state.focusInitialSeconds - Math.floor((Date.now()-state.focusStartedAt)/1000));
+  state.focusInitialSeconds = Math.max(1, state.focusSeconds);
+  state.focusRunning = false; clearInterval(focusTicker); focusTicker = null;
+  void focusCancelNotification(); renderLayout();
+}
+function bindFocusTimer() {
+  const app = document.getElementById('app');
+  if (!app || state.view !== 'focus') return;
+  const label = app.querySelector('#focus-label');
+  label?.addEventListener('change', () => { state.focusLabel = label.value.trim() || 'Study session'; });
+  app.querySelectorAll('[data-focus-minutes]').forEach((button) => button.addEventListener('click', () => {
+    if (state.focusRunning) return;
+    const minutes = Math.max(1, Math.min(180, Number(button.dataset.focusMinutes) || 25));
+    state.focusSeconds = state.focusInitialSeconds = minutes * 60; renderLayout();
+  }));
+  app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener('click', () => {
+    const action = button.dataset.action;
+    if (action === 'focus-back') { state.view = 'menu'; renderLayout(); }
+    if (action === 'focus-toggle') {
+      if (state.focusRunning) focusPause();
+      else { const labelInput = document.getElementById('focus-label'); state.focusLabel = labelInput?.value?.trim() || state.focusLabel || 'Study session'; if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds; state.focusInitialSeconds = state.focusSeconds; focusStartTicker(); }
+    }
+    if (action === 'focus-reset') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds; renderLayout(); }
+    if (action === 'focus-stop') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds = 25*60; renderLayout(); }
+    if (action === 'focus-set') { const input = document.getElementById('focus-minutes'); const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25)); state.focusSeconds = state.focusInitialSeconds = minutes*60; renderLayout(); }
+  }));
+}
+
 function renderProgressPage() {
   const tasks = Array.isArray(state.data.tasks) ? state.data.tasks : [];
   const events = Array.isArray(state.data.events) ? state.data.events : [];
@@ -2213,6 +2358,8 @@ function renderLayout() {
 
 } else if (state.view === 'menu') {
   content = renderMenuPage();
+} else if (state.view === 'focus') {
+  content = renderFocusPage();
 
 } else if (state.view === 'progress' || state.view === 'more') {
   content = renderProgressPage();
@@ -2254,7 +2401,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus'];
 
 
 
@@ -2282,7 +2429,7 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
@@ -3736,6 +3883,7 @@ document.addEventListener('click', (e) => {
     });
   });
 
+  bindFocusTimer();
   isRendering = false;
 }
 

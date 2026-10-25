@@ -2056,6 +2056,235 @@ var init_local_database = __esm({
   }
 });
 
+// node_modules/@capacitor/local-notifications/dist/esm/web.js
+var web_exports2 = {};
+__export(web_exports2, {
+  LocalNotificationsWeb: () => LocalNotificationsWeb
+});
+var LocalNotificationsWeb;
+var init_web2 = __esm({
+  "node_modules/@capacitor/local-notifications/dist/esm/web.js"() {
+    init_dist();
+    LocalNotificationsWeb = class extends WebPlugin {
+      constructor() {
+        super(...arguments);
+        this.pending = [];
+        this.deliveredNotifications = [];
+        this.hasNotificationSupport = () => {
+          if (!("Notification" in window) || !Notification.requestPermission) {
+            return false;
+          }
+          if (Notification.permission !== "granted") {
+            try {
+              new Notification("");
+            } catch (e) {
+              if (e instanceof Error && e.name === "TypeError") {
+                return false;
+              }
+            }
+          }
+          return true;
+        };
+      }
+      async getDeliveredNotifications() {
+        const deliveredSchemas = [];
+        for (const notification of this.deliveredNotifications) {
+          const deliveredSchema = {
+            title: notification.title,
+            id: parseInt(notification.tag),
+            body: notification.body
+          };
+          deliveredSchemas.push(deliveredSchema);
+        }
+        return {
+          notifications: deliveredSchemas
+        };
+      }
+      async removeDeliveredNotifications(delivered) {
+        for (const toRemove of delivered.notifications) {
+          const found = this.deliveredNotifications.find((n) => n.tag === String(toRemove.id));
+          found === null || found === void 0 ? void 0 : found.close();
+          this.deliveredNotifications = this.deliveredNotifications.filter(() => !found);
+        }
+      }
+      async removeDeliveredNotificationsById(options) {
+        for (const id of options.ids) {
+          const found = this.deliveredNotifications.find((n) => n.tag === String(id));
+          found === null || found === void 0 ? void 0 : found.close();
+          this.deliveredNotifications = this.deliveredNotifications.filter((n) => n !== found);
+        }
+      }
+      async removeAllDeliveredNotifications() {
+        for (const notification of this.deliveredNotifications) {
+          notification.close();
+        }
+        this.deliveredNotifications = [];
+      }
+      async getByIds(options) {
+        const ids = options.ids.map((id) => String(id));
+        const scheduled = this.pending.filter((n) => ids.includes(String(n.id)));
+        const delivered = this.deliveredNotifications.filter((n) => ids.includes(n.tag)).map((n) => this.deliveredToSchema(n));
+        return { notifications: [...scheduled, ...delivered] };
+      }
+      async getAll(options) {
+        const scheduled = [...this.pending];
+        const delivered = this.deliveredNotifications.map((n) => this.deliveredToSchema(n));
+        if ((options === null || options === void 0 ? void 0 : options.state) === "SCHEDULED") {
+          return { notifications: scheduled };
+        }
+        if ((options === null || options === void 0 ? void 0 : options.state) === "TRIGGERED") {
+          return { notifications: delivered };
+        }
+        return { notifications: [...scheduled, ...delivered] };
+      }
+      deliveredToSchema(notification) {
+        return {
+          title: notification.title,
+          id: parseInt(notification.tag),
+          body: notification.body
+        };
+      }
+      async createChannel() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async deleteChannel() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async listChannels() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async schedule(options) {
+        if (!this.hasNotificationSupport()) {
+          throw this.unavailable("Notifications not supported in this browser.");
+        }
+        for (const notification of options.notifications) {
+          this.sendNotification(notification);
+        }
+        return {
+          notifications: options.notifications.map((notification) => ({
+            id: notification.id
+          }))
+        };
+      }
+      async update(options) {
+        if (!this.hasNotificationSupport()) {
+          throw this.unavailable("Notifications not supported in this browser.");
+        }
+        const updated = [];
+        for (const notification of options.notifications) {
+          const index = this.pending.findIndex((n) => n.id === notification.id);
+          if (index === -1) {
+            continue;
+          }
+          this.pending.splice(index, 1);
+          this.sendNotification(notification);
+          updated.push(notification);
+        }
+        return {
+          notifications: updated.map((notification) => ({ id: notification.id }))
+        };
+      }
+      async getPending() {
+        return {
+          notifications: this.pending
+        };
+      }
+      async cancelAll() {
+        this.pending = [];
+      }
+      async registerActionTypes() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async cancel(pending) {
+        this.pending = this.pending.filter((notification) => !pending.notifications.find((n) => n.id === notification.id));
+      }
+      async areEnabled() {
+        const { display } = await this.checkPermissions();
+        return {
+          value: display === "granted"
+        };
+      }
+      async changeExactNotificationSetting() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async checkExactNotificationSetting() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+      async requestPermissions() {
+        if (!this.hasNotificationSupport()) {
+          throw this.unavailable("Notifications not supported in this browser.");
+        }
+        const display = this.transformNotificationPermission(await Notification.requestPermission());
+        return { display };
+      }
+      async checkPermissions() {
+        if (!this.hasNotificationSupport()) {
+          throw this.unavailable("Notifications not supported in this browser.");
+        }
+        const display = this.transformNotificationPermission(Notification.permission);
+        return { display };
+      }
+      transformNotificationPermission(permission) {
+        switch (permission) {
+          case "granted":
+            return "granted";
+          case "denied":
+            return "denied";
+          default:
+            return "prompt";
+        }
+      }
+      sendPending() {
+        var _a;
+        const toRemove = [];
+        const now = (/* @__PURE__ */ new Date()).getTime();
+        for (const notification of this.pending) {
+          if (((_a = notification.schedule) === null || _a === void 0 ? void 0 : _a.at) && notification.schedule.at.getTime() <= now) {
+            this.buildNotification(notification);
+            toRemove.push(notification);
+          }
+        }
+        this.pending = this.pending.filter((notification) => !toRemove.find((n) => n === notification));
+      }
+      sendNotification(notification) {
+        var _a;
+        if ((_a = notification.schedule) === null || _a === void 0 ? void 0 : _a.at) {
+          const diff = notification.schedule.at.getTime() - (/* @__PURE__ */ new Date()).getTime();
+          this.pending.push(notification);
+          setTimeout(() => {
+            this.sendPending();
+          }, diff);
+          return;
+        }
+        this.buildNotification(notification);
+      }
+      buildNotification(notification) {
+        const localNotification = new Notification(notification.title, {
+          body: notification.body,
+          tag: String(notification.id)
+        });
+        localNotification.addEventListener("click", this.onClick.bind(this, notification), false);
+        localNotification.addEventListener("show", this.onShow.bind(this, notification), false);
+        localNotification.addEventListener("close", () => {
+          this.deliveredNotifications = this.deliveredNotifications.filter(() => !this);
+        }, false);
+        this.deliveredNotifications.push(localNotification);
+        return localNotification;
+      }
+      onClick(notification) {
+        const data = {
+          actionId: "tap",
+          notification
+        };
+        this.notifyListeners("localNotificationActionPerformed", data);
+      }
+      onShow(notification) {
+        this.notifyListeners("localNotificationReceived", notification);
+      }
+    };
+  }
+});
+
 // node_modules/@capgo/capacitor-updater/dist/esm/history.js
 var KEEP_FLAG_KEY, HISTORY_STORAGE_KEY, MAX_STACK_ENTRIES, isBrowser;
 var init_history = __esm({
@@ -2355,12 +2584,12 @@ var init_definitions2 = __esm({
 });
 
 // node_modules/@capgo/capacitor-updater/dist/esm/web.js
-var web_exports2 = {};
-__export(web_exports2, {
+var web_exports3 = {};
+__export(web_exports3, {
   CapacitorUpdaterWeb: () => CapacitorUpdaterWeb
 });
 var BUNDLE_BUILTIN, CapacitorUpdaterWeb;
-var init_web2 = __esm({
+var init_web3 = __esm({
   "node_modules/@capgo/capacitor-updater/dist/esm/web.js"() {
     init_dist();
     init_definitions2();
@@ -2609,7 +2838,7 @@ var init_esm2 = __esm({
     init_history();
     init_definitions2();
     CapacitorUpdater = registerPlugin("CapacitorUpdater", {
-      web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.CapacitorUpdaterWeb())
+      web: () => Promise.resolve().then(() => (init_web3(), web_exports3)).then((m) => new m.CapacitorUpdaterWeb())
     });
   }
 });
@@ -5396,6 +5625,26 @@ var OfflineSync = class {
   }
 };
 
+// node_modules/@capacitor/local-notifications/dist/esm/index.js
+init_dist();
+
+// node_modules/@capacitor/local-notifications/dist/esm/definitions.js
+var Weekday;
+(function(Weekday2) {
+  Weekday2[Weekday2["Sunday"] = 1] = "Sunday";
+  Weekday2[Weekday2["Monday"] = 2] = "Monday";
+  Weekday2[Weekday2["Tuesday"] = 3] = "Tuesday";
+  Weekday2[Weekday2["Wednesday"] = 4] = "Wednesday";
+  Weekday2[Weekday2["Thursday"] = 5] = "Thursday";
+  Weekday2[Weekday2["Friday"] = 6] = "Friday";
+  Weekday2[Weekday2["Saturday"] = 7] = "Saturday";
+})(Weekday || (Weekday = {}));
+
+// node_modules/@capacitor/local-notifications/dist/esm/index.js
+var LocalNotifications = registerPlugin("LocalNotifications", {
+  web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.LocalNotificationsWeb())
+});
+
 // app.js
 var EMPTY_DATA = {
   events: [],
@@ -5418,6 +5667,9 @@ function formatDateKey2(date) {
 }
 function escapeHtml5(value = "") {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+function escapeAttribute(value = "") {
+  return escapeHtml5(value);
 }
 function formatFriendlyDate(dateString) {
   if (!dateString) return "This month";
@@ -5444,6 +5696,12 @@ var state = {
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem("sahraUser") || "null") || { name: "Sahra" },
   theme: localStorage.getItem("theme") || "dark",
+  focusSeconds: 25 * 60,
+  focusInitialSeconds: 25 * 60,
+  focusRunning: false,
+  focusStartedAt: null,
+  focusSessions: JSON.parse(localStorage.getItem("sahraFocusSessions") || "[]"),
+  focusLabel: "Study session",
   menuOpen: false,
   profileEditing: false,
   profileDraft: null,
@@ -5698,6 +5956,7 @@ function renderMenuPage() {
         <button class="menu-item" type="button" data-view="vault">\u{1F4DD} Notepad (Vault)</button>
         <button class="menu-item" type="button" data-view="finance">\u{1F4B0} Expense Tracker</button>
         <button class="menu-item" type="button" data-view="progress">\u{1F4C8} Progress &amp; Stats</button>
+        <button class="menu-item" type="button" data-view="focus">\u23F1\uFE0F Focus &amp; Study Timer</button>
       </div>
     </section>
   `;
@@ -6623,6 +6882,201 @@ function renderHomePage() {
     </section>
   `;
 }
+function renderFocusPage() {
+  const total = Math.max(1, Number(state.focusInitialSeconds) || 1500);
+  const left = Math.max(0, Number(state.focusSeconds) || 0);
+  const progress = Math.min(100, Math.max(0, (total - left) / total * 100));
+  const mm = String(Math.floor(left / 60)).padStart(2, "0");
+  const ss = String(left % 60).padStart(2, "0");
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const today = formatDateKey2(/* @__PURE__ */ new Date());
+  const todaySessions = sessions.filter((x) => x.date === today && x.completed);
+  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
+  const light = state.theme === "light";
+  return `
+    <section class="screen focus-screen" aria-label="Focus timer">
+      <header class="focus-header">
+        <button class="focus-back" type="button" data-action="focus-back" aria-label="Back">\u2039</button>
+        <div><p class="focus-eyebrow">SAHRA \u2022 DEEP WORK</p><h1>Focus &amp; Study</h1></div>
+        <span class="focus-mode-pill">${state.focusRunning ? "FOCUSING" : "READY"}</span>
+      </header>
+      <div class="focus-card glass-card">
+        <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || "Study session")}" placeholder="Study session" /></div>
+        <div class="focus-ring-wrap">
+          <svg class="focus-ring" viewBox="0 0 240 240" role="img" aria-label="Timer progress">
+            <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
+            <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2 * Math.PI * 101}; stroke-dashoffset: ${2 * Math.PI * 101 * (1 - progress / 100)}"></circle>
+          </svg>
+          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? "STAY IN THE FLOW" : "READY WHEN YOU ARE"}</span></div>
+        </div>
+        <div class="focus-controls">
+          <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">\u21BA</button>
+          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? "Pause timer" : "Start timer"}">${state.focusRunning ? "\u2161" : "\u25B6"}</button>
+          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">\u25A0</button>
+        </div>
+        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round(total / 60))}" ${state.focusRunning ? "disabled" : ""}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? "disabled" : ""}>Set time</button></div></div>
+        <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? "disabled" : ""}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? "disabled" : ""}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? "disabled" : ""}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? "disabled" : ""}>60 min</button></div>
+        <p class="focus-tip">${light ? "A clear mind starts with one focused session." : "One session. One goal. Keep your momentum."}</p>
+      </div>
+      <div class="focus-stats"><div class="focus-stat glass-card"><span>Today\u2019s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x) => x.completed).length}</strong></div></div>
+      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
+    </section>`;
+}
+var focusTicker = null;
+var focusCompletionNotificationId = 941207;
+function focusBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    [0, 0.35, 0.7].forEach((delay) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(1e-4, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + delay + 0.03);
+      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + delay + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.24);
+    });
+    setTimeout(() => ctx.close().catch(() => {
+    }), 1500);
+  } catch (error) {
+    console.warn("Focus alarm audio unavailable:", error);
+  }
+}
+async function focusCancelNotification() {
+  try {
+    if (window.Capacitor?.isNativePlatform?.()) await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] });
+  } catch (error) {
+    console.warn("Could not cancel focus notification:", error.message);
+  }
+}
+async function focusScheduleNotification(seconds) {
+  if (window.Capacitor?.isNativePlatform?.()) {
+    try {
+      let permission = await LocalNotifications.checkPermissions();
+      if (permission.display !== "granted") permission = await LocalNotifications.requestPermissions();
+      if (permission.display === "granted") {
+        await LocalNotifications.schedule({ notifications: [{ id: focusCompletionNotificationId, title: "Focus session complete \u{1F389}", body: `${state.focusLabel || "Your focus session"} is finished. Take a short break.`, schedule: { at: new Date(Date.now() + seconds * 1e3), allowWhileIdle: true }, sound: "default", channelId: "sahra-reminders" }] });
+      }
+    } catch (error) {
+      console.warn("Native focus notification unavailable:", error.message);
+    }
+  } else if ("Notification" in window && Notification.permission === "default") {
+    try {
+      await Notification.requestPermission();
+    } catch (_) {
+    }
+  }
+}
+function focusFinish() {
+  clearInterval(focusTicker);
+  focusTicker = null;
+  state.focusRunning = false;
+  state.focusSeconds = 0;
+  const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  sessions.unshift({ date: formatDateKey2(/* @__PURE__ */ new Date()), minutes, label: state.focusLabel || "Study session", completed: true, completedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  state.focusSessions = sessions.slice(0, 500);
+  try {
+    localStorage.setItem("sahraFocusSessions", JSON.stringify(state.focusSessions));
+  } catch (_) {
+  }
+  focusBeep();
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification("Focus session complete \u{1F389}", { body: `${state.focusLabel || "Your focus session"} is finished. Take a short break.` });
+    } catch (_) {
+    }
+  }
+  void focusCancelNotification();
+  showToast("Focus session complete! Great work.");
+  renderLayout();
+}
+function focusStartTicker() {
+  clearInterval(focusTicker);
+  state.focusRunning = true;
+  state.focusStartedAt = Date.now();
+  void focusScheduleNotification(state.focusSeconds);
+  focusTicker = setInterval(() => {
+    if (!state.focusRunning) return;
+    const elapsed = Math.floor((Date.now() - state.focusStartedAt) / 1e3);
+    state.focusSeconds = Math.max(0, state.focusInitialSeconds - elapsed);
+    const clock = document.getElementById("focus-clock");
+    if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds / 60)).padStart(2, "0")}:${String(state.focusSeconds % 60).padStart(2, "0")}`;
+    const progress = document.querySelector(".focus-ring-progress");
+    if (progress) progress.style.strokeDashoffset = `${2 * Math.PI * 101 * (1 - (state.focusInitialSeconds - state.focusSeconds) / Math.max(1, state.focusInitialSeconds))}`;
+    if (state.focusSeconds <= 0) focusFinish();
+  }, 250);
+  renderLayout();
+}
+function focusPause() {
+  if (!state.focusRunning) return;
+  state.focusSeconds = Math.max(0, state.focusInitialSeconds - Math.floor((Date.now() - state.focusStartedAt) / 1e3));
+  state.focusInitialSeconds = Math.max(1, state.focusSeconds);
+  state.focusRunning = false;
+  clearInterval(focusTicker);
+  focusTicker = null;
+  void focusCancelNotification();
+  renderLayout();
+}
+function bindFocusTimer() {
+  const app = document.getElementById("app");
+  if (!app || state.view !== "focus") return;
+  const label = app.querySelector("#focus-label");
+  label?.addEventListener("change", () => {
+    state.focusLabel = label.value.trim() || "Study session";
+  });
+  app.querySelectorAll("[data-focus-minutes]").forEach((button) => button.addEventListener("click", () => {
+    if (state.focusRunning) return;
+    const minutes = Math.max(1, Math.min(180, Number(button.dataset.focusMinutes) || 25));
+    state.focusSeconds = state.focusInitialSeconds = minutes * 60;
+    renderLayout();
+  }));
+  app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener("click", () => {
+    const action = button.dataset.action;
+    if (action === "focus-back") {
+      state.view = "menu";
+      renderLayout();
+    }
+    if (action === "focus-toggle") {
+      if (state.focusRunning) focusPause();
+      else {
+        const labelInput = document.getElementById("focus-label");
+        state.focusLabel = labelInput?.value?.trim() || state.focusLabel || "Study session";
+        if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
+        state.focusInitialSeconds = state.focusSeconds;
+        focusStartTicker();
+      }
+    }
+    if (action === "focus-reset") {
+      state.focusRunning = false;
+      clearInterval(focusTicker);
+      focusTicker = null;
+      void focusCancelNotification();
+      state.focusSeconds = state.focusInitialSeconds;
+      renderLayout();
+    }
+    if (action === "focus-stop") {
+      state.focusRunning = false;
+      clearInterval(focusTicker);
+      focusTicker = null;
+      void focusCancelNotification();
+      state.focusSeconds = state.focusInitialSeconds = 25 * 60;
+      renderLayout();
+    }
+    if (action === "focus-set") {
+      const input = document.getElementById("focus-minutes");
+      const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25));
+      state.focusSeconds = state.focusInitialSeconds = minutes * 60;
+      renderLayout();
+    }
+  }));
+}
 function renderProgressPage() {
   const tasks = Array.isArray(state.data.tasks) ? state.data.tasks : [];
   const events = Array.isArray(state.data.events) ? state.data.events : [];
@@ -7164,6 +7618,8 @@ function renderLayout() {
     content = renderAssistantPage(state);
   } else if (state.view === "menu") {
     content = renderMenuPage();
+  } else if (state.view === "focus") {
+    content = renderFocusPage();
   } else if (state.view === "progress" || state.view === "more") {
     content = renderProgressPage();
   }
@@ -7191,7 +7647,7 @@ function renderLayout() {
     nav?.classList.remove("scroll-hidden");
   }
   syncKeyboardViewport();
-  const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals"];
+  const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals", "focus"];
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     const isMenuButton = button.dataset.action === "toggle-more-menu";
     if (isMenuButton) {
@@ -7211,7 +7667,7 @@ function renderLayout() {
   app.querySelectorAll("[data-view]").forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener("click", () => {
-      if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "mood", "finance", "vault"].includes(button.dataset.view)) {
+      if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "mood", "finance", "vault", "focus"].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
@@ -8288,6 +8744,7 @@ function renderLayout() {
       renderLayout();
     });
   });
+  bindFocusTimer();
   isRendering = false;
 }
 function bindBottomNav() {
