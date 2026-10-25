@@ -7,6 +7,16 @@ import { renderGoalsPage } from './pages/goals.js';
 import { renderAssistantPage } from './pages/assistant.js';
 import { renderVaultPage } from './pages/notepad.js';
 import { renderFinancePage } from './pages/finance.js';
+import {
+  initializeLocalDatabase,
+  getCollection,
+  saveRecord,
+  deleteRecord,
+  getLocalProfile,
+  saveLocalProfile,
+} from './scripts/local-database.js';
+import { OfflineSync } from './scripts/offline-sync.js';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 
 
@@ -25,6 +35,7 @@ const EMPTY_DATA = {
 };
 
 let notepadEventsBound = false;
+let lastRenderedView = null;
 
 function formatDateKey(date) {
   const normalized = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
@@ -67,6 +78,12 @@ const state = {
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'Sahra' },
   theme: localStorage.getItem('theme') || 'dark',
+  focusSeconds: 25 * 60,
+  focusInitialSeconds: 25 * 60,
+  focusRunning: false,
+  focusStartedAt: null,
+  focusSessions: JSON.parse(localStorage.getItem('sahraFocusSessions') || '[]'),
+  focusLabel: 'Study session',
   menuOpen: false,
   profileEditing: false,
   profileDraft: null,
@@ -99,10 +116,16 @@ noteSearchQuery: '',
   showFinanceResetConfirm: false,
   financeResetLoading: false,
   tempFinanceType: null,
+  weatherExpanded: false,
+  weatherLoading: false,
+  weatherError: '',
+  weatherData: null,
+  weatherLocation: '',
 };
 let activeRecognition = null;
 let speechSilenceTimer = null;
 let notificationInterval = null;
+const offlineSync = new OfflineSync({ getToken: getAuthToken, baseUrl: () => String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, '') });
 
 
 function applyTheme(theme) {
@@ -231,21 +254,66 @@ async function removeAuthToken() {
 
 async function apiRequest(path, options = {}) {
   const token = await getAuthToken();
-
-  const response = await fetch(getApiUrl(path), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const method = String(options.method || 'GET').toUpperCase();
+  const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const idempotencyKey = isWrite ? (options.headers?.['Idempotency-Key'] || globalThis.crypto?.randomUUID?.() || `sahra-${Date.now()}-${Math.random().toString(36).slice(2)}`) : null;
+  let response;
+  try {
+    response = await fetch(getApiUrl(path), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (networkError) {
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+      const cached = await offlineSync.dashboardFallback(token);
+      if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) {
+        showOfflineBannerOnce();
+        return cached;
+      }
+    }
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+      const cached = await offlineSync.transactionFallback(token);
+      if (cached.length) { showOfflineBannerOnce(); return cached; }
+    }
+    if (token && isWrite) {
+      try {
+        const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+        showOfflineBannerOnce();
+        return queued;
+      } catch (queueError) {
+        console.warn('Offline save could not be queued:', queueError.message);
+      }
+    }
+    throw networkError;
+  }
 
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json() : await response.text();
 
   if (!response.ok) {
     const message = typeof payload === 'string' ? payload : payload?.message || 'Request failed';
+    if ([502, 503, 504].includes(response.status) && token) {
+      try {
+        if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+          const cached = await offlineSync.dashboardFallback(token);
+          if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) { showOfflineBannerOnce(); return cached; }
+        }
+        if (method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+          const cached = await offlineSync.transactionFallback(token);
+          if (cached.length) { showOfflineBannerOnce(); return cached; }
+        }
+        if (isWrite) {
+          const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+          showOfflineBannerOnce();
+          return queued;
+        }
+      } catch (offlineError) { console.warn('Offline fallback unavailable:', offlineError.message); }
+    }
     const isExpiredSession = response.status === 401 || (
       response.status === 404 && message.toLowerCase().includes('user not found')
     );
@@ -265,9 +333,45 @@ async function apiRequest(path, options = {}) {
     throw error;
   }
 
+  if (token) {
+    try {
+      if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') await offlineSync.cacheDashboard(token, payload);
+      else if (method === 'GET' && cleanApiPath(path) === 'api/transactions') await offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []));
+      else if (isWrite) await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
+      if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
+    } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+  }
   return payload;
 }
 
+function cleanApiPath(path) { return String(path || '').split('?')[0].replace(/^\/+/, ''); }
+let offlineBannerShown = false;
+function showOfflineBannerOnce() {
+  // Keep connectivity handling silent; normal save confirmations remain visible.
+}
+window.addEventListener('online', async () => {
+  offlineBannerShown = false;
+  try { const token = await getAuthToken(); await offlineSync.flush(token); await loadDashboardData(); await fetchFinanceData(); }
+  catch (error) { console.warn('Reconnect sync failed:', error.message); }
+});
+
+function renderMenuPage() {
+  return `
+    <section class="screen menu-screen" aria-label="Menu">
+      <header class="menu-page-heading">
+        <h1>Menu</h1>
+        <p>Choose a feature</p>
+      </header>
+      <div class="more-menu-panel menu-page-options" role="navigation" aria-label="Menu options">
+        <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
+        <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
+        <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
+        <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
+        <button class="menu-item" type="button" data-view="focus">⏱️ Focus &amp; Study Timer</button>
+      </div>
+    </section>
+  `;
+}
 
 function renderMoreMenu() {
   if (!state.moreMenuOpen) return '';
@@ -293,6 +397,7 @@ function renderMoreMenu() {
       <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
         📈 Progress & Stats
       </button>
+      <button class="menu-item" type="button" data-view="focus" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⏱️ Focus &amp; Study Timer</button>
       
     </div>
   `;
@@ -1250,6 +1355,7 @@ const monthLabel = new Date(
   const totalTasks = tasks.length;
   const progressPercent = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
+  const isLightTheme = state.theme === 'light';
 
   return `
     <section class="screen home-screen">
@@ -1266,13 +1372,16 @@ const monthLabel = new Date(
           <div class="menu-wrap">
             <button class="menu-button" type="button" aria-label="Open menu">⋮</button>
             <div class="menu-panel ${state.menuOpen ? 'open' : 'hidden'}">
-              <button class="menu-item" type="button" data-menu-action="light-theme"><span>☀️</span> Light Mode</button>
-              <button class="menu-item" type="button" data-menu-action="dark-theme"><span>🌙</span> Dark Mode</button>
+              <button class="menu-item settings-toggle-item theme-menu-item" type="button" data-menu-action="toggle-theme" role="switch" aria-checked="${isLightTheme}" aria-label="${isLightTheme ? 'Switch to dark mode' : 'Switch to light mode'}">
+                <span class="settings-toggle-icon" aria-hidden="true">${isLightTheme ? '☀️' : '🌙'}</span>
+                <span class="settings-toggle-copy"><strong>Appearance</strong><small>${isLightTheme ? 'Light mode' : 'Dark mode'}</small></span>
+                <span class="settings-switch ${isLightTheme ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+              </button>
               <button class="menu-item" type="button" data-menu-action="profile"><span>👤</span> Profile</button>
-              <button class="menu-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
-                <span>🔔</span>
-                <span class="notification-menu-label">Device notifications</span>
-                <span class="notification-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+              <button class="menu-item settings-toggle-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
+                <span class="settings-toggle-icon" aria-hidden="true">🔔</span>
+                <span class="settings-toggle-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? 'Reminders are on' : 'Reminders are off'}</small></span>
+                <span class="notification-switch settings-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
               </button>
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
@@ -1281,18 +1390,45 @@ const monthLabel = new Date(
         </div>
       </section>
 
-      <section class="glass-card layout-card date-weather-card">
-        <div class="date-weather-row">
-          <div>
-            <div class="date-weather-day">${today.toLocaleDateString('en-IN', { weekday: 'long' })}</div>
-            <div class="date-weather-date">${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+      <section class="glass-card layout-card date-weather-card ${state.weatherExpanded ? 'weather-expanded' : ''}">
+        <button class="weather-card-trigger" type="button" data-action="toggle-weather-details" aria-expanded="${state.weatherExpanded}" aria-controls="weather-detail-panel">
+          <span class="date-weather-row">
+            <span>
+              <span class="date-weather-day">${today.toLocaleDateString('en-IN', { weekday: 'long' })}</span>
+              <span class="date-weather-date">${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            </span>
+            <span class="weather-icon">${state.weatherData ? weatherIconForCode(state.weatherData.current.weather_code) : '⛅'}</span>
+          </span>
+          <span class="date-weather-temp-wrap">
+            <span class="temp-value">${state.weatherData ? `${Math.round(state.weatherData.current.temperature_2m)}°<span>C</span>` : 'Live weather'} </span>
+            <span class="weather-meta">${state.weatherData ? escapeHtml(weatherDescription(state.weatherData.current.weather_code)) : 'Tap to load current weather details'}</span>
+            <span class="weather-expand-hint">${state.weatherExpanded ? 'Hide details ▲' : 'Show weather details ▼'}</span>
+          </span>
+        </button>
+        ${state.weatherExpanded ? `
+          <div class="weather-detail-panel" id="weather-detail-panel">
+            ${state.weatherLoading ? '<p class="weather-state-message">Getting your location and live weather…</p>' : ''}
+            ${state.weatherError ? `<p class="weather-state-message weather-error">${escapeHtml(state.weatherError)}</p><button class="weather-retry" type="button" data-action="retry-weather">Try again</button>` : ''}
+            ${state.weatherData ? `
+              <div class="weather-location-label">Live data ${state.weatherLocation ? `· ${escapeHtml(state.weatherLocation)}` : '· Your location'}</div>
+              <div class="weather-detail-grid">
+                <div class="weather-detail-item"><span>Feels like</span><strong>${Math.round(state.weatherData.current.apparent_temperature)}°C</strong></div>
+                <div class="weather-detail-item"><span>Humidity</span><strong>${Math.round(state.weatherData.current.relative_humidity_2m)}%</strong></div>
+                <div class="weather-detail-item"><span>Wind speed</span><strong>${Math.round(state.weatherData.current.wind_speed_10m)} km/h</strong></div>
+                <div class="weather-detail-item"><span>Pressure</span><strong>${Math.round(state.weatherData.current.surface_pressure)} hPa</strong></div>
+                <div class="weather-detail-item"><span>Visibility</span><strong>${Number.isFinite(state.weatherData.current.visibility) ? (state.weatherData.current.visibility / 1000).toFixed(1) + ' km' : 'Unavailable'}</strong></div>
+                <div class="weather-detail-item"><span>UV index</span><strong>${state.weatherData.current.uv_index == null ? 'Unavailable' : Number(state.weatherData.current.uv_index).toFixed(1)}</strong></div>
+                <div class="weather-detail-item"><span>Sunrise</span><strong>${state.weatherData.daily.sunrise?.[0] ? new Date(state.weatherData.daily.sunrise[0]).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Unavailable'}</strong></div>
+                <div class="weather-detail-item"><span>Sunset</span><strong>${state.weatherData.daily.sunset?.[0] ? new Date(state.weatherData.daily.sunset[0]).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Unavailable'}</strong></div>
+                <div class="weather-detail-item"><span>Today's high</span><strong>${state.weatherData.daily.temperature_2m_max?.[0] == null ? 'Unavailable' : Math.round(state.weatherData.daily.temperature_2m_max[0]) + '°C'}</strong></div>
+                <div class="weather-detail-item"><span>Today's low</span><strong>${state.weatherData.daily.temperature_2m_min?.[0] == null ? 'Unavailable' : Math.round(state.weatherData.daily.temperature_2m_min[0]) + '°C'}</strong></div>
+                <div class="weather-detail-item"><span>Precipitation</span><strong>${state.weatherData.current.precipitation == null ? 'Unavailable' : Number(state.weatherData.current.precipitation).toFixed(1) + ' mm'}</strong></div>
+              </div>
+              <p class="weather-source-note">Live weather via Open-Meteo · Updated ${escapeHtml(state.weatherData.current.time ? new Date(state.weatherData.current.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'just now')}</p>
+              <button class="weather-retry" type="button" data-action="retry-weather">Refresh weather</button>
+            ` : ''}
           </div>
-          <div class="weather-icon">⛅</div>
-        </div>
-        <div class="date-weather-temp-wrap">
-          <div class="temp-value">27°<span>C</span></div>
-          <div class="weather-meta">Partly Cloudy</div>
-        </div>
+        ` : ''}
       </section>
 
       <section class="glass-card layout-card calendar-card">
@@ -1382,8 +1518,314 @@ const monthLabel = new Date(
 
         <div class="progress-footer">${completedTasks} / ${totalTasks} tasks complete</div>
       </section>
+
+      ${renderTodaysPrograms(today)}
     </section>
   `;
+}
+
+function formatMoney(value) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function weatherDescription(code) {
+  const descriptions = {
+    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Depositing rime fog', 51: 'Light drizzle', 53: 'Drizzle',
+    55: 'Dense drizzle', 56: 'Freezing drizzle', 57: 'Dense freezing drizzle',
+    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain',
+    67: 'Heavy freezing rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+    77: 'Snow grains', 80: 'Rain showers', 81: 'Rain showers', 82: 'Violent rain showers',
+    85: 'Snow showers', 86: 'Heavy snow showers', 95: 'Thunderstorm',
+    96: 'Thunderstorm with hail', 99: 'Thunderstorm with heavy hail'
+  };
+  return descriptions[Number(code)] || 'Weather condition unavailable';
+}
+
+function weatherIconForCode(code) {
+  const n = Number(code);
+  if (n === 0) return '☀️';
+  if ([1, 2].includes(n)) return '🌤️';
+  if ([3, 45, 48].includes(n)) return '☁️';
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(n)) return '🌧️';
+  if ([71, 73, 75, 77, 85, 86].includes(n)) return '🌨️';
+  if ([95, 96, 99].includes(n)) return '⛈️';
+  return '🌡️';
+}
+
+function renderTodaysPrograms(today) {
+  const todayKey = formatDateKey(today);
+  const todaysTasks = (Array.isArray(state.data.tasks) ? state.data.tasks : [])
+    .filter((task) => String(task.date || '').slice(0, 10) === todayKey)
+    .sort((a, b) => {
+      const doneA = Boolean(a.completed || a.status === 'Completed');
+      const doneB = Boolean(b.completed || b.status === 'Completed');
+      return Number(doneA) - Number(doneB);
+    });
+  const todaysEvents = (Array.isArray(state.data.events) ? state.data.events : [])
+    .filter((item) => String(item.date || '').slice(0, 10) === todayKey)
+    .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+  const transactions = Array.isArray(state.financeData) ? state.financeData : [];
+  const todaysTransactions = transactions.filter((item) => String(item.date || '').slice(0, 10) === todayKey);
+  const incomeFor = (items) => items.filter((item) => String(item.type || '').toLowerCase() === 'income').reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const expensesFor = (items) => items.filter((item) => ['expense', 'expenses'].includes(String(item.type || '').toLowerCase())).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const todayIncome = incomeFor(todaysTransactions);
+  const todayExpenses = expensesFor(todaysTransactions);
+  const allIncome = incomeFor(transactions);
+  const allExpenses = expensesFor(transactions);
+  const taskRows = todaysTasks.length ? todaysTasks.map((task) => {
+    const done = Boolean(task.completed || task.status === 'Completed');
+    const id = escapeAttribute(task.id || task._id || '');
+    return `<label class="today-program-task ${done ? 'is-complete' : ''}">
+      <input type="checkbox" data-action="home-toggle-task" data-task-id="${id}" ${done ? 'checked' : ''} ${id ? '' : 'disabled'} />
+      <span class="today-program-copy"><strong>${escapeHtml(task.title || 'Untitled task')}</strong><small>${escapeHtml(task.time || 'No time set')} · ${escapeHtml(task.priority || 'Normal')} priority</small></span>
+    </label>`;
+  }).join('') : '<p class="today-program-empty">No tasks scheduled for today.</p>';
+  const eventRows = todaysEvents.length ? todaysEvents.map((item) => `<div class="today-program-row">
+      <span class="today-program-symbol event-symbol">▦</span>
+      <span class="today-program-copy"><strong>${escapeHtml(item.title || item.name || 'Untitled event')}</strong><small>${escapeHtml(item.time || 'Time not set')}${item.reminder ? ' · Reminder set' : ''}${item.location ? ' · ' + escapeHtml(item.location) : ''}</small></span>
+    </div>`).join('') : '<p class="today-program-empty">No events scheduled for today.</p>';
+  const transactionRows = todaysTransactions.slice().sort((a,b) => String(b.date || '').localeCompare(String(a.date || ''))).map((item) => {
+    const type = String(item.type || '').toLowerCase();
+    const income = type === 'income';
+    return `<div class="today-program-row">
+      <span class="today-program-symbol ${income ? 'income-symbol' : 'expense-symbol'}">${income ? '↗' : '↘'}</span>
+      <span class="today-program-copy"><strong>${escapeHtml(item.title || item.note || item.description || (income ? 'Income' : 'Expense'))}</strong><small>${income ? 'Income' : 'Expense'}</small></span>
+      <strong class="today-transaction-amount ${income ? 'is-income' : 'is-expense'}">${income ? '+' : '−'}${formatMoney(item.amount)}</strong>
+    </div>`;
+  }).join('');
+  const todayNet = todayIncome - todayExpenses;
+  const totalNet = allIncome - allExpenses;
+  return `
+    <section class="today-programs-section" aria-label="Today's Programs">
+      <div class="today-programs-heading"><div><p class="today-program-eyebrow">YOUR DAY AT A GLANCE</p><h2>Today's Programs</h2></div><span class="today-program-date">${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span></div>
+      <section class="glass-card today-program-card">
+        <div class="today-program-card-heading"><span class="today-program-symbol task-symbol">✓</span><h3>Today's Tasks <span class="today-program-count">${todaysTasks.length}</span></h3><button type="button" data-view="tasks" class="today-program-link">View all</button></div>
+        <div class="today-program-list">${taskRows}</div>
+      </section>
+      <section class="glass-card today-program-card">
+        <div class="today-program-card-heading"><span class="today-program-symbol event-symbol">▦</span><h3>Today's Events <span class="today-program-count">${todaysEvents.length}</span></h3><button type="button" data-view="calendar" class="today-program-link">View calendar</button></div>
+        <div class="today-program-list">${eventRows}</div>
+      </section>
+      <section class="glass-card today-program-card finance-today-card">
+        <div class="today-program-card-heading"><span class="today-program-symbol income-symbol">₹</span><h3>Income &amp; Expenses</h3><button type="button" data-view="finance" class="today-program-link">Open finance</button></div>
+        <div class="today-money-grid">
+          <div class="today-money-tile"><span>Today's income</span><strong class="is-income">${formatMoney(todayIncome)}</strong></div>
+          <div class="today-money-tile"><span>Today's expenses</span><strong class="is-expense">${formatMoney(todayExpenses)}</strong></div>
+          <div class="today-money-tile"><span>Today's net</span><strong class="${todayNet >= 0 ? 'is-income' : 'is-expense'}">${formatMoney(todayNet)}</strong></div>
+          <div class="today-money-tile total-balance-tile"><span>Total balance <small>(all saved transactions)</small></span><strong class="${totalNet >= 0 ? 'is-income' : 'is-expense'}">${formatMoney(totalNet)}</strong></div>
+        </div>
+        ${transactionRows ? `<div class="today-program-list today-transactions-list">${transactionRows}</div>` : '<p class="today-program-empty">No income or expenses recorded today.</p>'}
+        <p class="today-program-footnote">Balance is calculated from recorded income minus recorded expenses. It does not include an unrecorded opening bank balance.</p>
+      </section>
+    </section>
+  `;
+}
+
+let weatherRequestInProgress = false;
+async function loadLiveWeather() {
+  if (weatherRequestInProgress) return;
+  weatherRequestInProgress = true;
+  state.weatherLoading = true;
+  state.weatherError = '';
+  renderLayout();
+  try {
+    if (!navigator.geolocation) throw new Error('Location is not supported by this device. Allow location access or use a device with geolocation.');
+    const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: 10 * 60 * 1000 }));
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const params = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+      current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,visibility,uv_index',
+      daily: 'temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max',
+      timezone: 'auto',
+      forecast_days: '1'
+    });
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+    if (!response.ok) throw new Error(`Weather service returned ${response.status}. Please try again later.`);
+    const payload = await response.json();
+    if (!payload?.current || !payload?.daily) throw new Error('The weather service did not return complete current conditions.');
+    state.weatherData = payload;
+    state.weatherLocation = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+  } catch (error) {
+    if (error?.code === 1) state.weatherError = 'Location permission was denied. Enable location access in your browser/device settings and try again.';
+    else if (error?.code === 2) state.weatherError = 'Your location could not be determined. Check device location services and try again.';
+    else if (error?.code === 3) state.weatherError = 'Location request timed out. Try again.';
+    else state.weatherError = error?.message || 'Live weather is unavailable right now.';
+  } finally {
+    state.weatherLoading = false;
+    weatherRequestInProgress = false;
+    renderLayout();
+  }
+}
+
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  if (button.dataset.action === 'toggle-weather-details') {
+    state.weatherExpanded = !state.weatherExpanded;
+    renderLayout();
+    if (state.weatherExpanded && !state.weatherData) await loadLiveWeather();
+  } else if (button.dataset.action === 'retry-weather') {
+    await loadLiveWeather();
+  } else if (button.dataset.action === 'home-toggle-task') {
+    event.preventDefault();
+    const taskId = button.dataset.taskId;
+    const task = (state.data.tasks || []).find((item) => String(item.id || item._id) === String(taskId));
+    if (!task || !taskId) return;
+    const nextCompleted = !(task.completed || task.status === 'Completed');
+    button.disabled = true;
+    try {
+      const updated = await apiRequest(`/api/tasks/${encodeURIComponent(taskId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: task.title, description: task.description || '', date: task.date, time: task.time || null, priority: task.priority || 'Normal', status: nextCompleted ? 'Completed' : 'Pending', completed: nextCompleted, reminder: task.reminder || '', category: task.category || 'General' })
+      });
+      const record = updated?.task || updated?.data || updated;
+      task.completed = nextCompleted;
+      task.status = nextCompleted ? 'Completed' : 'Pending';
+      state.data.tasks = (state.data.tasks || []).map((item) => String(item.id || item._id) === String(taskId) ? { ...item, ...record, completed: nextCompleted, status: task.status } : item);
+      renderLayout();
+    } catch (error) {
+      showToast(error.message || 'Could not update task');
+      renderLayout();
+    }
+  }
+});
+
+function renderFocusPage() {
+  const total = Math.max(1, Number(state.focusInitialSeconds) || 1500);
+  const left = Math.max(0, Number(state.focusSeconds) || 0);
+  const progress = Math.min(100, Math.max(0, ((total - left) / total) * 100));
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const today = formatDateKey(new Date());
+  const todaySessions = sessions.filter((x) => x.date === today && x.completed);
+  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
+  const light = state.theme === 'light';
+  return `
+    <section class="screen focus-screen" aria-label="Focus timer">
+      <header class="focus-header">
+        <button class="focus-back" type="button" data-action="focus-back" aria-label="Back">‹</button>
+        <div><p class="focus-eyebrow">SAHRA • DEEP WORK</p><h1>Focus &amp; Study</h1></div>
+        <span class="focus-mode-pill">${state.focusRunning ? 'FOCUSING' : 'READY'}</span>
+      </header>
+      <div class="focus-card glass-card">
+        <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || 'Study session')}" placeholder="Study session" /></div>
+        <div class="focus-ring-wrap">
+          <svg class="focus-ring" viewBox="0 0 240 240" role="img" aria-label="Timer progress">
+            <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
+            <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2*Math.PI*101}; stroke-dashoffset: ${(2*Math.PI*101)*(1-progress/100)}"></circle>
+          </svg>
+          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? 'STAY IN THE FLOW' : 'READY WHEN YOU ARE'}</span></div>
+        </div>
+        <div class="focus-controls">
+          <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">↺</button>
+          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? 'Pause timer' : 'Start timer'}">${state.focusRunning ? 'Ⅱ' : '▶'}</button>
+          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">■</button>
+        </div>
+        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round(total/60))}" ${state.focusRunning ? 'disabled' : ''}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? 'disabled' : ''}>Set time</button></div></div>
+        <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? 'disabled' : ''}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? 'disabled' : ''}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? 'disabled' : ''}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? 'disabled' : ''}>60 min</button></div>
+        <p class="focus-tip">${light ? 'A clear mind starts with one focused session.' : 'One session. One goal. Keep your momentum.'}</p>
+      </div>
+      <div class="focus-stats"><div class="focus-stat glass-card"><span>Today’s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x)=>x.completed).length}</strong></div></div>
+      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
+    </section>`;
+}
+
+let focusTicker = null;
+let focusCompletionNotificationId = 941207;
+function focusBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    [0, 0.35, 0.7].forEach((delay) => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + delay + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.22);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.24);
+    });
+    setTimeout(() => ctx.close().catch(()=>{}), 1500);
+  } catch (error) { console.warn('Focus alarm audio unavailable:', error); }
+}
+async function focusCancelNotification() {
+  try { if (window.Capacitor?.isNativePlatform?.()) await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] }); } catch (error) { console.warn('Could not cancel focus notification:', error.message); }
+}
+async function focusScheduleNotification(seconds) {
+  if (window.Capacitor?.isNativePlatform?.()) {
+    try {
+      let permission = await LocalNotifications.checkPermissions();
+      if (permission.display !== 'granted') permission = await LocalNotifications.requestPermissions();
+      if (permission.display === 'granted') {
+        await LocalNotifications.schedule({ notifications: [{ id: focusCompletionNotificationId, title: 'Focus session complete 🎉', body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.`, schedule: { at: new Date(Date.now() + seconds * 1000), allowWhileIdle: true }, sound: 'default', channelId: 'sahra-reminders' }] });
+      }
+    } catch (error) { console.warn('Native focus notification unavailable:', error.message); }
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch (_) {}
+  }
+}
+function focusFinish() {
+  clearInterval(focusTicker); focusTicker = null;
+  state.focusRunning = false; state.focusSeconds = 0;
+  const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  sessions.unshift({ date: formatDateKey(new Date()), minutes, label: state.focusLabel || 'Study session', completed: true, completedAt: new Date().toISOString() });
+  state.focusSessions = sessions.slice(0, 500);
+  try { localStorage.setItem('sahraFocusSessions', JSON.stringify(state.focusSessions)); } catch (_) {}
+  focusBeep();
+  if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('Focus session complete 🎉', { body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.` }); } catch (_) {} }
+  void focusCancelNotification();
+  showToast('Focus session complete! Great work.');
+  renderLayout();
+}
+function focusStartTicker() {
+  clearInterval(focusTicker);
+  state.focusRunning = true; state.focusStartedAt = Date.now();
+  void focusScheduleNotification(state.focusSeconds);
+  focusTicker = setInterval(() => {
+    if (!state.focusRunning) return;
+    const elapsed = Math.floor((Date.now() - state.focusStartedAt) / 1000);
+    state.focusSeconds = Math.max(0, state.focusInitialSeconds - elapsed);
+    const clock = document.getElementById('focus-clock');
+    if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds/60)).padStart(2,'0')}:${String(state.focusSeconds%60).padStart(2,'0')}`;
+    const progress = document.querySelector('.focus-ring-progress');
+    if (progress) progress.style.strokeDashoffset = `${(2*Math.PI*101)*(1-(state.focusInitialSeconds-state.focusSeconds)/Math.max(1,state.focusInitialSeconds))}`;
+    if (state.focusSeconds <= 0) focusFinish();
+  }, 250);
+  renderLayout();
+}
+function focusPause() {
+  if (!state.focusRunning) return;
+  state.focusSeconds = Math.max(0, state.focusInitialSeconds - Math.floor((Date.now()-state.focusStartedAt)/1000));
+  state.focusInitialSeconds = Math.max(1, state.focusSeconds);
+  state.focusRunning = false; clearInterval(focusTicker); focusTicker = null;
+  void focusCancelNotification(); renderLayout();
+}
+function bindFocusTimer() {
+  const app = document.getElementById('app');
+  if (!app || state.view !== 'focus') return;
+  const label = app.querySelector('#focus-label');
+  label?.addEventListener('change', () => { state.focusLabel = label.value.trim() || 'Study session'; });
+  app.querySelectorAll('[data-focus-minutes]').forEach((button) => button.addEventListener('click', () => {
+    if (state.focusRunning) return;
+    const minutes = Math.max(1, Math.min(180, Number(button.dataset.focusMinutes) || 25));
+    state.focusSeconds = state.focusInitialSeconds = minutes * 60; renderLayout();
+  }));
+  app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener('click', () => {
+    const action = button.dataset.action;
+    if (action === 'focus-back') { state.view = 'menu'; renderLayout(); }
+    if (action === 'focus-toggle') {
+      if (state.focusRunning) focusPause();
+      else { const labelInput = document.getElementById('focus-label'); state.focusLabel = labelInput?.value?.trim() || state.focusLabel || 'Study session'; if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds; state.focusInitialSeconds = state.focusSeconds; focusStartTicker(); }
+    }
+    if (action === 'focus-reset') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds; renderLayout(); }
+    if (action === 'focus-stop') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds = 25*60; renderLayout(); }
+    if (action === 'focus-set') { const input = document.getElementById('focus-minutes'); const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25)); state.focusSeconds = state.focusInitialSeconds = minutes*60; renderLayout(); }
+  }));
 }
 
 function renderProgressPage() {
@@ -2076,11 +2518,15 @@ function renderProgressPage() {
   `;
 }
 let isRendering = false;
+let lastAssistantMessageCount = null;
+let lastAssistantLoadingState = null;
 
 function renderLayout() {
   if (isRendering) return; // Prevent overlapping render cycles
   isRendering = true;
   const app = document.getElementById('app');
+  const viewChanged = state.view !== lastRenderedView;
+  lastRenderedView = state.view;
 
   if (state.view === 'calendar' && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
     loadSelectedDateData(state.selectedDate);
@@ -2112,18 +2558,52 @@ function renderLayout() {
 } else if (state.view === 'assistant') {
   content = renderAssistantPage(state);
 
+} else if (state.view === 'menu') {
+  content = renderMenuPage();
+} else if (state.view === 'focus') {
+  content = renderFocusPage();
+
 } else if (state.view === 'progress' || state.view === 'more') {
   content = renderProgressPage();
 }
 
   // Appends active modals and menus over the main content
-  app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
-  
-  // 🚀 FORCE SCROLL TO TOP IMMEDIATELY AFTER DRAWING NEW HTML
-  
+  app.innerHTML = content + renderEntryModal() + renderProfileModal();
+
+  // Follow the newest assistant conversation message after a chat update,
+  // without stealing scroll when the user first opens the Assistant page.
+  const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
+  const assistantLoadingNow = Boolean(state.assistantLoading);
+  const assistantConversationChanged = state.view === 'assistant' && !viewChanged && (
+    assistantMessageCount !== lastAssistantMessageCount ||
+    assistantLoadingNow !== lastAssistantLoadingState
+  );
+  lastAssistantMessageCount = assistantMessageCount;
+  lastAssistantLoadingState = assistantLoadingNow;
+  if (assistantConversationChanged) {
+    requestAnimationFrame(() => {
+      if (state.view !== 'assistant') return;
+      const currentApp = document.getElementById('app');
+      if (!currentApp) return;
+      currentApp.scrollTo({
+        top: Math.max(0, currentApp.scrollHeight - currentApp.clientHeight),
+        behavior: 'smooth'
+      });
+    });
+  }
+
+  // Every real page change starts at the top; re-renders within the same page
+  // preserve scroll so form edits and data refreshes do not jump unexpectedly.
+  if (viewChanged) {
+    app.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const nav = document.querySelector('.bottom-nav');
+    nav?.classList.remove('scroll-hidden');
+  }
+  syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus'];
 
 
 
@@ -2151,7 +2631,7 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
@@ -3167,21 +3647,17 @@ document.addEventListener('input', (e) => {
   document.querySelectorAll('[data-menu-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const action = button.dataset.menuAction;
+
+      if (action === 'toggle-theme') {
+        const nextTheme = state.theme === 'light' ? 'dark' : 'light';
+        state.menuOpen = true;
+        applyTheme(nextTheme);
+        renderLayout();
+        await updateThemeInDatabase(nextTheme);
+        return;
+      }
+
       state.menuOpen = false;
-
-      if (action === 'light-theme') {
-        applyTheme('light');
-        renderLayout();
-        await updateThemeInDatabase('light');
-        return;
-      }
-
-      if (action === 'dark-theme') {
-        applyTheme('dark');
-        renderLayout();
-        await updateThemeInDatabase('dark');
-        return;
-      }
 
       if (action === 'profile') {
         state.profileModalOpen = true; 
@@ -3609,6 +4085,7 @@ document.addEventListener('click', (e) => {
     });
   });
 
+  bindFocusTimer();
   isRendering = false;
 }
 
@@ -3616,10 +4093,17 @@ document.addEventListener('click', (e) => {
 function bindBottomNav() {
   document.querySelectorAll('.bottom-nav .nav-item').forEach((button) => {
     button.addEventListener('click', async (e) => {
-      // 1. If it's the Menu button, just toggle the popup
+      // The Menu button opens a dedicated page instead of a popup over the current page.
       if (button.dataset.action === 'toggle-more-menu') {
         e.stopPropagation();
-        state.moreMenuOpen = !state.moreMenuOpen;
+        state.entryModalOpen = false;
+        state.entryDraft = null;
+        state.progressPickerOpen = false;
+        state.profileModalOpen = false;
+        state.moreMenuOpen = false;
+        state.menuOpen = false;
+        state.moodPickerOpen = false;
+        state.view = 'menu';
         renderLayout();
         return;
       }
@@ -3645,10 +4129,91 @@ function bindBottomNav() {
   });
 }
 let globalListenersBound = false;
+let lastAppScrollTop = 0;
+let smartNavBound = false;
+
+function isEditableControl(element) {
+  return Boolean(element?.matches?.('input:not([type="button"]):not([type="submit"]), textarea, select, [contenteditable="true"]'));
+}
+
+function syncKeyboardViewport() {
+  const viewport = window.visualViewport;
+  const activeEditable = isEditableControl(document.activeElement);
+  const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
+  const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
+  const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
+  document.body.classList.toggle('keyboard-open', keyboardOpen);
+  document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
+  document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
+  if (viewport) {
+    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
+  }
+}
+
+function revealFocusedControl(element) {
+  if (!isEditableControl(element)) return;
+  const target = element;
+  [100, 320, 520].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!target.isConnected || document.activeElement !== target) return;
+      syncKeyboardViewport();
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const rect = target.getBoundingClientRect();
+      if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
+        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
+      }
+    }, delay);
+  });
+}
+
+function bindSmartNavigationAndKeyboard() {
+  if (smartNavBound) return;
+  smartNavBound = true;
+  const app = document.getElementById('app');
+  const nav = document.querySelector('.bottom-nav');
+  if (app && nav) {
+    lastAppScrollTop = app.scrollTop;
+    app.addEventListener('scroll', () => {
+      const currentTop = app.scrollTop;
+      if (document.body.classList.contains('keyboard-open')) {
+        nav.classList.add('keyboard-hidden');
+        lastAppScrollTop = currentTop;
+        return;
+      }
+      const delta = currentTop - lastAppScrollTop;
+      if (currentTop <= 8) {
+        nav.classList.remove('scroll-hidden');
+      } else if (delta > 5) {
+        nav.classList.add('scroll-hidden');
+      } else if (delta < -5) {
+        nav.classList.remove('scroll-hidden');
+      }
+      lastAppScrollTop = currentTop;
+    }, { passive: true });
+  }
+
+  document.addEventListener('focusin', (event) => {
+    if (!isEditableControl(event.target)) return;
+    syncKeyboardViewport();
+    revealFocusedControl(event.target);
+  });
+  document.addEventListener('focusout', () => {
+    window.setTimeout(() => {
+      syncKeyboardViewport();
+      if (!document.body.classList.contains('keyboard-open')) {
+        document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
+      }
+    }, 180);
+  });
+  window.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
+}
 
 function bindGlobalListeners() {
   if (globalListenersBound) return;
   globalListenersBound = true;
+  bindSmartNavigationAndKeyboard();
 
   document.addEventListener('click', (event) => {
     const clearAssistantButton = event.target.closest('[data-action="clear-assistant-chat"]');
@@ -3746,6 +4311,10 @@ async function fetchFinanceData() {
     renderLayout();
   } catch (error) {
     console.error('Failed to load finance data:', error);
+    try {
+      const cached = await offlineSync.transactionFallback(await getAuthToken());
+      if (cached.length) { state.financeData = cached; showOfflineBannerOnce(); renderLayout(); }
+    } catch (cacheError) { console.warn('Finance cache unavailable:', cacheError.message); }
   }
 }
 
@@ -3760,6 +4329,23 @@ function bindFinanceListeners() {
     if (!button) return;
 
     const action = button.dataset.action;
+
+    // Quick amount chips add their value to the current amount.
+    // This handler supports both income and expense forms because they share the same input.
+    if (action === 'quick-amount') {
+      event.preventDefault();
+      const amountInput = document.getElementById('finance-amount');
+      const increment = Number(button.dataset.val);
+      if (!amountInput || !Number.isFinite(increment) || increment <= 0) return;
+      const currentAmount = Number.parseFloat(amountInput.value);
+      const current = Number.isFinite(currentAmount) && currentAmount > 0 ? currentAmount : 0;
+      amountInput.value = String(Number((current + increment).toFixed(2)));
+      amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+      amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+      button.classList.add('quick-amount-applied');
+      window.setTimeout(() => button.classList.remove('quick-amount-applied'), 240);
+      return;
+    }
 
     // -------------------------------
     // CHANGE FINANCE VIEW
@@ -4015,6 +4601,7 @@ if (action === 'delete-finance-transaction') {
 }
 
 async function initializeApp() {
+  await initializeLocalDatabase();
   applyTheme(getStoredTheme());
   bindBottomNav();
   bindGlobalListeners();
@@ -4027,6 +4614,7 @@ async function initializeApp() {
     return;
   }
 
+  if (globalThis.navigator?.onLine) await offlineSync.flush(token);
   await loadDashboardData();
   await fetchFinanceData();
 

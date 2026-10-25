@@ -1,15 +1,26 @@
-SAHRA OFFLINE INTENT FIX
+SAHRA HOME — TODAY'S PROGRAMS + LIVE WEATHER PATCH
 
-This patch contains the active backend route file only.
+Files:
+- app.js
+- style.css
 
-Copy backend/routes/dashboard.js to:
-  P:\MyProjects\calender_todolist\backend\routes\dashboard.js
+Installation:
+1. Back up your current project app.js and style.css.
+2. Copy these files into P:\MyProjects\calender_todolist, replacing the matching files.
+3. Run:
+   node --check app.js
+   node scripts/build-web.js
+4. Refresh the existing server/browser.
 
-Then in PowerShell from the project root run:
-  node --check backend/routes/dashboard.js
-  git diff --check
-  git add backend/routes/dashboard.js
-  git commit -m "Improve offline assistant question matching"
-  git push
+Included:
+- Today's Programs section below Today's Progress.
+- All tasks and events whose date matches the device's local date.
+- Task completion checkboxes use the existing PUT /api/tasks/:id endpoint.
+- Today's income/expenses and net plus overall recorded transaction net balance, using existing /api/transactions data.
+- Expandable live weather via Open-Meteo and browser/device geolocation. No fake temperature is shown.
+- Location/network errors are shown in the UI.
 
-Wait for Render to deploy the new commit. Verify the Render commit matches the pushed GitHub commit. The task and balance answers query only the authenticated user's saved records. No AI API key is needed for these supported questions.
+Notes:
+- Total balance means all recorded income minus all recorded expenses; if you need opening balance or account-specific bank balance, that must be stored separately.
+- Weather location requires device/browser location permission and internet access.
+- Please test with your existing API/database before deployment.

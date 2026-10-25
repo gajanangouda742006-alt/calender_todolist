@@ -1463,14 +1463,13 @@ function renderHomePage() {
     if (priorityOrder) return priorityOrder;
     return String(a.time || '99:99').localeCompare(String(b.time || '99:99'));
   });
-  const topTasks = rankedTasks.slice(0, 3);
+  const topTasks = rankedTasks; // Show every task scheduled for today, not just a preview.
   const completedToday = todayTasks.filter(isCompleted).length;
   const todayProgress = todayTasks.length ? Math.round((completedToday / todayTasks.length) * 100) : 0;
 
   const upcomingEvents = events
-    .filter((event) => /^\d{4}-\d{2}-\d{2}$/.test(String(event.date || '').slice(0, 10)) && String(event.date).slice(0, 10) >= todayIso)
-    .sort((a, b) => String(a.date).slice(0, 10).localeCompare(String(b.date).slice(0, 10)) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
-    .slice(0, 3);
+    .filter((event) => /^\d{4}-\d{2}-\d{2}$/.test(String(event.date || '').slice(0, 10)) && String(event.date).slice(0, 10) === todayIso)
+    .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
 
   const financeStatus = state.homeFinanceStatus || 'loading';
   const todayTransactions = (Array.isArray(state.financeData) ? state.financeData : []).filter((transaction) => String(transaction.date || '').slice(0, 10) === todayIso);
@@ -1478,6 +1477,10 @@ function renderHomePage() {
   const todayIncome = todayTransactions.filter((transaction) => transactionType(transaction) === 'income').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
   const todayExpense = todayTransactions.filter((transaction) => transactionType(transaction) === 'expense').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
   const todayNet = todayIncome - todayExpense;
+  const allTransactions = Array.isArray(state.financeData) ? state.financeData : [];
+  const totalIncome = allTransactions.filter((transaction) => transactionType(transaction) === 'income').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+  const totalExpense = allTransactions.filter((transaction) => transactionType(transaction) === 'expense').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+  const totalBalance = totalIncome - totalExpense;
   const recentTodayTransactions = [...todayTransactions].sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || ''))).slice(0, 3);
   const weather = state.homeWeather;
   const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
@@ -1563,8 +1566,13 @@ function renderHomePage() {
         <div class="event-row"><div class="event-status"><span class="status-dot"></span><span>${events.filter((event) => String(event.date || '').slice(0, 10) === state.selectedDate).length ? `Selected day has ${events.filter((event) => String(event.date || '').slice(0, 10) === state.selectedDate).length} event(s)` : 'No events on this day'}</span></div><div class="event-actions"><button class="show-event" type="button" data-action="show-selected-day">Show</button><button class="add-event" type="button" data-action="open-add-entry" data-type="event">+ Add Event</button></div></div>
       </section>
 
+      <section class="today-programs-heading">
+        <div><span class="today-programs-eyebrow">YOUR DAILY OVERVIEW</span><h2>Today's Programs</h2><p>Everything scheduled and recorded for ${today.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}.</p></div>
+        <span class="today-programs-date">${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+      </section>
+
       <section class="glass-card layout-card home-activity-card home-tasks-card">
-        <div class="card-header compact"><div><h3>My Day</h3><p class="home-card-subtitle">Your top priorities for today</p></div><button class="small-btn" type="button" data-view="tasks">View All</button></div>
+        <div class="card-header compact"><div><h3>Today's Tasks</h3><p class="home-card-subtitle">All tasks scheduled for today</p></div><button class="small-btn" type="button" data-view="tasks">View All</button></div>
         <div class="home-section-stats"><span>${todayTasks.length} task${todayTasks.length === 1 ? '' : 's'} today</span><span>${completedToday} completed · ${todayProgress}%</span></div>
         ${topTasks.length ? `<div class="home-task-list">${topTasks.map((task) => {
           const done = isCompleted(task);
@@ -1573,26 +1581,26 @@ function renderHomePage() {
           const taskId = task.id || task._id || '';
           return `<div class="home-task-row ${done ? 'is-complete' : ''}"><button class="home-task-check ${done ? 'is-checked' : ''}" type="button" data-action="toggle-task" data-task-id="${escapeAttribute(taskId)}" aria-label="Mark ${escapeAttribute(task.title || 'task')} ${done ? 'pending' : 'complete'}">${done ? '✓' : ''}</button><div class="home-task-main"><strong>${escapeHtml(task.title || 'Untitled task')}</strong><span>${task.time ? `Due ${escapeHtml(timeLabel(task.time))}` : 'No time set'}</span></div><span class="home-priority-badge ${priorityClass}">${escapeHtml(priority)}</span></div>`;
         }).join('')}</div>` : `<div class="home-empty-state"><span class="home-empty-icon">✓</span><div><strong>No tasks scheduled for today</strong><p>Add a task and set today's date to see it here.</p></div><button class="small-btn" type="button" data-action="open-add-entry" data-type="task">+ Add task</button></div>`}
-        ${todayTasks.length > 3 ? `<button class="home-view-more" type="button" data-view="tasks">View ${todayTasks.length - 3} more task${todayTasks.length - 3 === 1 ? '' : 's'} →</button>` : ''}
       </section>
 
       <section class="glass-card layout-card home-activity-card home-events-card">
-        <div class="card-header compact"><div><h3>Today's Events & Reminders</h3><p class="home-card-subtitle">Today's schedule and what's coming next</p></div><button class="small-btn" type="button" data-action="home-view-events">View All</button></div>
+        <div class="card-header compact"><div><h3>Today's Events</h3><p class="home-card-subtitle">All events scheduled for today</p></div><button class="small-btn" type="button" data-action="home-view-events">View All</button></div>
         ${upcomingEvents.length ? `<div class="home-event-list">${upcomingEvents.map((event) => {
           const eventDate = String(event.date || '').slice(0, 10);
           const dateLabel = eventDate === todayIso ? 'Today' : new Date(`${eventDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
           return `<div class="home-event-row"><span class="home-event-date">${escapeHtml(dateLabel)}</span><span class="home-event-icon">${event.reminder ? '🔔' : '📅'}</span><span class="home-event-main"><strong>${escapeHtml(event.title || 'Untitled event')}</strong><span>${escapeHtml(event.startTime ? timeLabel(event.startTime) : 'All day')}${event.endTime ? ` – ${escapeHtml(timeLabel(event.endTime))}` : ''}${event.location ? ` · ${escapeHtml(event.location)}` : ''}</span></span></div>`;
-        }).join('')}</div>` : `<div class="home-empty-state"><span class="home-empty-icon">📅</span><div><strong>No upcoming events</strong><p>Your schedule is clear. Add an event when needed.</p></div></div>`}
+        }).join('')}</div>` : `<div class="home-empty-state"><span class="home-empty-icon">📅</span><div><strong>No events scheduled today</strong><p>Your schedule is clear. Add an event when needed.</p></div></div>`}
         <div class="home-card-footer"><button class="small-btn" type="button" data-action="open-add-entry" data-type="event">+ Add Event</button></div>
       </section>
 
       <section class="glass-card layout-card home-activity-card home-money-card">
-        <div class="card-header compact"><div><h3>Today's Money</h3><p class="home-card-subtitle">Income and expenses recorded today</p></div><button class="small-btn" type="button" data-view="finance">Finance</button></div>
+        <div class="card-header compact"><div><h3>Income, Expenses & Balance</h3><p class="home-card-subtitle">Today's activity and your overall recorded balance</p></div><button class="small-btn" type="button" data-view="finance">Finance</button></div>
         ${financeStatus === 'loading' ? '<div class="home-loading-state"><span class="home-loading-spinner"></span> Loading your transactions…</div>' : financeStatus === 'error' ? '<div class="home-inline-error">Finance records are unavailable right now. Check your connection and open Finance to retry.</div>' : `
           <div class="home-money-summary">
-            <div class="home-money-metric income"><span>Income</span><strong>${escapeHtml(formatRupees(todayIncome))}</strong></div>
-            <div class="home-money-metric expense"><span>Expense</span><strong>${escapeHtml(formatRupees(todayExpense))}</strong></div>
-            <div class="home-money-metric balance"><span>Net today</span><strong>${todayNet < 0 ? '−' : ''}${escapeHtml(formatRupees(Math.abs(todayNet)))}</strong></div>
+            <div class="home-money-metric income"><span>Today's income</span><strong>${escapeHtml(formatRupees(todayIncome))}</strong></div>
+            <div class="home-money-metric expense"><span>Today's expense</span><strong>${escapeHtml(formatRupees(todayExpense))}</strong></div>
+            <div class="home-money-metric balance"><span>Today's net</span><strong>${todayNet < 0 ? '−' : ''}${escapeHtml(formatRupees(Math.abs(todayNet)))}</strong></div>
+            <div class="home-money-metric total-balance"><span>Total balance</span><strong>${totalBalance < 0 ? '−' : ''}${escapeHtml(formatRupees(Math.abs(totalBalance)))}</strong></div>
           </div>
           ${recentTodayTransactions.length ? `<div class="home-transaction-list">${recentTodayTransactions.map((transaction) => {
             const income = transactionType(transaction) === 'income';

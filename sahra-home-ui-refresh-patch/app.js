@@ -7,6 +7,16 @@ import { renderGoalsPage } from './pages/goals.js';
 import { renderAssistantPage } from './pages/assistant.js';
 import { renderVaultPage } from './pages/notepad.js';
 import { renderFinancePage } from './pages/finance.js';
+import {
+  initializeLocalDatabase,
+  getCollection,
+  saveRecord,
+  deleteRecord,
+  getLocalProfile,
+  saveLocalProfile,
+} from './scripts/local-database.js';
+import { OfflineSync } from './scripts/offline-sync.js';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 
 
@@ -25,6 +35,7 @@ const EMPTY_DATA = {
 };
 
 let notepadEventsBound = false;
+let lastRenderedView = null;
 
 function formatDateKey(date) {
   const normalized = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
@@ -40,6 +51,40 @@ function escapeHtml(value = '') {
 }
 function escapeAttribute(value = '') {
   return escapeHtml(value);
+}
+
+function getRecordDateKey(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : formatDateKey(parsed);
+}
+
+function normalizeTaskTitle(value = '') {
+  return String(value)
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('en');
+}
+
+function isJunkTask(task) {
+  const title = task?.title ?? task?.name ?? task?.text ?? '';
+  // Remove only the explicitly identified test entries, not similarly named tasks.
+  return normalizeTaskTitle(title) === 'tytyty';
+}
+
+function formatINR(value) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
 }
 function formatFriendlyDate(dateString) {
   if (!dateString) return 'This month';
@@ -67,6 +112,12 @@ const state = {
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'Sahra' },
   theme: localStorage.getItem('theme') || 'dark',
+  focusSeconds: 25 * 60,
+  focusInitialSeconds: 25 * 60,
+  focusRunning: false,
+  focusStartedAt: null,
+  focusSessions: JSON.parse(localStorage.getItem('sahraFocusSessions') || '[]'),
+  focusLabel: 'Study session',
   menuOpen: false,
   profileEditing: false,
   profileDraft: null,
@@ -99,10 +150,12 @@ noteSearchQuery: '',
   showFinanceResetConfirm: false,
   financeResetLoading: false,
   tempFinanceType: null,
+  weather: { status: 'idle', data: null, locationLabel: '', error: '', updatedAt: null, requestId: 0 },
 };
 let activeRecognition = null;
 let speechSilenceTimer = null;
 let notificationInterval = null;
+const offlineSync = new OfflineSync({ getToken: getAuthToken, baseUrl: () => String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, '') });
 
 
 function applyTheme(theme) {
@@ -231,21 +284,66 @@ async function removeAuthToken() {
 
 async function apiRequest(path, options = {}) {
   const token = await getAuthToken();
-
-  const response = await fetch(getApiUrl(path), {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const method = String(options.method || 'GET').toUpperCase();
+  const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const idempotencyKey = isWrite ? (options.headers?.['Idempotency-Key'] || globalThis.crypto?.randomUUID?.() || `sahra-${Date.now()}-${Math.random().toString(36).slice(2)}`) : null;
+  let response;
+  try {
+    response = await fetch(getApiUrl(path), {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (networkError) {
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+      const cached = await offlineSync.dashboardFallback(token);
+      if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) {
+        showOfflineBannerOnce();
+        return cached;
+      }
+    }
+    if (token && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+      const cached = await offlineSync.transactionFallback(token);
+      if (cached.length) { showOfflineBannerOnce(); return cached; }
+    }
+    if (token && isWrite) {
+      try {
+        const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+        showOfflineBannerOnce();
+        return queued;
+      } catch (queueError) {
+        console.warn('Offline save could not be queued:', queueError.message);
+      }
+    }
+    throw networkError;
+  }
 
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json() : await response.text();
 
   if (!response.ok) {
     const message = typeof payload === 'string' ? payload : payload?.message || 'Request failed';
+    if ([502, 503, 504].includes(response.status) && token) {
+      try {
+        if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+          const cached = await offlineSync.dashboardFallback(token);
+          if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) { showOfflineBannerOnce(); return cached; }
+        }
+        if (method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+          const cached = await offlineSync.transactionFallback(token);
+          if (cached.length) { showOfflineBannerOnce(); return cached; }
+        }
+        if (isWrite) {
+          const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
+          showOfflineBannerOnce();
+          return queued;
+        }
+      } catch (offlineError) { console.warn('Offline fallback unavailable:', offlineError.message); }
+    }
     const isExpiredSession = response.status === 401 || (
       response.status === 404 && message.toLowerCase().includes('user not found')
     );
@@ -265,9 +363,45 @@ async function apiRequest(path, options = {}) {
     throw error;
   }
 
+  if (token) {
+    try {
+      if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') await offlineSync.cacheDashboard(token, payload);
+      else if (method === 'GET' && cleanApiPath(path) === 'api/transactions') await offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []));
+      else if (isWrite) await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
+      if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
+    } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+  }
   return payload;
 }
 
+function cleanApiPath(path) { return String(path || '').split('?')[0].replace(/^\/+/, ''); }
+let offlineBannerShown = false;
+function showOfflineBannerOnce() {
+  // Keep connectivity handling silent; normal save confirmations remain visible.
+}
+window.addEventListener('online', async () => {
+  offlineBannerShown = false;
+  try { const token = await getAuthToken(); await offlineSync.flush(token); await loadDashboardData(); await fetchFinanceData(); }
+  catch (error) { console.warn('Reconnect sync failed:', error.message); }
+});
+
+function renderMenuPage() {
+  return `
+    <section class="screen menu-screen" aria-label="Menu">
+      <header class="menu-page-heading">
+        <h1>Menu</h1>
+        <p>Choose a feature</p>
+      </header>
+      <div class="more-menu-panel menu-page-options" role="navigation" aria-label="Menu options">
+        <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
+        <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
+        <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
+        <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
+        <button class="menu-item" type="button" data-view="focus">⏱️ Focus &amp; Study Timer</button>
+      </div>
+    </section>
+  `;
+}
 
 function renderMoreMenu() {
   if (!state.moreMenuOpen) return '';
@@ -293,6 +427,7 @@ function renderMoreMenu() {
       <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
         📈 Progress & Stats
       </button>
+      <button class="menu-item" type="button" data-view="focus" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⏱️ Focus &amp; Study Timer</button>
       
     </div>
   `;
@@ -404,6 +539,19 @@ async function loadDashboardData() {
       ...(payload.data || {}),
     };
 
+    // Hide and remove the two explicitly identified test task names from all app views.
+    const loadedTasks = Array.isArray(state.data.tasks) ? state.data.tasks : [];
+    const junkTasks = loadedTasks.filter(isJunkTask);
+    if (junkTasks.length) {
+      state.data.tasks = loadedTasks.filter((task) => !isJunkTask(task));
+      void Promise.all(junkTasks.map((task) => {
+        const id = task?.id || task?._id;
+        if (!id) return Promise.resolve();
+        return apiRequest(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+          .catch((deleteError) => console.warn('Could not permanently remove a test task:', deleteError.message));
+      }));
+    }
+
     state.user = payload.user || state.user;
 
     localStorage.setItem(
@@ -510,6 +658,11 @@ async function addQuickTaskFromInput(input) {
   const title = input.value.trim();
   if (!title) {
     showToast('Please enter a task title.');
+    input.focus();
+    return;
+  }
+  if (isJunkTask({ title })) {
+    showToast('Please choose a meaningful task title.');
     input.focus();
     return;
   }
@@ -1194,85 +1347,86 @@ function renderProfilePage() {
 
 function renderHomePage() {
   const today = new Date();
-
-const monthLabel = new Date(
-  state.currentYear,
-  state.currentMonth,
-  1
-).toLocaleDateString('en-IN', {
-  month: 'long',
-  year: 'numeric',
-});
-
+  const todayKey = formatDateKey(today);
+  const monthLabel = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('en-IN', {
+    month: 'long', year: 'numeric',
+  });
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const monthStart = new Date(state.currentYear, state.currentMonth, 1);
   const firstDayOfMonth = new Date(state.currentYear, state.currentMonth, 1);
   const offset = firstDayOfMonth.getDay();
   const totalDaysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
   const totalDaysInPrevMonth = new Date(state.currentYear, state.currentMonth, 0).getDate();
   const entriesByDate = {
-    events: new Set((state.data.events || []).map((event) => event.date)),
-    tasks: new Set((state.data.tasks || []).map((task) => task.date)),
-    moods: new Set((state.data.moods || []).map((mood) => mood.date)),
+    events: new Set((state.data.events || []).map((event) => getRecordDateKey(event.date))),
+    tasks: new Set((state.data.tasks || []).filter((task) => !isJunkTask(task)).map((task) => getRecordDateKey(task.date))),
+    moods: new Set((state.data.moods || []).map((mood) => getRecordDateKey(mood.date))),
   };
-
   const calendarDays = [];
   for (let i = 0; i < offset; i += 1) {
     calendarDays.push({ value: totalDaysInPrevMonth - offset + i + 1, empty: true });
   }
-
   for (let day = 1; day <= totalDaysInMonth; day += 1) {
-    const dateValue = new Date(state.currentYear, state.currentMonth, day);
-    const iso = formatDateKey(dateValue);
-    const dayEvents = entriesByDate.events.has(iso);
-    const dayTasks = entriesByDate.tasks.has(iso);
-    const dayMood = entriesByDate.moods.has(iso);
-
+    const iso = formatDateKey(new Date(state.currentYear, state.currentMonth, day));
     calendarDays.push({
-      value: day,
-      empty: false,
-      active: iso === state.selectedDate,
-      iso,
-      hasEvent: dayEvents,
-      hasTask: dayTasks,
-      hasMood: dayMood,
+      value: day, empty: false, active: iso === state.selectedDate, iso,
+      hasEvent: entriesByDate.events.has(iso), hasTask: entriesByDate.tasks.has(iso), hasMood: entriesByDate.moods.has(iso),
     });
   }
-
   while (calendarDays.length % 7 !== 0) {
     calendarDays.push({ value: calendarDays.length - totalDaysInMonth - offset + 1, empty: true });
   }
 
-  const userName = state.user?.name ? state.user.name.split(' ')[0] : 'Friend';
-  const tasks = state.data.tasks || [];
-  const taskPreview = tasks.slice(0, 3);
-  const completedTasks = tasks.filter((task) => task.completed || task.status === 'Completed').length;
-  const totalTasks = tasks.length;
-  const progressPercent = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const allTasks = (Array.isArray(state.data.tasks) ? state.data.tasks : []).filter((task) => !isJunkTask(task));
+  const todaysTasks = allTasks.filter((task) => getRecordDateKey(task.date) === todayKey)
+    .sort((a, b) => Number(Boolean(a.completed || a.status === 'Completed')) - Number(Boolean(b.completed || b.status === 'Completed')));
+  const upcomingTaskPreview = todaysTasks.slice(0, 3);
+  const completedToday = todaysTasks.filter((task) => task.completed || task.status === 'Completed').length;
+  const totalToday = todaysTasks.length;
+  const progressPercent = totalToday ? Math.round((completedToday / totalToday) * 100) : 0;
+  const todaysEvents = (Array.isArray(state.data.events) ? state.data.events : [])
+    .filter((event) => getRecordDateKey(event.date) === todayKey)
+    .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+  const transactions = Array.isArray(state.financeData) ? state.financeData : [];
+  const todaysTransactions = transactions.filter((transaction) => getRecordDateKey(transaction.date) === todayKey);
+  const incomeOf = (rows) => rows.filter((row) => String(row.type || '').toLowerCase() === 'income')
+    .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const expenseOf = (rows) => rows.filter((row) => String(row.type || '').toLowerCase() === 'expense')
+    .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const todaysIncome = incomeOf(todaysTransactions);
+  const todaysExpense = expenseOf(todaysTransactions);
+  const totalBalance = incomeOf(transactions) - expenseOf(transactions);
   const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
+  const isLightTheme = state.theme === 'light';
+  const weather = state.weather || {};
+  const liveCurrent = weather.data?.current;
+  const liveDaily = weather.data?.daily;
+  const weatherCode = liveCurrent?.weather_code;
+  const weatherText = liveCurrent ? weatherConditionText(weatherCode) : 'Tap View Weather for live conditions';
+  const weatherIcon = liveCurrent ? weatherConditionIcon(weatherCode, liveCurrent.is_day) : '☁️';
+  const eventCountForSelectedDay = state.data.events.filter((event) => getRecordDateKey(event.date) === state.selectedDate).length;
+  const selectedWeatherLocation = weather.locationLabel ? escapeHtml(weather.locationLabel) : 'Local forecast';
 
   return `
-    <section class="screen home-screen">
-      <section class="hero glass-card page-fixed-header">
+    <section class="screen home-screen" aria-label="Sahra home">
+      <section class="hero glass-card page-fixed-header home-hero">
         <div class="hero-top">
           <div class="brand">
             <div class="brand-mark">${renderSahraLogo(52)}</div>
-            <div class="brand-text">
-              <h1>Sahra</h1>
-              <p>LIFE CALENDAR</p>
-            </div>
+            <div class="brand-text"><h1>Sahra</h1><p>LIFE CALENDAR</p></div>
           </div>
-
           <div class="menu-wrap">
             <button class="menu-button" type="button" aria-label="Open menu">⋮</button>
             <div class="menu-panel ${state.menuOpen ? 'open' : 'hidden'}">
-              <button class="menu-item" type="button" data-menu-action="light-theme"><span>☀️</span> Light Mode</button>
-              <button class="menu-item" type="button" data-menu-action="dark-theme"><span>🌙</span> Dark Mode</button>
+              <button class="menu-item settings-toggle-item theme-menu-item" type="button" data-menu-action="toggle-theme" role="switch" aria-checked="${isLightTheme}" aria-label="${isLightTheme ? 'Switch to dark mode' : 'Switch to light mode'}">
+                <span class="settings-toggle-icon" aria-hidden="true">${isLightTheme ? '☀️' : '🌙'}</span>
+                <span class="settings-toggle-copy"><strong>Appearance</strong><small>${isLightTheme ? 'Light mode' : 'Dark mode'}</small></span>
+                <span class="settings-switch ${isLightTheme ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+              </button>
               <button class="menu-item" type="button" data-menu-action="profile"><span>👤</span> Profile</button>
-              <button class="menu-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
-                <span>🔔</span>
-                <span class="notification-menu-label">Device notifications</span>
-                <span class="notification-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+              <button class="menu-item settings-toggle-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
+                <span class="settings-toggle-icon" aria-hidden="true">🔔</span>
+                <span class="settings-toggle-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? 'Reminders are on' : 'Reminders are off'}</small></span>
+                <span class="notification-switch settings-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
               </button>
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
@@ -1281,30 +1435,31 @@ const monthLabel = new Date(
         </div>
       </section>
 
-      <section class="glass-card layout-card date-weather-card">
-        <div class="date-weather-row">
-          <div>
+      <section class="glass-card layout-card date-weather-card home-weather-card" aria-label="Weather overview">
+        <div class="weather-topline">
+          <div class="weather-date-copy">
             <div class="date-weather-day">${today.toLocaleDateString('en-IN', { weekday: 'long' })}</div>
             <div class="date-weather-date">${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
           </div>
-          <div class="weather-icon">⛅</div>
+          <button class="weather-view-button" type="button" data-action="open-weather"><span>View Weather</span><span aria-hidden="true">↗</span></button>
         </div>
-        <div class="date-weather-temp-wrap">
-          <div class="temp-value">27°<span>C</span></div>
-          <div class="weather-meta">Partly Cloudy</div>
+        <div class="weather-overview-row">
+          <div class="date-weather-temp-wrap">
+            <div class="temp-value">${liveCurrent ? `${Math.round(Number(liveCurrent.temperature_2m))}°` : '—°'}<span>C</span></div>
+            <div class="weather-meta">${escapeHtml(weatherText)}</div>
+            ${liveCurrent && liveDaily ? `<div class="weather-range">H ${Math.round(Number(liveDaily.temperature_2m_max?.[0]))}° · L ${Math.round(Number(liveDaily.temperature_2m_min?.[0]))}°</div>` : `<div class="weather-range">${weather.status === 'error' ? 'Weather unavailable' : 'Live data · no sample values'}</div>`}
+          </div>
+          <div class="weather-icon" aria-hidden="true">${weatherIcon}</div>
         </div>
+        <div class="weather-live-footer"><span class="weather-live-dot ${liveCurrent ? 'is-live' : ''}"></span><span>${liveCurrent ? `Live · ${selectedWeatherLocation}` : (weather.status === 'loading' ? 'Loading live weather…' : 'Real weather appears after you open View Weather')}</span></div>
       </section>
 
       <section class="glass-card layout-card calendar-card">
-        <div class="calendar-header">
-          <h3>${monthLabel}</h3>
-          <div class="calendar-actions">
-            <button class="calendar-arrow" type="button" data-action="prev-month" aria-label="Previous month">‹</button>
-            <button class="calendar-arrow" type="button" data-action="next-month" aria-label="Next month">›</button>
-            <button class="today-button" type="button" data-action="today">Today</button>
-          </div>
-        </div>
-
+        <div class="calendar-header"><h3>${monthLabel}</h3><div class="calendar-actions">
+          <button class="calendar-arrow" type="button" data-action="prev-month" aria-label="Previous month">‹</button>
+          <button class="calendar-arrow" type="button" data-action="next-month" aria-label="Next month">›</button>
+          <button class="today-button" type="button" data-action="today">Today</button>
+        </div></div>
         <div class="calendar-grid">
           ${weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join('')}
           ${calendarDays.map((day) => {
@@ -1312,78 +1467,358 @@ const monthLabel = new Date(
             if (day.hasEvent) indicators.push('<span class="mini-indicator event"></span>');
             if (day.hasTask) indicators.push('<span class="mini-indicator task"></span>');
             if (day.hasMood) indicators.push('<span class="mini-indicator mood"></span>');
-            return `
-              <button
-                class="calendar-day ${day.empty ? 'dim' : ''} ${day.active ? 'selected' : ''}"
-                type="button"
-                data-date="${day.iso || ''}"
-                ${day.empty ? 'disabled' : ''}
-              >
-                <span>${day.value}</span>
-                ${indicators.length ? `<span class="calendar-indicators">${indicators.join('')}</span>` : ''}
-              </button>
-            `;
+            return `<button class="calendar-day ${day.empty ? 'dim' : ''} ${day.active ? 'selected' : ''}" type="button" data-date="${day.iso || ''}" ${day.empty ? 'disabled' : ''}><span>${day.value}</span>${indicators.length ? `<span class="calendar-indicators">${indicators.join('')}</span>` : ''}</button>`;
           }).join('')}
         </div>
-
         <div class="event-row">
-          <div class="event-status">
-            <span class="status-dot"></span>
-            <span>${state.data.events.filter((event) => event.date === state.selectedDate).length ? `Selected day has ${state.data.events.filter((event) => event.date === state.selectedDate).length} event(s)` : 'No events on this day'}</span>
-          </div>
-          <div class="event-actions">
-            <button class="show-event" type="button" data-action="show-selected-day">Show</button>
-            <button class="add-event" type="button" data-action="open-add-entry" data-type="event">+ Add Event</button>
-          </div>
+          <div class="event-status"><span class="status-dot"></span><span>${eventCountForSelectedDay ? `Selected day has ${eventCountForSelectedDay} event(s)` : 'No events on this day'}</span></div>
+          <div class="event-actions"><button class="show-event" type="button" data-action="show-selected-day">Show</button><button class="add-event" type="button" data-action="open-add-entry" data-type="event">+ Add Event</button></div>
         </div>
       </section>
 
       <section class="glass-card layout-card todo-card">
-        <div class="card-header compact">
-          <h3>To Do List</h3>
-          <button class="small-btn" type="button" data-view="tasks">+ Add Task</button>
-        </div>
-
-        ${taskPreview.length ? `
-          <div class="mini-todo-list">
-            ${taskPreview.map((task) => `
-              <div class="mini-todo-item">
-                <span class="mini-check ${task.completed || task.status === 'Completed' ? 'done' : ''}">${task.completed || task.status === 'Completed' ? '✓' : ''}</span>
-                <span>${task.title}</span>
-              </div>
-            `).join('')}
-          </div>
-        ` : `
-          <div class="empty-task-state">
-            <div class="task-icon">✓</div>
-            <div class="task-copy">
-              <strong>No tasks yet.</strong>
-              <span>Add a task to stay productive!</span>
-            </div>
-          </div>
-        `}
+        <div class="card-header compact"><h3>To Do List</h3><button class="small-btn" type="button" data-view="tasks">View Tasks</button></div>
+        ${upcomingTaskPreview.length ? `<div class="mini-todo-list">${upcomingTaskPreview.map((task) => `<div class="mini-todo-item"><span class="mini-check ${task.completed || task.status === 'Completed' ? 'done' : ''}">${task.completed || task.status === 'Completed' ? '✓' : ''}</span><span>${escapeHtml(task.title || task.name || 'Untitled task')}</span></div>`).join('')}</div>` : `<div class="empty-task-state"><div class="task-icon">✓</div><div class="task-copy"><strong>No tasks scheduled today.</strong><span>Add a task with today's date to see it here.</span></div></div>`}
       </section>
 
       <section class="glass-card layout-card progress-card">
-        <div class="card-header compact">
-          <h3>Today's Progress</h3>
-          <span class="chip">${progressPercent}%</span>
-        </div>
+        <div class="card-header compact"><h3>Today's Progress</h3><span class="chip">${progressPercent}%</span></div>
+        <div class="progress-block"><div class="progress-row"><div class="progress-label"><span>Today's task completion</span><strong>${progressPercent}%</strong></div><div class="progress-bar"><div class="progress-fill" style="width:${progressPercent}%"></div></div></div></div>
+        <div class="progress-footer">${completedToday} / ${totalToday} tasks complete today</div>
+      </section>
 
-        <div class="progress-block">
-          <div class="progress-row">
-            <div class="progress-label">
-              <span>Goal completion</span>
-              <strong>${progressPercent}%</strong>
-            </div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${progressPercent}%"></div></div>
+      <section class="daily-programs-section" aria-label="Today's Programs">
+        <header class="daily-programs-heading"><div><p class="daily-programs-eyebrow">YOUR DAY AT A GLANCE</p><h2>Today's Programs</h2><p>Everything planned and recorded for today.</p></div><span class="daily-date-pill">${today.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span></header>
+
+        <section class="glass-card daily-program-card daily-tasks-panel">
+          <div class="daily-program-card-header"><div class="daily-program-title"><span class="daily-program-icon">✓</span><div><h3>Today's Tasks</h3><p>${completedToday} of ${totalToday} complete</p></div></div><button class="daily-view-link" type="button" data-view="tasks">View all <span>↗</span></button></div>
+          ${todaysTasks.length ? `<div class="daily-task-list">${todaysTasks.map((task) => {
+            const done = Boolean(task.completed || task.status === 'Completed');
+            const priority = String(task.priority || 'Normal');
+            const priorityClass = priority.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const time = task.time ? new Date(`2000-01-01T${String(task.time).slice(0,5)}:00`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
+            const id = task.id || task._id || '';
+            return `<article class="daily-task-row ${done ? 'is-complete' : ''}"><button type="button" class="daily-task-check ${done ? 'is-checked' : ''}" data-action="toggle-task" data-task-id="${escapeAttribute(id)}" aria-label="${done ? 'Mark incomplete' : 'Complete'} ${escapeAttribute(task.title || task.name || 'task')}">${done ? '✓' : ''}</button><div class="daily-task-copy"><strong>${escapeHtml(task.title || task.name || 'Untitled task')}</strong><span>${time ? `${escapeHtml(time)} · ` : ''}${escapeHtml(task.category || 'Task')}</span></div><span class="daily-priority priority-${priorityClass}">${escapeHtml(priority)}</span></article>`;
+          }).join('')}</div>` : `<div class="daily-empty-state"><span class="daily-empty-icon">✓</span><div><strong>No tasks for today</strong><p>Add a task with today's date to plan your day.</p></div><button type="button" class="daily-add-button" data-action="open-add-entry" data-type="task">+ Add Task</button></div>`}
+        </section>
+
+        <section class="glass-card daily-program-card daily-events-panel">
+          <div class="daily-program-card-header"><div class="daily-program-title"><span class="daily-program-icon">▦</span><div><h3>Today's Events</h3><p>${todaysEvents.length} scheduled</p></div></div><button class="daily-view-link" type="button" data-action="view-today-events">View all <span>↗</span></button></div>
+          ${todaysEvents.length ? `<div class="daily-event-list">${todaysEvents.map((event) => {
+            const time = event.time ? String(event.time).slice(0,5) : '';
+            return `<article class="daily-event-row"><span class="daily-event-time">${time ? escapeHtml(time) : 'All day'}</span><span class="daily-event-marker" aria-hidden="true"></span><div class="daily-event-copy"><strong>${escapeHtml(event.title || event.name || 'Untitled event')}</strong><span>${escapeHtml(event.location || event.category || (event.description ? String(event.description).slice(0,80) : 'Scheduled today'))}</span></div><span class="daily-reminder-icon" title="${event.reminder ? 'Reminder set' : 'No reminder shown'}" aria-label="${event.reminder ? 'Reminder set' : 'No reminder shown'}">${event.reminder ? '🔔' : '◷'}</span></article>`;
+          }).join('')}</div>` : `<div class="daily-empty-state"><span class="daily-empty-icon">▦</span><div><strong>No events for today</strong><p>Your saved events for today will appear here.</p></div><button type="button" class="daily-add-button" data-action="open-add-entry" data-type="event">+ Add Event</button></div>`}
+        </section>
+
+        <section class="glass-card daily-program-card daily-finance-panel">
+          <div class="daily-program-card-header"><div class="daily-program-title"><span class="daily-program-icon">₹</span><div><h3>Income &amp; Expenses</h3><p>From your saved transactions</p></div></div><button class="daily-view-link" type="button" data-view="finance">Finance <span>↗</span></button></div>
+          <div class="daily-money-grid">
+            <article class="daily-money-card income"><span>Today's income</span><strong>${formatINR(todaysIncome)}</strong></article>
+            <article class="daily-money-card expense"><span>Today's expenses</span><strong>${formatINR(todaysExpense)}</strong></article>
+            <article class="daily-money-card net"><span>Today's net</span><strong>${formatINR(todaysIncome - todaysExpense)}</strong><small>Income minus expenses today</small></article>
+            <article class="daily-money-card balance"><span>Total balance</span><strong>${formatINR(totalBalance)}</strong><small>All saved income minus expenses</small></article>
           </div>
-        </div>
-
-        <div class="progress-footer">${completedTasks} / ${totalTasks} tasks complete</div>
+          ${todaysTransactions.length ? `<div class="daily-transactions-list"><h4>Today's transactions</h4>${todaysTransactions.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map((transaction) => {
+            const isIncome = String(transaction.type || '').toLowerCase() === 'income';
+            return `<div class="daily-transaction-row"><span class="daily-transaction-type ${isIncome ? 'is-income' : 'is-expense'}">${isIncome ? '↙' : '↗'}</span><span class="daily-transaction-name">${escapeHtml(transaction.category || transaction.title || transaction.note || (isIncome ? 'Income' : 'Expense'))}<small>${escapeHtml(transaction.note || transaction.description || transaction.paymentMethod || transaction.payment_method || '')}</small></span><strong class="${isIncome ? 'money-positive' : 'money-negative'}">${isIncome ? '+' : '−'}${formatINR(transaction.amount).replace(/^₹\s?/, '₹')}</strong></div>`;
+          }).join('')}</div>` : `<p class="daily-finance-empty">No income or expense transactions recorded today.</p>`}
+        </section>
       </section>
     </section>
   `;
+}
+
+function weatherConditionText(code) {
+  const c = Number(code);
+  if (c === 0) return 'Clear sky';
+  if (c === 1) return 'Mainly clear';
+  if (c === 2) return 'Partly cloudy';
+  if (c === 3) return 'Overcast';
+  if (c === 45 || c === 48) return 'Foggy';
+  if ([51, 53, 55].includes(c)) return 'Drizzle';
+  if ([56, 57].includes(c)) return 'Freezing drizzle';
+  if ([61, 63, 65].includes(c)) return 'Rain';
+  if ([66, 67].includes(c)) return 'Freezing rain';
+  if ([71, 73, 75, 77].includes(c)) return 'Snow';
+  if ([80, 81, 82].includes(c)) return 'Rain showers';
+  if ([85, 86].includes(c)) return 'Snow showers';
+  if (c === 95) return 'Thunderstorm';
+  if ([96, 99].includes(c)) return 'Thunderstorm with hail';
+  return 'Conditions unavailable';
+}
+
+function weatherConditionIcon(code, isDay = 1) {
+  const c = Number(code);
+  if (c === 0) return Number(isDay) ? '☀️' : '🌙';
+  if ([1, 2].includes(c)) return Number(isDay) ? '🌤️' : '☁️';
+  if (c === 3) return '☁️';
+  if ([45, 48].includes(c)) return '🌫️';
+  if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(c)) return '🌧️';
+  if ([71,73,75,77,85,86].includes(c)) return '🌨️';
+  if ([95,96,99].includes(c)) return '⛈️';
+  return '🌦️';
+}
+
+function formatWeatherTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value).slice(-5) : date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+
+function renderWeatherPage() {
+  const weather = state.weather || {};
+  const data = weather.data;
+  const current = data?.current;
+  const daily = data?.daily;
+  const hourly = data?.hourly;
+  const currentHour = current && hourly?.time?.length ? Math.max(0, hourly.time.reduce((best, value, index) => {
+    const target = Date.parse(current.time || '');
+    const candidate = Date.parse(value || '');
+    if (!Number.isFinite(candidate) || !Number.isFinite(target)) return best;
+    return Math.abs(candidate - target) < Math.abs(Date.parse(hourly.time[best] || '') - target) ? index : best;
+  }, 0)) : 0;
+  const light = state.theme === 'light';
+  const safeLocation = escapeHtml(weather.locationLabel || 'Current location');
+  const metric = (label, value, hint = '', icon = '•') => `<article class="weather-metric-card"><span class="weather-metric-icon" aria-hidden="true">${icon}</span><div class="weather-metric-copy"><span>${label}</span><strong>${value}</strong>${hint ? `<small>${hint}</small>` : ''}</div></article>`;
+  const statusContent = weather.status === 'loading'
+    ? `<div class="weather-status-panel is-loading"><span class="weather-spinner"></span><div><strong>Getting real weather…</strong><p>Fetching current conditions and the forecast.</p></div></div>`
+    : weather.status === 'error'
+      ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>Weather unavailable</strong><p>${escapeHtml(weather.error || 'Could not fetch weather data.')}</p><p>Allow location access or search for a city below.</p></div></div>`
+      : !current
+        ? `<div class="weather-status-panel"><span class="weather-status-symbol">☁</span><div><strong>Live weather, not estimates</strong><p>Use your device location or search a city to load current weather from the forecast service.</p></div></div>`
+        : '';
+  return `
+    <section class="screen weather-page" aria-label="Detailed weather">
+      <header class="weather-page-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">‹</button><div class="weather-page-heading"><p>SAHRA • LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''} aria-label="Refresh weather">↻</button></header>
+      ${statusContent}
+      ${current && data ? `
+        <section class="weather-hero-panel">
+          <div class="weather-hero-top"><span class="weather-live-label"><i></i> LIVE DATA</span><span class="weather-updated">Updated ${escapeHtml(formatWeatherTime(weather.updatedAt))}</span></div>
+          <div class="weather-hero-main"><div><p class="weather-condition-label">${escapeHtml(weatherConditionText(current.weather_code))}</p><div class="weather-hero-temperature">${Math.round(Number(current.temperature_2m))}<span>°C</span></div><p class="weather-feels-like">Feels like ${Math.round(Number(current.apparent_temperature))}°C</p></div><div class="weather-hero-icon" aria-hidden="true">${weatherConditionIcon(current.weather_code, current.is_day)}</div></div>
+          <div class="weather-hero-range"><span>Today’s high <strong>${Math.round(Number(daily?.temperature_2m_max?.[0]))}°</strong></span><span>Today’s low <strong>${Math.round(Number(daily?.temperature_2m_min?.[0]))}°</strong></span></div>
+        </section>
+        <section class="weather-detail-section"><div class="weather-section-heading"><div><p>RIGHT NOW</p><h2>Weather details</h2></div><span>Real-time forecast</span></div>
+          <div class="weather-metrics-grid">
+            ${metric('Humidity', `${Math.round(Number(current.relative_humidity_2m))}%`, 'Relative humidity', '◌')}
+            ${metric('Wind speed', `${Math.round(Number(current.wind_speed_10m))} km/h`, `Direction ${Math.round(Number(current.wind_direction_10m))}°`, '↗')}
+            ${metric('Wind gusts', `${Math.round(Number(current.wind_gusts_10m))} km/h`, 'Peak wind gust', '≋')}
+            ${metric('Pressure', `${Math.round(Number(current.pressure_msl))} hPa`, 'Sea-level pressure', '⌁')}
+            ${metric('Visibility', Number.isFinite(Number(hourly?.visibility?.[currentHour])) ? `${(Number(hourly.visibility[currentHour]) / 1000).toFixed(1)} km` : '—', 'Forecast estimate', '◉')}
+            ${metric('Dew point', Number.isFinite(Number(hourly?.dew_point_2m?.[currentHour])) ? `${Math.round(Number(hourly.dew_point_2m[currentHour]))}°C` : '—', 'Moisture in the air', '❄')}
+            ${metric('UV index', Number.isFinite(Number(hourly?.uv_index?.[currentHour])) ? Number(hourly.uv_index[currentHour]).toFixed(1) : (Number.isFinite(Number(daily?.uv_index_max?.[0])) ? `Max ${Number(daily.uv_index_max[0]).toFixed(1)}` : '—'), 'Sun exposure level', '☼')}
+            ${metric('Precipitation', `${Number(current.precipitation || 0).toFixed(1)} mm`, `Rain ${Number(current.rain || 0).toFixed(1)} mm · Showers ${Number(current.showers || 0).toFixed(1)} mm`, '☂')}
+            ${metric('Cloud cover', `${Math.round(Number(current.cloud_cover))}%`, 'Sky covered by clouds', '☁')}
+            ${metric('Rain chance', Number.isFinite(Number(hourly?.precipitation_probability?.[currentHour])) ? `${Math.round(Number(hourly.precipitation_probability[currentHour]))}%` : (Number.isFinite(Number(daily?.precipitation_probability_max?.[0])) ? `${Math.round(Number(daily.precipitation_probability_max[0]))}% max today` : '—'), 'Probability of precipitation', '◒')}
+          </div>
+        </section>
+        <section class="weather-sun-grid"><article class="weather-sun-card sunrise"><span>☀</span><div><small>Sunrise</small><strong>${escapeHtml(formatWeatherTime(daily?.sunrise?.[0]))}</strong></div></article><article class="weather-sun-card sunset"><span>☾</span><div><small>Sunset</small><strong>${escapeHtml(formatWeatherTime(daily?.sunset?.[0]))}</strong></div></article></section>
+        <section class="weather-detail-section"><div class="weather-section-heading"><div><p>COMING UP</p><h2>Hourly forecast</h2></div><span>Next 6 hours</span></div><div class="weather-hourly-strip">${(hourly?.time || []).slice(currentHour, currentHour + 6).map((time, idx) => { const i = currentHour + idx; return `<article class="weather-hour-card"><span>${idx === 0 ? 'Now' : escapeHtml(formatWeatherTime(time))}</span><span class="weather-hour-icon">${weatherConditionIcon(hourly.weather_code?.[i], 1)}</span><strong>${Math.round(Number(hourly.temperature_2m?.[i]))}°</strong><small>${Number.isFinite(Number(hourly.precipitation_probability?.[i])) ? `${Math.round(Number(hourly.precipitation_probability[i]))}% rain` : escapeHtml(weatherConditionText(hourly.weather_code?.[i]))}</small></article>`; }).join('')}</div></section>
+        <section class="weather-detail-section"><div class="weather-section-heading"><div><p>PLAN AHEAD</p><h2>7-day forecast</h2></div><span>Daily outlook</span></div><div class="weather-daily-list">${(daily?.time || []).map((date, i) => `<article class="weather-daily-row"><div class="weather-daily-day"><strong>${i === 0 ? 'Today' : escapeHtml(new Date(`${date}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'short' }))}</strong><small>${escapeHtml(new Date(`${date}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))}</small></div><span class="weather-daily-icon">${weatherConditionIcon(daily.weather_code?.[i], 1)}</span><span class="weather-daily-condition">${escapeHtml(weatherConditionText(daily.weather_code?.[i]))}</span><div class="weather-daily-temps"><span>${Math.round(Number(daily.temperature_2m_min?.[i]))}°</span><i><b style="width:${Math.max(8, Math.min(100, (Number(daily.temperature_2m_max?.[i]) - Number(daily.temperature_2m_min?.[i]) + 8) * 5))}%"></b></i><strong>${Math.round(Number(daily.temperature_2m_max?.[i]))}°</strong></div></article>`).join('')}</div></section>
+      ` : ''}
+      <section class="weather-search-panel"><div><p>LOCATION</p><h2>Check another city</h2><span>Search a city to load its real forecast.</span></div><form data-weather-search-form class="weather-search-form"><input name="city" type="search" placeholder="Enter city or town" autocomplete="off" required minlength="2" aria-label="City for weather forecast"><button type="submit" ${weather.status === 'loading' ? 'disabled' : ''}>Search</button></form><button type="button" class="weather-use-location" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''}>↗ Use my current location</button></section>
+      <p class="weather-source-note">Weather and forecast provided by Open-Meteo. Location access is used only to find local forecast coordinates.</p>
+    </section>`;
+}
+
+async function geocodeWeatherCity(city) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({ name: city, count: '1', language: 'en', format: 'json' })}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('City search failed. Please try again.');
+  const payload = await response.json();
+  const place = payload.results?.[0];
+  if (!place) throw new Error(`No location found for “${city}”. Check the spelling and try again.`);
+  return { latitude: place.latitude, longitude: place.longitude, label: [place.name, place.admin1, place.country].filter(Boolean).filter((x, i, arr) => arr.indexOf(x) === i).join(', ') };
+}
+
+function getBrowserCoordinates() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('This browser does not support location access.'));
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: 'Your current location' }),
+      (error) => reject(new Error(error.code === 1 ? 'Location permission was denied.' : 'Could not determine your location.')),
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 },
+    );
+  });
+}
+
+async function fetchLiveWeather(location, requestId) {
+  const params = new URLSearchParams({
+    latitude: String(location.latitude), longitude: String(location.longitude),
+    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+    hourly: 'temperature_2m,precipitation_probability,weather_code,visibility,dew_point_2m,uv_index',
+    daily: 'weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max',
+    timezone: 'auto', forecast_days: '7', wind_speed_unit: 'kmh', temperature_unit: 'celsius', precipitation_unit: 'mm',
+  });
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Weather service returned ${response.status}. Please try again.`);
+  const data = await response.json();
+  if (!data.current || !data.daily || !data.hourly) throw new Error('The weather service returned incomplete data. Please refresh.');
+  if (state.weather.requestId !== requestId) return;
+  state.weather = { ...state.weather, status: 'success', data, locationLabel: location.label, error: '', updatedAt: new Date().toISOString() };
+}
+
+async function loadWeatherForCurrentLocation(city = '') {
+  const requestId = Number(state.weather.requestId || 0) + 1;
+  state.weather = { ...state.weather, requestId, status: 'loading', error: '', data: null };
+  if (state.view === 'weather') renderLayout();
+  try {
+    let location;
+    if (city) {
+      location = await geocodeWeatherCity(city);
+    } else {
+      try {
+        location = await getBrowserCoordinates();
+      } catch (locationError) {
+        const savedLocation = state.user?.location || state.user?.preferences?.location || state.user?.city || '';
+        if (!String(savedLocation).trim()) throw new Error(`${locationError.message} Allow location access in your browser, or search for a city below.`);
+        location = await geocodeWeatherCity(String(savedLocation));
+        location.label = `${location.label} · saved profile location`;
+      }
+    }
+    await fetchLiveWeather(location, requestId);
+  } catch (error) {
+    if (state.weather.requestId === requestId) {
+      state.weather = { ...state.weather, status: 'error', error: error.message || 'Unable to load weather data.' };
+    }
+  } finally {
+    if (state.view === 'weather' && state.weather.requestId === requestId) renderLayout();
+  }
+}
+
+
+function renderFocusPage() {
+  const total = Math.max(1, Number(state.focusInitialSeconds) || 1500);
+  const left = Math.max(0, Number(state.focusSeconds) || 0);
+  const progress = Math.min(100, Math.max(0, ((total - left) / total) * 100));
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const today = formatDateKey(new Date());
+  const todaySessions = sessions.filter((x) => x.date === today && x.completed);
+  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
+  const light = state.theme === 'light';
+  return `
+    <section class="screen focus-screen" aria-label="Focus timer">
+      <header class="focus-header">
+        <button class="focus-back" type="button" data-action="focus-back" aria-label="Back">‹</button>
+        <div><p class="focus-eyebrow">SAHRA • DEEP WORK</p><h1>Focus &amp; Study</h1></div>
+        <span class="focus-mode-pill">${state.focusRunning ? 'FOCUSING' : 'READY'}</span>
+      </header>
+      <div class="focus-card glass-card">
+        <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || 'Study session')}" placeholder="Study session" /></div>
+        <div class="focus-ring-wrap">
+          <svg class="focus-ring" viewBox="0 0 240 240" role="img" aria-label="Timer progress">
+            <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
+            <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2*Math.PI*101}; stroke-dashoffset: ${(2*Math.PI*101)*(1-progress/100)}"></circle>
+          </svg>
+          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? 'STAY IN THE FLOW' : 'READY WHEN YOU ARE'}</span></div>
+        </div>
+        <div class="focus-controls">
+          <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">↺</button>
+          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? 'Pause timer' : 'Start timer'}">${state.focusRunning ? 'Ⅱ' : '▶'}</button>
+          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">■</button>
+        </div>
+        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round(total/60))}" ${state.focusRunning ? 'disabled' : ''}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? 'disabled' : ''}>Set time</button></div></div>
+        <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? 'disabled' : ''}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? 'disabled' : ''}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? 'disabled' : ''}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? 'disabled' : ''}>60 min</button></div>
+        <p class="focus-tip">${light ? 'A clear mind starts with one focused session.' : 'One session. One goal. Keep your momentum.'}</p>
+      </div>
+      <div class="focus-stats"><div class="focus-stat glass-card"><span>Today’s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x)=>x.completed).length}</strong></div></div>
+      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
+    </section>`;
+}
+
+let focusTicker = null;
+let focusCompletionNotificationId = 941207;
+function focusBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    [0, 0.35, 0.7].forEach((delay) => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + delay + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.22);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.24);
+    });
+    setTimeout(() => ctx.close().catch(()=>{}), 1500);
+  } catch (error) { console.warn('Focus alarm audio unavailable:', error); }
+}
+async function focusCancelNotification() {
+  try { if (window.Capacitor?.isNativePlatform?.()) await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] }); } catch (error) { console.warn('Could not cancel focus notification:', error.message); }
+}
+async function focusScheduleNotification(seconds) {
+  if (window.Capacitor?.isNativePlatform?.()) {
+    try {
+      let permission = await LocalNotifications.checkPermissions();
+      if (permission.display !== 'granted') permission = await LocalNotifications.requestPermissions();
+      if (permission.display === 'granted') {
+        await LocalNotifications.schedule({ notifications: [{ id: focusCompletionNotificationId, title: 'Focus session complete 🎉', body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.`, schedule: { at: new Date(Date.now() + seconds * 1000), allowWhileIdle: true }, sound: 'default', channelId: 'sahra-reminders' }] });
+      }
+    } catch (error) { console.warn('Native focus notification unavailable:', error.message); }
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch (_) {}
+  }
+}
+function focusFinish() {
+  clearInterval(focusTicker); focusTicker = null;
+  state.focusRunning = false; state.focusSeconds = 0;
+  const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  sessions.unshift({ date: formatDateKey(new Date()), minutes, label: state.focusLabel || 'Study session', completed: true, completedAt: new Date().toISOString() });
+  state.focusSessions = sessions.slice(0, 500);
+  try { localStorage.setItem('sahraFocusSessions', JSON.stringify(state.focusSessions)); } catch (_) {}
+  focusBeep();
+  if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('Focus session complete 🎉', { body: `${state.focusLabel || 'Your focus session'} is finished. Take a short break.` }); } catch (_) {} }
+  void focusCancelNotification();
+  showToast('Focus session complete! Great work.');
+  renderLayout();
+}
+function focusStartTicker() {
+  clearInterval(focusTicker);
+  state.focusRunning = true; state.focusStartedAt = Date.now();
+  void focusScheduleNotification(state.focusSeconds);
+  focusTicker = setInterval(() => {
+    if (!state.focusRunning) return;
+    const elapsed = Math.floor((Date.now() - state.focusStartedAt) / 1000);
+    state.focusSeconds = Math.max(0, state.focusInitialSeconds - elapsed);
+    const clock = document.getElementById('focus-clock');
+    if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds/60)).padStart(2,'0')}:${String(state.focusSeconds%60).padStart(2,'0')}`;
+    const progress = document.querySelector('.focus-ring-progress');
+    if (progress) progress.style.strokeDashoffset = `${(2*Math.PI*101)*(1-(state.focusInitialSeconds-state.focusSeconds)/Math.max(1,state.focusInitialSeconds))}`;
+    if (state.focusSeconds <= 0) focusFinish();
+  }, 250);
+  renderLayout();
+}
+function focusPause() {
+  if (!state.focusRunning) return;
+  state.focusSeconds = Math.max(0, state.focusInitialSeconds - Math.floor((Date.now()-state.focusStartedAt)/1000));
+  state.focusInitialSeconds = Math.max(1, state.focusSeconds);
+  state.focusRunning = false; clearInterval(focusTicker); focusTicker = null;
+  void focusCancelNotification(); renderLayout();
+}
+function bindFocusTimer() {
+  const app = document.getElementById('app');
+  if (!app || state.view !== 'focus') return;
+  const label = app.querySelector('#focus-label');
+  label?.addEventListener('change', () => { state.focusLabel = label.value.trim() || 'Study session'; });
+  app.querySelectorAll('[data-focus-minutes]').forEach((button) => button.addEventListener('click', () => {
+    if (state.focusRunning) return;
+    const minutes = Math.max(1, Math.min(180, Number(button.dataset.focusMinutes) || 25));
+    state.focusSeconds = state.focusInitialSeconds = minutes * 60; renderLayout();
+  }));
+  app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener('click', () => {
+    const action = button.dataset.action;
+    if (action === 'focus-back') { state.view = 'menu'; renderLayout(); }
+    if (action === 'focus-toggle') {
+      if (state.focusRunning) focusPause();
+      else { const labelInput = document.getElementById('focus-label'); state.focusLabel = labelInput?.value?.trim() || state.focusLabel || 'Study session'; if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds; state.focusInitialSeconds = state.focusSeconds; focusStartTicker(); }
+    }
+    if (action === 'focus-reset') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds; renderLayout(); }
+    if (action === 'focus-stop') { state.focusRunning = false; clearInterval(focusTicker); focusTicker = null; void focusCancelNotification(); state.focusSeconds = state.focusInitialSeconds = 25*60; renderLayout(); }
+    if (action === 'focus-set') { const input = document.getElementById('focus-minutes'); const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25)); state.focusSeconds = state.focusInitialSeconds = minutes*60; renderLayout(); }
+  }));
 }
 
 function renderProgressPage() {
@@ -2076,11 +2511,15 @@ function renderProgressPage() {
   `;
 }
 let isRendering = false;
+let lastAssistantMessageCount = null;
+let lastAssistantLoadingState = null;
 
 function renderLayout() {
   if (isRendering) return; // Prevent overlapping render cycles
   isRendering = true;
   const app = document.getElementById('app');
+  const viewChanged = state.view !== lastRenderedView;
+  lastRenderedView = state.view;
 
   if (state.view === 'calendar' && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
     loadSelectedDateData(state.selectedDate);
@@ -2112,18 +2551,55 @@ function renderLayout() {
 } else if (state.view === 'assistant') {
   content = renderAssistantPage(state);
 
+} else if (state.view === 'menu') {
+  content = renderMenuPage();
+} else if (state.view === 'focus') {
+  content = renderFocusPage();
+
+} else if (state.view === 'weather') {
+  content = renderWeatherPage();
+
 } else if (state.view === 'progress' || state.view === 'more') {
   content = renderProgressPage();
 }
 
   // Appends active modals and menus over the main content
-  app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
-  
-  // 🚀 FORCE SCROLL TO TOP IMMEDIATELY AFTER DRAWING NEW HTML
-  
+  app.innerHTML = content + renderEntryModal() + renderProfileModal();
+
+  // Follow the newest assistant conversation message after a chat update,
+  // without stealing scroll when the user first opens the Assistant page.
+  const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
+  const assistantLoadingNow = Boolean(state.assistantLoading);
+  const assistantConversationChanged = state.view === 'assistant' && !viewChanged && (
+    assistantMessageCount !== lastAssistantMessageCount ||
+    assistantLoadingNow !== lastAssistantLoadingState
+  );
+  lastAssistantMessageCount = assistantMessageCount;
+  lastAssistantLoadingState = assistantLoadingNow;
+  if (assistantConversationChanged) {
+    requestAnimationFrame(() => {
+      if (state.view !== 'assistant') return;
+      const currentApp = document.getElementById('app');
+      if (!currentApp) return;
+      currentApp.scrollTo({
+        top: Math.max(0, currentApp.scrollHeight - currentApp.clientHeight),
+        behavior: 'smooth'
+      });
+    });
+  }
+
+  // Every real page change starts at the top; re-renders within the same page
+  // preserve scroll so form edits and data refreshes do not jump unexpectedly.
+  if (viewChanged) {
+    app.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const nav = document.querySelector('.bottom-nav');
+    nav?.classList.remove('scroll-hidden');
+  }
+  syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus', 'weather'];
 
 
 
@@ -2151,7 +2627,7 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus', 'weather'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
@@ -2944,6 +3420,12 @@ document.addEventListener('input', (e) => {
     const draft = state.entryDraft || {};
     const type = draft.type || 'event';
     const date = draft.date || state.selectedDate;
+    if (type === 'task' && isJunkTask({ title: draft.title || draft.name || '' })) {
+      showToast('That test task name has been removed. Please enter a meaningful task title.');
+      button.dataset.submitting = 'false';
+      button.textContent = 'Add Task';
+      return;
+    }
 
     // Tasks and events cannot be added to past dates
     if ((type === 'event' || type === 'task') && isPastDate(date)) {
@@ -3167,21 +3649,17 @@ document.addEventListener('input', (e) => {
   document.querySelectorAll('[data-menu-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const action = button.dataset.menuAction;
+
+      if (action === 'toggle-theme') {
+        const nextTheme = state.theme === 'light' ? 'dark' : 'light';
+        state.menuOpen = true;
+        applyTheme(nextTheme);
+        renderLayout();
+        await updateThemeInDatabase(nextTheme);
+        return;
+      }
+
       state.menuOpen = false;
-
-      if (action === 'light-theme') {
-        applyTheme('light');
-        renderLayout();
-        await updateThemeInDatabase('light');
-        return;
-      }
-
-      if (action === 'dark-theme') {
-        applyTheme('dark');
-        renderLayout();
-        await updateThemeInDatabase('dark');
-        return;
-      }
 
       if (action === 'profile') {
         state.profileModalOpen = true; 
@@ -3609,6 +4087,7 @@ document.addEventListener('click', (e) => {
     });
   });
 
+  bindFocusTimer();
   isRendering = false;
 }
 
@@ -3616,10 +4095,17 @@ document.addEventListener('click', (e) => {
 function bindBottomNav() {
   document.querySelectorAll('.bottom-nav .nav-item').forEach((button) => {
     button.addEventListener('click', async (e) => {
-      // 1. If it's the Menu button, just toggle the popup
+      // The Menu button opens a dedicated page instead of a popup over the current page.
       if (button.dataset.action === 'toggle-more-menu') {
         e.stopPropagation();
-        state.moreMenuOpen = !state.moreMenuOpen;
+        state.entryModalOpen = false;
+        state.entryDraft = null;
+        state.progressPickerOpen = false;
+        state.profileModalOpen = false;
+        state.moreMenuOpen = false;
+        state.menuOpen = false;
+        state.moodPickerOpen = false;
+        state.view = 'menu';
         renderLayout();
         return;
       }
@@ -3645,10 +4131,91 @@ function bindBottomNav() {
   });
 }
 let globalListenersBound = false;
+let lastAppScrollTop = 0;
+let smartNavBound = false;
+
+function isEditableControl(element) {
+  return Boolean(element?.matches?.('input:not([type="button"]):not([type="submit"]), textarea, select, [contenteditable="true"]'));
+}
+
+function syncKeyboardViewport() {
+  const viewport = window.visualViewport;
+  const activeEditable = isEditableControl(document.activeElement);
+  const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
+  const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
+  const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
+  document.body.classList.toggle('keyboard-open', keyboardOpen);
+  document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
+  document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
+  if (viewport) {
+    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
+  }
+}
+
+function revealFocusedControl(element) {
+  if (!isEditableControl(element)) return;
+  const target = element;
+  [100, 320, 520].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!target.isConnected || document.activeElement !== target) return;
+      syncKeyboardViewport();
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const rect = target.getBoundingClientRect();
+      if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
+        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
+      }
+    }, delay);
+  });
+}
+
+function bindSmartNavigationAndKeyboard() {
+  if (smartNavBound) return;
+  smartNavBound = true;
+  const app = document.getElementById('app');
+  const nav = document.querySelector('.bottom-nav');
+  if (app && nav) {
+    lastAppScrollTop = app.scrollTop;
+    app.addEventListener('scroll', () => {
+      const currentTop = app.scrollTop;
+      if (document.body.classList.contains('keyboard-open')) {
+        nav.classList.add('keyboard-hidden');
+        lastAppScrollTop = currentTop;
+        return;
+      }
+      const delta = currentTop - lastAppScrollTop;
+      if (currentTop <= 8) {
+        nav.classList.remove('scroll-hidden');
+      } else if (delta > 5) {
+        nav.classList.add('scroll-hidden');
+      } else if (delta < -5) {
+        nav.classList.remove('scroll-hidden');
+      }
+      lastAppScrollTop = currentTop;
+    }, { passive: true });
+  }
+
+  document.addEventListener('focusin', (event) => {
+    if (!isEditableControl(event.target)) return;
+    syncKeyboardViewport();
+    revealFocusedControl(event.target);
+  });
+  document.addEventListener('focusout', () => {
+    window.setTimeout(() => {
+      syncKeyboardViewport();
+      if (!document.body.classList.contains('keyboard-open')) {
+        document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
+      }
+    }, 180);
+  });
+  window.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
+}
 
 function bindGlobalListeners() {
   if (globalListenersBound) return;
   globalListenersBound = true;
+  bindSmartNavigationAndKeyboard();
 
   document.addEventListener('click', (event) => {
     const clearAssistantButton = event.target.closest('[data-action="clear-assistant-chat"]');
@@ -3746,6 +4313,10 @@ async function fetchFinanceData() {
     renderLayout();
   } catch (error) {
     console.error('Failed to load finance data:', error);
+    try {
+      const cached = await offlineSync.transactionFallback(await getAuthToken());
+      if (cached.length) { state.financeData = cached; showOfflineBannerOnce(); renderLayout(); }
+    } catch (cacheError) { console.warn('Finance cache unavailable:', cacheError.message); }
   }
 }
 
@@ -3760,6 +4331,23 @@ function bindFinanceListeners() {
     if (!button) return;
 
     const action = button.dataset.action;
+
+    // Quick amount chips add their value to the current amount.
+    // This handler supports both income and expense forms because they share the same input.
+    if (action === 'quick-amount') {
+      event.preventDefault();
+      const amountInput = document.getElementById('finance-amount');
+      const increment = Number(button.dataset.val);
+      if (!amountInput || !Number.isFinite(increment) || increment <= 0) return;
+      const currentAmount = Number.parseFloat(amountInput.value);
+      const current = Number.isFinite(currentAmount) && currentAmount > 0 ? currentAmount : 0;
+      amountInput.value = String(Number((current + increment).toFixed(2)));
+      amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+      amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+      button.classList.add('quick-amount-applied');
+      window.setTimeout(() => button.classList.remove('quick-amount-applied'), 240);
+      return;
+    }
 
     // -------------------------------
     // CHANGE FINANCE VIEW
@@ -3995,6 +4583,7 @@ if (action === 'delete-finance-transaction') {
 
         await fetchFinanceData();
 
+
         showToast('Transaction saved successfully');
 
       } catch (error) {
@@ -4013,7 +4602,41 @@ if (action === 'delete-finance-transaction') {
   });
 }
 
+// Weather actions are delegated at document level so they continue working after re-renders.
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action="open-weather"], [data-action="weather-back"], [data-action="weather-refresh"], [data-action="view-today-events"]');
+  if (!button) return;
+  const action = button.dataset.action;
+  if (action === 'open-weather') {
+    state.view = 'weather';
+    state.entryModalOpen = false;
+    state.entryDraft = null;
+    renderLayout();
+    void loadWeatherForCurrentLocation();
+  } else if (action === 'weather-back') {
+    state.view = 'home';
+    renderLayout();
+  } else if (action === 'weather-refresh') {
+    void loadWeatherForCurrentLocation();
+  } else if (action === 'view-today-events') {
+    state.selectedDate = formatDateKey(new Date());
+    state.currentMonth = new Date().getMonth();
+    state.currentYear = new Date().getFullYear();
+    state.view = 'calendar';
+    renderLayout();
+  }
+});
+
+document.addEventListener('submit', (event) => {
+  const form = event.target.closest('[data-weather-search-form]');
+  if (!form) return;
+  event.preventDefault();
+  const city = String(new FormData(form).get('city') || '').trim();
+  if (city.length >= 2) void loadWeatherForCurrentLocation(city);
+});
+
 async function initializeApp() {
+  await initializeLocalDatabase();
   applyTheme(getStoredTheme());
   bindBottomNav();
   bindGlobalListeners();
@@ -4026,8 +4649,14 @@ async function initializeApp() {
     return;
   }
 
+  if (globalThis.navigator?.onLine) await offlineSync.flush(token);
   await loadDashboardData();
   await fetchFinanceData();
+
+  if (window.Capacitor?.isNativePlatform()) {
+    const { markSahraOtaReady } = await import('./scripts/mobile-ota.js');
+    await markSahraOtaReady();
+  }
 }
 
 initializeApp().catch((error) => {
