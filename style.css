@@ -9957,3 +9957,67 @@ body.theme-light .daily-priority { background:#f5f7ff; }
   }
   .weather-spinner { animation:none !important; }
 }
+
+/* =========================================================
+   SAHRA HOME-MATCHED PAGE WIDTH OVERRIDE — WIDTH ONLY
+   Keep Home as the reference: same outer page width and side gutter.
+   No colors, typography, component behavior, data, or JS are changed.
+========================================================= */
+:root {
+  --sahra-home-reference-width: 450px;
+  --sahra-home-reference-gutter: 12px;
+}
+
+/* Give every other full page the same outer width and horizontal gutters
+   as #app > .home-screen. More-specific existing width rules are overridden. */
+#app > .screen:not(.home-screen),
+#app > .notepad-container,
+#app > .finance-dashboard-page,
+#app > .finance-transactions-page,
+#app > .focus-screen,
+#app > .weather-page,
+#app > .dashboard-screen,
+#app > .profile-screen,
+#app > .vault-screen {
+  width: min(100%, var(--sahra-home-reference-width)) !important;
+  max-width: var(--sahra-home-reference-width) !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: var(--sahra-home-reference-gutter) !important;
+  padding-right: var(--sahra-home-reference-gutter) !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure page-level panels/cards fill the same content box as Home cards. */
+#app > .screen:not(.home-screen) > .glass-card,
+#app > .screen:not(.home-screen) > .layout-card,
+#app > .screen:not(.home-screen) > .calendar-card,
+#app > .screen:not(.home-screen) > .todo-card,
+#app > .screen:not(.home-screen) > .progress-card,
+#app > .screen:not(.home-screen) > .progress-panel,
+#app > .notepad-container > *,
+#app > .finance-dashboard-page > *,
+#app > .finance-transactions-page > *,
+#app > .weather-page > *,
+#app > .focus-screen > * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* The Home screen uses a 9px gutter on very narrow phones; mirror it. */
+@media (max-width: 360px) {
+  #app > .screen:not(.home-screen),
+  #app > .notepad-container,
+  #app > .finance-dashboard-page,
+  #app > .finance-transactions-page,
+  #app > .focus-screen,
+  #app > .weather-page,
+  #app > .dashboard-screen,
+  #app > .profile-screen,
+  #app > .vault-screen {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+}
+
