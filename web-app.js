@@ -6511,6 +6511,7 @@ function renderHomePage() {
   const totalTasks = tasks.length;
   const progressPercent = totalTasks ? Math.round(completedTasks / totalTasks * 100) : 0;
   const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
+  const isLightTheme = state.theme === "light";
   return `
     <section class="screen home-screen">
       <section class="hero glass-card page-fixed-header">
@@ -6526,13 +6527,16 @@ function renderHomePage() {
           <div class="menu-wrap">
             <button class="menu-button" type="button" aria-label="Open menu">\u22EE</button>
             <div class="menu-panel ${state.menuOpen ? "open" : "hidden"}">
-              <button class="menu-item" type="button" data-menu-action="light-theme"><span>\u2600\uFE0F</span> Light Mode</button>
-              <button class="menu-item" type="button" data-menu-action="dark-theme"><span>\u{1F319}</span> Dark Mode</button>
+              <button class="menu-item settings-toggle-item theme-menu-item" type="button" data-menu-action="toggle-theme" role="switch" aria-checked="${isLightTheme}" aria-label="${isLightTheme ? "Switch to dark mode" : "Switch to light mode"}">
+                <span class="settings-toggle-icon" aria-hidden="true">${isLightTheme ? "\u2600\uFE0F" : "\u{1F319}"}</span>
+                <span class="settings-toggle-copy"><strong>Appearance</strong><small>${isLightTheme ? "Light mode" : "Dark mode"}</small></span>
+                <span class="settings-switch ${isLightTheme ? "is-on" : ""}" aria-hidden="true"><span></span></span>
+              </button>
               <button class="menu-item" type="button" data-menu-action="profile"><span>\u{1F464}</span> Profile</button>
-              <button class="menu-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? "on" : "off"}">
-                <span>\u{1F514}</span>
-                <span class="notification-menu-label">Device notifications</span>
-                <span class="notification-switch ${deviceNotificationsEnabled ? "is-on" : ""}" aria-hidden="true"><span></span></span>
+              <button class="menu-item settings-toggle-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? "on" : "off"}">
+                <span class="settings-toggle-icon" aria-hidden="true">\u{1F514}</span>
+                <span class="settings-toggle-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? "Reminders are on" : "Reminders are off"}</small></span>
+                <span class="notification-switch settings-switch ${deviceNotificationsEnabled ? "is-on" : ""}" aria-hidden="true"><span></span></span>
               </button>
               <div class="menu-divider"></div>
               <button class="menu-item danger" type="button" data-menu-action="logout"><span>\u{1F6AA}</span> Logout</button>
@@ -7156,10 +7160,13 @@ function renderProgressPage() {
   `;
 }
 var isRendering = false;
+var lastRenderedView = null;
 function renderLayout() {
   if (isRendering) return;
   isRendering = true;
   const app = document.getElementById("app");
+  const viewChanged = state.view !== lastRenderedView;
+  lastRenderedView = state.view;
   if (state.view === "calendar" && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
     loadSelectedDateData(state.selectedDate);
   }
@@ -7186,6 +7193,12 @@ function renderLayout() {
     content = renderProgressPage();
   }
   app.innerHTML = content + renderEntryModal() + renderProfileModal();
+  if (viewChanged) {
+    app.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.querySelector(".bottom-nav")?.classList.remove("scroll-hidden");
+  }
+  syncKeyboardViewport();
   const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals"];
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     const isMenuButton = button.dataset.action === "toggle-more-menu";
@@ -7935,19 +7948,15 @@ function renderLayout() {
   document.querySelectorAll("[data-menu-action]").forEach((button) => {
     button.addEventListener("click", async () => {
       const action = button.dataset.menuAction;
+      if (action === "toggle-theme") {
+        const nextTheme = state.theme === "light" ? "dark" : "light";
+        state.menuOpen = true;
+        applyTheme(nextTheme);
+        renderLayout();
+        await updateThemeInDatabase(nextTheme);
+        return;
+      }
       state.menuOpen = false;
-      if (action === "light-theme") {
-        applyTheme("light");
-        renderLayout();
-        await updateThemeInDatabase("light");
-        return;
-      }
-      if (action === "dark-theme") {
-        applyTheme("dark");
-        renderLayout();
-        await updateThemeInDatabase("dark");
-        return;
-      }
       if (action === "profile") {
         state.profileModalOpen = true;
         state.profileEditing = false;
@@ -8322,9 +8331,77 @@ function bindBottomNav() {
   });
 }
 var globalListenersBound = false;
+var lastAppScrollTop = 0;
+var smartNavBound = false;
+function isEditableControl(element) {
+  return Boolean(element?.matches?.('input:not([type="button"]):not([type="submit"]), textarea, select, [contenteditable="true"]'));
+}
+function syncKeyboardViewport() {
+  const viewport = window.visualViewport;
+  const activeEditable = isEditableControl(document.activeElement);
+  const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
+  const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
+  const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
+  document.body.classList.toggle('keyboard-open', keyboardOpen);
+  document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
+  document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
+  if (viewport) document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
+}
+function revealFocusedControl(element) {
+  if (!isEditableControl(element)) return;
+  const target = element;
+  [100, 320, 520].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!target.isConnected || document.activeElement !== target) return;
+      syncKeyboardViewport();
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const rect = target.getBoundingClientRect();
+      if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
+        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
+      }
+    }, delay);
+  });
+}
+function bindSmartNavigationAndKeyboard() {
+  if (smartNavBound) return;
+  smartNavBound = true;
+  const app = document.getElementById('app');
+  const nav = document.querySelector('.bottom-nav');
+  if (app && nav) {
+    lastAppScrollTop = app.scrollTop;
+    app.addEventListener('scroll', () => {
+      const currentTop = app.scrollTop;
+      if (document.body.classList.contains('keyboard-open')) {
+        nav.classList.add('keyboard-hidden');
+        lastAppScrollTop = currentTop;
+        return;
+      }
+      const delta = currentTop - lastAppScrollTop;
+      if (currentTop <= 8) nav.classList.remove('scroll-hidden');
+      else if (delta > 5) nav.classList.add('scroll-hidden');
+      else if (delta < -5) nav.classList.remove('scroll-hidden');
+      lastAppScrollTop = currentTop;
+    }, { passive: true });
+  }
+  document.addEventListener('focusin', (event) => {
+    if (!isEditableControl(event.target)) return;
+    syncKeyboardViewport();
+    revealFocusedControl(event.target);
+  });
+  document.addEventListener('focusout', () => {
+    window.setTimeout(() => {
+      syncKeyboardViewport();
+      if (!document.body.classList.contains('keyboard-open')) document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
+    }, 180);
+  });
+  window.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
+}
 function bindGlobalListeners() {
   if (globalListenersBound) return;
   globalListenersBound = true;
+  bindSmartNavigationAndKeyboard();
   document.addEventListener("click", (event) => {
     const clearAssistantButton = event.target.closest('[data-action="clear-assistant-chat"]');
     if (clearAssistantButton) {

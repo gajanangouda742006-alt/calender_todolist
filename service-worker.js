@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahra-shell-v3';
+const CACHE_NAME = 'sahra-shell-v4-ui-polish';
 
 
 const APP_SHELL = [
