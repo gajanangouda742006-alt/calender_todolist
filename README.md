@@ -1,30 +1,28 @@
-# Sahra Life Calendar feature API patch
+# Sahra — Scroll End Cleanup, Settings Menu & Home Card Removal
 
-Based on the project ZIP provided in this conversation. This patch adds backend API foundations, scoped to the authenticated user, for global search, finance insights and monthly budget, portable data export/restore, focus-session tracking/statistics, and security preference toggles. It adds a FocusSession MongoDB model.
+This patch is based on the project version supplied for this request. It updates only the app shell/rendering files needed for these UI fixes.
 
-## Files to merge
-- `backend/models/index.js`
-- `backend/routes/dashboard.js`
+## Changes
 
-## Merge location
-Copy these files into the matching locations in `P:\MyProjects\calender_todolist`, preserving the folder structure and replacing the old versions.
+- Removes the redundant Home-page mini `To Do List` card from the app template and generated web bundle. The full Tasks page and the Today's Tasks panel remain available.
+- Reduces oversized trailing padding/min-height rules so pages stop closer to the last real section while retaining the clearance needed above the bottom navigation.
+- Gives the Home three-dot menu a more polished, structured 3D popup with readable Appearance/Profile/Notifications/Logout rows, consistent switches, scroll safety on short screens, and separate light-theme colors.
+- Updates stylesheet/bundle cache query versions and service-worker cache name to avoid serving the old UI.
+- Does not delete any saved tasks or other user data.
 
-## API routes
-All routes are mounted through the existing dashboard router and require the existing auth token:
-- `GET /api/search?q=term`
-- `GET /api/finance/insights?year=2026&month=10`
-- `PUT /api/finance/budget` JSON `{ "monthlyBudget": 10000 }`
-- `GET /api/backup/export`
-- `POST /api/backup/restore` JSON `{ "schemaVersion": 1, "data": { ... } }`
-- `POST /api/focus/sessions` JSON `{ "startedAt": "ISO", "endedAt": "ISO", "plannedMinutes": 25, "completed": true, "label": "Study" }`
-- `GET /api/focus/stats`
-- `PUT /api/security/preferences` JSON `{ "privateNotesLock": true, "requireReauth": false }`
+## Install
 
-## Important scope notes
-This is a backend API foundation, not a complete frontend UI integration. Existing habit and event/task endpoints remain in place; drag-and-drop calendar rescheduling can use the existing authenticated `PUT /api/events/:id` and `PUT /api/tasks/:id` routes, but a calendar drag-and-drop UI still needs to be wired in the frontend. Reminder recurrence and actual device/browser notification scheduling also need frontend/service-worker/native scheduling work. `privateNotesLock` and `requireReauth` are stored preference flags only; they do not themselves implement cryptographic note encryption, an app lock screen, or reauthentication enforcement. Backup restore adds records as new entries; it does not delete or overwrite existing records. Exported backups contain personal data and should be stored securely.
+1. Back up these files in `P:\MyProjects\calender_todolist`: `app.js`, `style.css`, `index.html`, `service-worker.js`, and `web-app.js`.
+2. Copy the five files from this ZIP into the project root, replacing the existing files.
+3. In PowerShell run:
 
-## Checks performed
-- `node --check backend/models/index.js`
-- `node --check backend/routes/dashboard.js`
+   ```powershell
+   cd P:\MyProjects\calender_todolist
+   node --check app.js
+   node scripts/build-web.js
+   ```
 
-Run these again after merging. Test the routes against a non-production/test account before relying on restore or security preferences. No live database integration test was performed in this environment.
+4. Refresh the local app with **Ctrl+Shift+R**.
+5. If building the Android app, run `npm run mobile:stage` and `npx cap sync android` before rebuilding the app.
+
+The generated `web-app.js` in this ZIP already has the matching Home card removal, but rebuilding after copying `app.js` ensures it remains consistent with the source.

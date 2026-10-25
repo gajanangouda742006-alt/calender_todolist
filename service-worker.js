@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahra-shell-home-ui-20261025-172630';
+const CACHE_NAME = 'sahra-shell-scroll-cleanup-20261025-1942';
 
 
 const APP_SHELL = [

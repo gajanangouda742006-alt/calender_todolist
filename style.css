@@ -10021,3 +10021,314 @@ body.theme-light .daily-priority { background:#f5f7ff; }
   }
 }
 
+/* =========================================================
+   SAHRA SCROLL-END CLEANUP + HOME SETTINGS POPUP
+   - Keep only the minimum bottom clearance needed by the nav.
+   - Prevent large trailing blank areas on every page.
+   - Hide the obsolete Home mini To Do card (the main Tasks page remains).
+   - Refine the Home three-dot settings popup for both themes.
+========================================================= */
+:root {
+  --sahra-scroll-end-clearance: 86px;
+  --sahra-settings-radius: 19px;
+}
+
+/* The app is the only page scroll container. Reserve just enough room
+   for the fixed 72px navigation and its 10px bottom offset. */
+#app {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding-bottom: calc(var(--sahra-scroll-end-clearance) + env(safe-area-inset-bottom, 0px)) !important;
+  scroll-padding-top: 8px !important;
+  scroll-padding-bottom: calc(var(--sahra-scroll-end-clearance) + env(safe-area-inset-bottom, 0px)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Pages should end after their final section rather than stretching to
+   viewport height or adding a second large bottom spacer. */
+#app > .screen,
+#app > .notepad-container,
+#app > .finance-dashboard-page,
+#app > .finance-transactions-page,
+#app > .focus-screen,
+#app > .weather-page,
+#app > .dashboard-screen,
+#app > .profile-screen,
+#app > .vault-screen {
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+}
+
+#app > .screen:not(.home-screen) {
+  padding-bottom: 0 !important;
+}
+
+#app > .home-screen {
+  padding-bottom: 0 !important;
+}
+
+#app > .home-screen > .todo-card {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Remove legacy extra scroll tails from pages with fixed headers. Their
+   top padding is preserved; only the unused bottom padding is removed. */
+#app > .notepad-container,
+.notepad-container {
+  padding-bottom: 0 !important;
+  min-height: 0 !important;
+}
+
+#app > .finance-dashboard-page,
+#app > .finance-transactions-page {
+  padding-bottom: 0 !important;
+  min-height: 0 !important;
+}
+
+.todo-screen .todo-page-content {
+  padding-bottom: 0 !important;
+}
+
+.menu-screen {
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+  justify-content: flex-start !important;
+}
+
+.weather-page,
+.focus-screen {
+  padding-bottom: 0 !important;
+  min-height: 0 !important;
+}
+
+/* The assistant composer floats above the bottom navigation. Give the chat
+   enough room to scroll its final message clear of the composer, but remove
+   the older 200px+ nested padding that created very large empty tails. */
+#app:has(> .assistant-screen) {
+  padding-bottom: 0 !important;
+  scroll-padding-bottom: 0 !important;
+}
+
+.assistant-screen {
+  height: auto !important;
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.assistant-chat {
+  padding-bottom: 154px !important;
+  min-height: 0 !important;
+}
+
+/* The Home three-dot button owns a clear stacking layer so the popup never
+   hides behind the weather or calendar cards. */
+.home-screen .home-hero,
+.home-screen .hero-top,
+.home-screen .menu-wrap {
+  overflow: visible !important;
+}
+
+.home-screen .menu-wrap {
+  position: relative !important;
+  z-index: 12050 !important;
+}
+
+.home-screen .menu-panel {
+  position: absolute !important;
+  top: calc(100% + 10px) !important;
+  right: 0 !important;
+  left: auto !important;
+  width: min(264px, calc(100vw - 34px)) !important;
+  max-width: calc(100vw - 34px) !important;
+  max-height: min(440px, calc(100dvh - 120px)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  display: flex;
+  flex-direction: column;
+  gap: 7px !important;
+  padding: 10px !important;
+  border-radius: var(--sahra-settings-radius) !important;
+  border: 1px solid rgba(169, 195, 255, .36) !important;
+  border-top-color: rgba(238, 245, 255, .45) !important;
+  background: linear-gradient(148deg, #263f76 0%, #182f5a 48%, #0e2143 100%) !important;
+  box-shadow: 0 3px 0 rgba(2, 8, 22, .88), 0 15px 30px rgba(0, 0, 0, .40), inset 0 1px 0 rgba(255,255,255,.12) !important;
+  backdrop-filter: blur(24px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.15) !important;
+  z-index: 15000 !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 180, 245, .42) transparent;
+}
+
+.home-screen .menu-panel.hidden {
+  display: none !important;
+}
+
+.home-screen .menu-panel.open {
+  display: flex !important;
+  opacity: 1 !important;
+  transform: translateY(0) scale(1) !important;
+  pointer-events: auto !important;
+}
+
+.home-screen .menu-panel .menu-item {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 47px !important;
+  margin: 0 !important;
+  padding: 10px 11px !important;
+  border: 1px solid rgba(181, 202, 255, .16) !important;
+  border-radius: 13px !important;
+  background: rgba(255,255,255,.045) !important;
+  color: #f7f9ff !important;
+  font-size: .88rem !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  white-space: normal !important;
+  box-sizing: border-box !important;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease !important;
+}
+
+.home-screen .menu-panel .menu-item:hover {
+  background: rgba(130, 165, 255, .15) !important;
+  border-color: rgba(170, 200, 255, .33) !important;
+  transform: translateY(-1px) !important;
+}
+
+.home-screen .menu-panel .menu-item:active {
+  transform: translateY(1px) scale(.99) !important;
+}
+
+.home-screen .menu-panel .settings-toggle-item {
+  min-height: 61px !important;
+  gap: 9px !important;
+}
+
+.home-screen .menu-panel .settings-toggle-icon {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  border: 1px solid rgba(180, 202, 255, .13);
+  background: rgba(103, 143, 235, .16) !important;
+}
+
+.home-screen .menu-panel .settings-toggle-copy {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  gap: 4px !important;
+}
+
+.home-screen .menu-panel .settings-toggle-copy strong {
+  color: #ffffff !important;
+  font-size: .86rem !important;
+  line-height: 1.15 !important;
+}
+
+.home-screen .menu-panel .settings-toggle-copy small {
+  color: #b9c9e8 !important;
+  font-size: .69rem !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+}
+
+.home-screen .menu-panel .settings-switch,
+.home-screen .menu-panel .notification-switch {
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  height: 24px !important;
+  margin-left: auto !important;
+}
+
+.home-screen .menu-panel .settings-switch > span,
+.home-screen .menu-panel .notification-switch > span {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.home-screen .menu-panel .settings-switch.is-on > span,
+.home-screen .menu-panel .notification-switch.is-on > span {
+  transform: translateX(15px) !important;
+}
+
+.home-screen .menu-panel .menu-divider {
+  height: 1px !important;
+  flex: 0 0 1px !important;
+  margin: 3px 4px !important;
+  background: linear-gradient(90deg, transparent, rgba(172, 196, 255, .30), transparent) !important;
+}
+
+.home-screen .menu-panel .menu-item.danger {
+  color: #ffc1cb !important;
+  background: rgba(228, 77, 105, .08) !important;
+  border-color: rgba(255, 124, 148, .19) !important;
+}
+
+html[data-theme="light"] .home-screen .menu-panel,
+body.theme-light .home-screen .menu-panel {
+  background: linear-gradient(148deg, #ffffff 0%, #f0f5ff 58%, #e6edff 100%) !important;
+  border-color: rgba(98, 124, 183, .28) !important;
+  border-top-color: rgba(255,255,255,.96) !important;
+  box-shadow: 0 3px 0 rgba(154, 170, 202, .30), 0 16px 30px rgba(63, 83, 133, .22), inset 0 1px 0 #fff !important;
+}
+
+html[data-theme="light"] .home-screen .menu-panel .menu-item,
+body.theme-light .home-screen .menu-panel .menu-item {
+  color: #1a2948 !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(234,241,255,.96)) !important;
+  border-color: rgba(100, 125, 181, .20) !important;
+  box-shadow: 0 2px 0 rgba(140, 159, 198, .17), inset 0 1px 0 #fff !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .home-screen .menu-panel .settings-toggle-copy strong,
+body.theme-light .home-screen .menu-panel .settings-toggle-copy strong {
+  color: #1a2948 !important;
+}
+
+html[data-theme="light"] .home-screen .menu-panel .settings-toggle-copy small,
+body.theme-light .home-screen .menu-panel .settings-toggle-copy small {
+  color: #617194 !important;
+}
+
+html[data-theme="light"] .home-screen .menu-panel .menu-item.danger,
+body.theme-light .home-screen .menu-panel .menu-item.danger {
+  color: #b82e4e !important;
+  background: linear-gradient(145deg, #fff5f7, #ffeaf0) !important;
+  border-color: rgba(197, 64, 98, .19) !important;
+}
+
+@media (max-width: 420px) {
+  #app {
+    padding-bottom: calc(var(--sahra-scroll-end-clearance) + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .home-screen .menu-panel {
+    width: min(264px, calc(100vw - 30px)) !important;
+    max-width: calc(100vw - 30px) !important;
+  }
+}
+
+:root[data-sahra-native="true"] #app {
+  padding-bottom: calc(var(--sahra-scroll-end-clearance) + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-screen .menu-panel,
+  .home-screen .menu-panel .menu-item {
+    transition: none !important;
+    animation: none !important;
+  }
+}

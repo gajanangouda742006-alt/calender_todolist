@@ -6769,7 +6769,6 @@ function renderHomePage() {
   }
   const allTasks = (Array.isArray(state.data.tasks) ? state.data.tasks : []).filter((task) => !isJunkTask(task));
   const todaysTasks = allTasks.filter((task) => getRecordDateKey(task.date) === todayKey).sort((a, b) => Number(Boolean(a.completed || a.status === "Completed")) - Number(Boolean(b.completed || b.status === "Completed")));
-  const upcomingTaskPreview = todaysTasks.slice(0, 3);
   const completedToday = todaysTasks.filter((task) => task.completed || task.status === "Completed").length;
   const totalToday = todaysTasks.length;
   const progressPercent = totalToday ? Math.round(completedToday / totalToday * 100) : 0;
@@ -6859,11 +6858,6 @@ function renderHomePage() {
           <div class="event-status"><span class="status-dot"></span><span>${eventCountForSelectedDay ? `Selected day has ${eventCountForSelectedDay} event(s)` : "No events on this day"}</span></div>
           <div class="event-actions"><button class="show-event" type="button" data-action="show-selected-day">Show</button><button class="add-event" type="button" data-action="open-add-entry" data-type="event">+ Add Event</button></div>
         </div>
-      </section>
-
-      <section class="glass-card layout-card todo-card">
-        <div class="card-header compact"><h3>To Do List</h3><button class="small-btn" type="button" data-view="tasks">View Tasks</button></div>
-        ${upcomingTaskPreview.length ? `<div class="mini-todo-list">${upcomingTaskPreview.map((task) => `<div class="mini-todo-item"><span class="mini-check ${task.completed || task.status === "Completed" ? "done" : ""}">${task.completed || task.status === "Completed" ? "\u2713" : ""}</span><span>${escapeHtml5(task.title || task.name || "Untitled task")}</span></div>`).join("")}</div>` : `<div class="empty-task-state"><div class="task-icon">\u2713</div><div class="task-copy"><strong>No tasks scheduled today.</strong><span>Add a task with today's date to see it here.</span></div></div>`}
       </section>
 
       <section class="glass-card layout-card progress-card">
