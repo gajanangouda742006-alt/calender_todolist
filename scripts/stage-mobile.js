@@ -68,12 +68,19 @@ fs.writeFileSync(path.join(webDir, 'app-config.js'), config);
 
 const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
-const appScriptMatch = indexHtml.match(/<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=["']\.\/(?:app|web-app)\.js(?:\?[^"']*)?["'])[^>]*><\/script>/i);
+const appScriptMatch = indexHtml.match(
+  /<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=["']\.\/(?:app|web-app)\.js(?:\?[^"']*)?["'])[^>]*><\/script>/i
+);
 
 if (!appScriptMatch) {
   throw new Error('Could not locate the application entry script in index.html.');
 }
+
 const appScript = appScriptMatch[0];
+
+if (!appScript) {
+  throw new Error('Could not locate the application entry script in index.html.');
+}
 
 fs.writeFileSync(
   path.join(webDir, 'index.html'),
@@ -120,5 +127,3 @@ bundleEntries().then(() => {
   console.error('Mobile client staging failed:', error);
   process.exitCode = 1;
 });
-
-
