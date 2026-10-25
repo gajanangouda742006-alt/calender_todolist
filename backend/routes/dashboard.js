@@ -16,7 +16,8 @@ const {
   Note,
   Asset,
   Transaction,
-  AssistantActionReceipt
+  AssistantActionReceipt,
+  FocusSession
 } = require('../models');
 
 const router = express.Router();
@@ -1037,7 +1038,7 @@ async function handleAssistantIntent(userId, message, requestId) {
   const todayKey = toDateKey(new Date(), 'Asia/Kolkata');
   const monthKey = todayKey.slice(0, 7);
 
-  if (/\b(?:how many|number of|count of|total)\b.{0,80}\b(?:tasks?|to[\s-]?dos?)\b|\b(?:tasks?|to[\s-]?dos?)\b.{0,80}\b(?:count|total|how many|do i have|are there)\b|\b(?:do i have|have i got|have i)\b.{0,50}\b(?:tasks?|to[\s-]?dos?)\b/i.test(message)) {
+  if (/\b(how many|number of|count of|total)\b.*\b(tasks?|to-?dos?)\b|\b(tasks?|to-?dos?)\b.*\b(count|total|how many)\b/i.test(message)) {
     const tasks = await Task.find({ userId }).select('completed status');
     const completed = tasks.filter((task) => task.completed === true || task.status === 'Completed').length;
     const pending = tasks.length - completed;
@@ -1053,7 +1054,7 @@ async function handleAssistantIntent(userId, message, requestId) {
     return { action: 'getNotes', message: `You have ${count} saved note${count === 1 ? '' : 's'}.` };
   }
 
-  if (/\b(?:balance|account balance|my balance|how much money|money do i have|how much do i have|net balance|available balance|money left|what(?:'s| is) my balance)\b/i.test(message)) {
+  if (/\b(balance|how much money|money do i have|net balance|available balance)\b/i.test(message)) {
     const transactions = await Transaction.find({ userId }).select('type amount');
     const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const expenses = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2137,6 +2138,163 @@ router.delete('/transactions', verifyToken, async (req, res) => {
     return res.status(500).json({
       message: 'Unable to reset transactions'
     });
+  }
+});
+
+
+// Cross-feature search, finance insights, portable backup, focus statistics,
+// and privacy preferences. Every query is scoped to the authenticated user.
+router.get('/search', verifyToken, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().slice(0, 120);
+    if (q.length < 2) return res.json({ query: q, results: [] });
+    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const userId = req.user.id;
+    const [tasks, events, notes, assets, transactions] = await Promise.all([
+      Task.find({ userId, title: rx }).limit(10).lean(),
+      Event.find({ userId, $or: [{ title: rx }, { description: rx }, { location: rx }] }).limit(10).lean(),
+      Note.find({ userId, $or: [{ title: rx }, { content: rx }] }).limit(10).lean(),
+      Asset.find({ userId, $or: [{ title: rx }, { content: rx }, { tags: rx }] }).limit(10).lean(),
+      Transaction.find({ userId, $or: [{ category: rx }, { note: rx }] }).limit(10).lean()
+    ]);
+    const results = [
+      ...tasks.map(x => ({ type: 'task', id: String(x._id), title: x.title, date: x.date || null, completed: !!x.completed })),
+      ...events.map(x => ({ type: 'event', id: String(x._id), title: x.title, date: x.date || null })),
+      ...notes.map(x => ({ type: 'note', id: String(x._id), title: x.title || 'Note', preview: String(x.content || '').slice(0, 180) })),
+      ...assets.map(x => ({ type: 'note', id: String(x._id), title: x.title || 'Note', preview: String(x.content || '').slice(0, 180) })),
+      ...transactions.map(x => ({ type: 'transaction', id: String(x._id), title: `${x.type}: ${x.category || 'General'}`, amount: x.amount, date: x.date }))
+    ].slice(0, 40);
+    return res.json({ query: q, results });
+  } catch (error) {
+    console.error('Global search error:', error);
+    return res.status(500).json({ message: 'Unable to search your records.' });
+  }
+});
+
+router.get('/finance/insights', verifyToken, async (req, res) => {
+  try {
+    const now = new Date();
+    const year = Number(req.query.year || now.getFullYear());
+    const month = Number(req.query.month || now.getMonth() + 1);
+    if (!Number.isInteger(year) || year < 1970 || year > 3000 || !Number.isInteger(month) || month < 1 || month > 12) return res.status(400).json({ message: 'Provide a valid year and month.' });
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+    const prevStart = month === 1 ? `${year - 1}-12-01` : `${year}-${String(month - 1).padStart(2, '0')}-01`;
+    const prevEnd = `${prevStart.slice(0,7)}-${String(new Date(Number(prevStart.slice(0,4)), Number(prevStart.slice(5,7)), 0).getDate()).padStart(2,'0')}`;
+    const userId = req.user.id;
+    const [current, previous, user] = await Promise.all([
+      Transaction.find({ userId, date: { $gte: start, $lte: end } }).lean(),
+      Transaction.find({ userId, date: { $gte: prevStart, $lte: prevEnd } }).lean(),
+      User.findById(userId).select('preferences')
+    ]);
+    const summarize = rows => {
+      const totals = { income: 0, expense: 0, byCategory: {} };
+      for (const row of rows) {
+        const amount = Number(row.amount) || 0;
+        if (row.type === 'income') totals.income += amount; else if (row.type === 'expense') {
+          totals.expense += amount;
+          const cat = String(row.category || 'General');
+          totals.byCategory[cat] = (totals.byCategory[cat] || 0) + amount;
+        }
+      }
+      totals.net = totals.income - totals.expense;
+      return totals;
+    };
+    const currentTotals = summarize(current), previousTotals = summarize(previous);
+    const budget = Number(user?.preferences?.financeMonthlyBudget || 0);
+    return res.json({ period: { year, month, start, end }, current: currentTotals, previous: previousTotals, budget: { monthly: budget, remaining: budget ? budget - currentTotals.expense : null, exceeded: !!budget && currentTotals.expense > budget }, currency: 'INR' });
+  } catch (error) {
+    console.error('Finance insights error:', error);
+    return res.status(500).json({ message: 'Unable to calculate finance insights.' });
+  }
+});
+
+router.put('/finance/budget', verifyToken, async (req, res) => {
+  const amount = Number(req.body?.monthlyBudget);
+  if (!Number.isFinite(amount) || amount < 0 || amount > 1e9) return res.status(400).json({ message: 'Monthly budget must be a non-negative amount.' });
+  try {
+    await User.updateOne({ _id: req.user.id }, { $set: { 'preferences.financeMonthlyBudget': amount } });
+    return res.json({ monthlyBudget: amount });
+  } catch (error) {
+    console.error('Budget update error:', error);
+    return res.status(500).json({ message: 'Unable to save budget.' });
+  }
+});
+
+router.get('/backup/export', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [tasks, events, notes, assets, transactions, habits, habitLogs, reminders, goals, moods] = await Promise.all([
+      Task.find({ userId }).lean(), Event.find({ userId }).lean(), Note.find({ userId }).lean(), Asset.find({ userId }).lean(),
+      Transaction.find({ userId }).lean(), Habit.find({ userId }).lean(), HabitLog.find({ userId }).lean(),
+      Reminder.find({ userId }).lean(), Goal.find({ userId }).lean(), Mood.find({ userId }).lean()
+    ]);
+    return res.json({ schemaVersion: 1, exportedAt: new Date().toISOString(), data: { tasks, events, notes, assets, transactions, habits, habitLogs, reminders, goals, moods } });
+  } catch (error) {
+    console.error('Backup export error:', error);
+    return res.status(500).json({ message: 'Unable to export backup.' });
+  }
+});
+
+router.post('/backup/restore', verifyToken, async (req, res) => {
+  try {
+    const data = req.body?.data;
+    const allowed = { tasks: Task, events: Event, notes: Note, assets: Asset, transactions: Transaction, habits: Habit, habitLogs: HabitLog, reminders: Reminder, goals: Goal, moods: Mood };
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ message: 'Backup data object is required.' });
+    const counts = {};
+    for (const [key, Model] of Object.entries(allowed)) {
+      const rows = data[key] === undefined ? [] : data[key];
+      if (!Array.isArray(rows) || rows.length > 5000) return res.status(400).json({ message: `Invalid ${key} backup section (maximum 5000 records).` });
+      const safeRows = rows.map(row => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error(`Invalid record in ${key}.`);
+        const copy = { ...row, userId: req.user.id };
+        delete copy._id; delete copy.__v; delete copy.createdAt; delete copy.updatedAt;
+        return copy;
+      });
+      if (safeRows.length) await Model.insertMany(safeRows, { ordered: false });
+      counts[key] = safeRows.length;
+    }
+    return res.status(201).json({ message: 'Backup records restored as new entries.', counts });
+  } catch (error) {
+    console.error('Backup restore error:', error);
+    return res.status(400).json({ message: 'Backup could not be fully restored. Check its structure and required fields.' });
+  }
+});
+
+router.post('/focus/sessions', verifyToken, async (req, res) => {
+  try {
+    const plannedMinutes = Number(req.body?.plannedMinutes);
+    const startedAt = new Date(req.body?.startedAt);
+    const endedAt = new Date(req.body?.endedAt);
+    if (!Number.isInteger(plannedMinutes) || plannedMinutes < 1 || plannedMinutes > 240 || Number.isNaN(startedAt.getTime()) || Number.isNaN(endedAt.getTime()) || endedAt <= startedAt || endedAt - startedAt > 6 * 60 * 60 * 1000) return res.status(400).json({ message: 'Provide a valid completed focus session.' });
+    const session = await FocusSession.create({ userId: req.user.id, plannedMinutes, startedAt, endedAt, completed: Boolean(req.body.completed), label: String(req.body.label || 'Focus session').slice(0, 120) });
+    return res.status(201).json({ session });
+  } catch (error) {
+    console.error('Focus session save error:', error);
+    return res.status(500).json({ message: 'Unable to save focus session.' });
+  }
+});
+
+router.get('/focus/stats', verifyToken, async (req, res) => {
+  try {
+    const since = new Date(); since.setDate(since.getDate() - 30);
+    const sessions = await FocusSession.find({ userId: req.user.id, startedAt: { $gte: since } }).sort({ startedAt: -1 }).lean();
+    return res.json({ periodDays: 30, sessions: sessions.length, completed: sessions.filter(x => x.completed).length, plannedMinutes: sessions.reduce((sum, x) => sum + x.plannedMinutes, 0), actualMinutes: Math.round(sessions.reduce((sum, x) => sum + (new Date(x.endedAt) - new Date(x.startedAt)), 0) / 60000), recent: sessions.slice(0, 20) });
+  } catch (error) {
+    console.error('Focus stats error:', error);
+    return res.status(500).json({ message: 'Unable to load focus statistics.' });
+  }
+});
+
+router.put('/security/preferences', verifyToken, async (req, res) => {
+  const { privateNotesLock, requireReauth } = req.body || {};
+  if (typeof privateNotesLock !== 'boolean' || typeof requireReauth !== 'boolean') return res.status(400).json({ message: 'Both security settings must be boolean values.' });
+  try {
+    await User.updateOne({ _id: req.user.id }, { $set: { 'preferences.privateNotesLock': privateNotesLock, 'preferences.requireReauth': requireReauth } });
+    return res.json({ privateNotesLock, requireReauth });
+  } catch (error) {
+    console.error('Security preferences error:', error);
+    return res.status(500).json({ message: 'Unable to save security preferences.' });
   }
 });
 

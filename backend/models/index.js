@@ -768,6 +768,20 @@ const mutationReceiptSchema = new mongoose.Schema({
 mutationReceiptSchema.index({ userId: 1, key: 1 }, { unique: true });
 const MutationReceipt = mongoose.models.MutationReceipt || mongoose.model('MutationReceipt', mutationReceiptSchema);
 
+
+// Focus sessions support for Pomodoro / study statistics.
+const focusSessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  startedAt: { type: Date, required: true },
+  endedAt: { type: Date, required: true },
+  plannedMinutes: { type: Number, required: true, min: 1, max: 240 },
+  completed: { type: Boolean, default: false },
+  label: { type: String, default: 'Focus session', maxlength: 120 },
+  createdAt: { type: Date, default: Date.now }
+}, { collection: 'focusSessions' });
+focusSessionSchema.index({ userId: 1, startedAt: -1 });
+const FocusSession = mongoose.models.FocusSession || mongoose.model('FocusSession', focusSessionSchema);
+
 // ==========================================
 // EXPORT ALL MODELS
 // ==========================================
@@ -784,5 +798,6 @@ module.exports = {
   Asset,
   Transaction,
   AssistantActionReceipt,
-  MutationReceipt
+  MutationReceipt,
+  FocusSession
 };
