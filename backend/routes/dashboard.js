@@ -1032,6 +1032,62 @@ async function handleAssistantIntent(userId, message, requestId) {
     };
   }
 
+  // Offline, account-scoped query intents. These answers use saved database records
+  // and do not require an external AI provider or API key.
+  const todayKey = toDateKey(new Date(), 'Asia/Kolkata');
+  const monthKey = todayKey.slice(0, 7);
+
+  if (/\b(?:how many|number of|count of|total)\b.{0,80}\b(?:tasks?|to[\s-]?dos?)\b|\b(?:tasks?|to[\s-]?dos?)\b.{0,80}\b(?:count|total|how many|do i have|are there)\b|\b(?:do i have|have i got|have i)\b.{0,50}\b(?:tasks?|to[\s-]?dos?)\b/i.test(message)) {
+    const tasks = await Task.find({ userId }).select('completed status');
+    const completed = tasks.filter((task) => task.completed === true || task.status === 'Completed').length;
+    const pending = tasks.length - completed;
+    return { action: 'getTasks', message: `You have ${tasks.length} task${tasks.length === 1 ? '' : 's'} in total: ${pending} pending and ${completed} completed.` };
+  }
+
+  if (/\b(how many|number of|count of|total)\b.*\b(notes?|notepad)\b|\b(notes?|notepad)\b.*\b(count|total|how many)\b/i.test(message)) {
+    const [assetCount, noteCount] = await Promise.all([
+      Asset.countDocuments({ userId }),
+      Note.countDocuments({ userId }),
+    ]);
+    const count = assetCount + noteCount;
+    return { action: 'getNotes', message: `You have ${count} saved note${count === 1 ? '' : 's'}.` };
+  }
+
+  if (/\b(?:balance|account balance|my balance|how much money|money do i have|how much do i have|net balance|available balance|money left|what(?:'s| is) my balance)\b/i.test(message)) {
+    const transactions = await Transaction.find({ userId }).select('type amount');
+    const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const expenses = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const balance = income - expenses;
+    return { action: 'getBalance', message: `Based on transactions recorded in Sahra, your net balance is ₹${balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}. Total recorded income: ₹${income.toLocaleString('en-IN', { maximumFractionDigits: 2 })}; expenses: ₹${expenses.toLocaleString('en-IN', { maximumFractionDigits: 2 })}. This is not a live bank balance.` };
+  }
+
+  if (/\b(spent|spending|expenses?|income|earned|earnings)\b.*\b(this month|monthly|month)\b|\b(this month|monthly)\b.*\b(spent|spending|expenses?|income|earned|earnings)\b/i.test(message)) {
+    const transactions = await Transaction.find({ userId, date: { $regex: `^${monthKey}` } }).select('type amount');
+    const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const expenses = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return { action: 'getFinanceSummary', message: `This month in Sahra: income ₹${income.toLocaleString('en-IN', { maximumFractionDigits: 2 })}, expenses ₹${expenses.toLocaleString('en-IN', { maximumFractionDigits: 2 })}, net ₹${(income - expenses).toLocaleString('en-IN', { maximumFractionDigits: 2 })}.` };
+  }
+
+  if (/\b(what|show|list|tell me about).{0,30}\b(today|schedule|agenda|upcoming)\b|\bwhat do i have today\b|\bwhat should i do today\b/i.test(message)) {
+    const [tasks, events] = await Promise.all([
+      Task.find({ userId, date: todayKey, completed: { $ne: true }, status: { $ne: 'Completed' } }).sort({ time: 1 }).limit(12).select('title time priority'),
+      Event.find({ userId, date: todayKey }).sort({ startTime: 1 }).limit(12).select('title startTime endTime'),
+    ]);
+    const lines = [];
+    if (tasks.length) lines.push(`Tasks: ${tasks.map((t) => `${t.title}${t.time ? ` at ${t.time}` : ''}`).join('; ')}`);
+    if (events.length) lines.push(`Events: ${events.map((e) => `${e.title}${e.startTime ? ` at ${e.startTime}` : ''}`).join('; ')}`);
+    return { action: 'getSchedule', message: lines.length ? `Here's your schedule for today: ${lines.join('. ')}.` : 'You have no pending tasks or events scheduled for today.' };
+  }
+
+  if (/\b(how many|number of|count of|total)\b.*\bevents?\b|\bevents?\b.*\b(count|total|how many)\b/i.test(message)) {
+    const count = await Event.countDocuments({ userId });
+    return { action: 'getEvents', message: `You have ${count} saved event${count === 1 ? '' : 's'}.` };
+  }
+
+  if (/\b(help|what can you do|commands|how can you help)\b/i.test(message)) {
+    return { action: 'respond', message: 'I can work offline with your Sahra records. Ask about task totals, pending/completed tasks, progress, saved notes, events, today’s schedule, recorded balance, monthly income/expenses, or directly ask me to add a task, event, note, income, or expense. For a change, I will ask for missing details when needed.' };
+  }
+
   const intent = explicitRoutineIntent(message);
   if (intent) {
     const user = await User.findById(userId).select('preferences.timeZone');
@@ -1104,7 +1160,7 @@ async function handleAssistantIntent(userId, message, requestId) {
     }
   }
 
-  if (/show|what.*tasks|list.*tasks|pending tasks|my tasks/.test(lower)) {
+  if (/show|what.*tasks|list.*tasks|pending tasks|my tasks|\\b(tasks|to-?dos)\\b/.test(lower)) {
     const tasks = await Task.find({ userId }).sort({ date: 1, createdAt: -1 }).limit(5);
     if (!tasks.length) {
       return { action: 'getTasks', message: 'You do not have any tasks yet.' };
@@ -1175,6 +1231,15 @@ async function handleAssistantIntent(userId, message, requestId) {
     return {
       action: 'respond',
       message: 'That sounds like a suggestion. Would you like me to create a Sahra item for it?',
+    };
+  }
+
+  // Prefer the built-in offline assistant. Only use an external provider as an
+  // optional fallback when the owner explicitly configured an API key.
+  if (!process.env.GEMINI_API_KEY && !process.env.AI_API_KEY) {
+    return {
+      action: 'respond',
+      message: 'I can answer questions using your saved Sahra data without an API key. Try asking how many tasks you have, your progress, saved notes, today’s schedule, or your recorded balance. For actions, say “add a task…”, “create an event…”, “save a note…”, “record income…” or “record an expense…”. If I need a date, time, amount, or other detail, I will ask you.',
     };
   }
 
