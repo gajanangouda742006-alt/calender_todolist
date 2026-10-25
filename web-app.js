@@ -5685,6 +5685,22 @@ window.addEventListener("online", async () => {
     console.warn("Reconnect sync failed:", error.message);
   }
 });
+function renderMenuPage() {
+  return `
+    <section class="screen menu-screen" aria-label="Menu">
+      <header class="menu-page-heading">
+        <h1>Menu</h1>
+        <p>Choose a feature</p>
+      </header>
+      <div class="more-menu-panel menu-page-options" role="navigation" aria-label="Menu options">
+        <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
+        <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
+        <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
+        <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
+      </div>
+    </section>
+  `;
+}
 function renderMoreMenu() {
   if (!state.moreMenuOpen) return "";
   return `
@@ -7164,10 +7180,12 @@ function renderLayout() {
     content = renderGoalsPage(state);
   } else if (state.view === "assistant") {
     content = renderAssistantPage(state);
+  } else if (state.view === "menu") {
+    content = renderMenuPage();
   } else if (state.view === "progress" || state.view === "more") {
     content = renderProgressPage();
   }
-  app.innerHTML = content + renderEntryModal() + renderProfileModal() + renderMoreMenu();
+  app.innerHTML = content + renderEntryModal() + renderProfileModal();
   const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals"];
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     const isMenuButton = button.dataset.action === "toggle-more-menu";
@@ -8274,9 +8292,17 @@ function renderLayout() {
 function bindBottomNav() {
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     button.addEventListener("click", async (e) => {
+      // The Menu button opens a dedicated page instead of a popup over the current page.
       if (button.dataset.action === "toggle-more-menu") {
         e.stopPropagation();
-        state.moreMenuOpen = !state.moreMenuOpen;
+        state.entryModalOpen = false;
+        state.entryDraft = null;
+        state.progressPickerOpen = false;
+        state.profileModalOpen = false;
+        state.moreMenuOpen = false;
+        state.menuOpen = false;
+        state.moodPickerOpen = false;
+        state.view = "menu";
         renderLayout();
         return;
       }

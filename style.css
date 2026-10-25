@@ -8949,3 +8949,61 @@ body.theme-light .notepad-confirm-message {
   color: #ffffff !important;
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.42), inset 0 1px 0 rgba(255,255,255,0.32) !important;
 }
+
+
+/* =========================================================
+   SAHRA MENU PAGE — dedicated screen using the existing 3D buttons
+========================================================= */
+.menu-screen {
+  min-height: 64vh;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 18px !important;
+  padding-top: 28px !important;
+  padding-bottom: 36px !important;
+}
+
+.menu-page-heading {
+  width: 100%;
+  text-align: center;
+  color: var(--sahra-text, #ffffff);
+}
+
+.menu-page-heading h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.menu-page-heading p {
+  margin: 5px 0 0;
+  color: var(--muted, #aab9d7);
+  font-size: .85rem;
+}
+
+/* Reuse the same panel and button styling as the old popup, but keep it in page flow. */
+.menu-page-options.more-menu-panel {
+  position: relative !important;
+  inset: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 auto !important;
+  width: min(260px, calc(100% - 12px)) !important;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 430px) {
+  .menu-screen {
+    min-height: 58vh;
+  }
+  .menu-page-options.more-menu-panel {
+    width: min(260px, calc(100% - 12px)) !important;
+  }
+}
