@@ -2285,6 +2285,110 @@ var init_web2 = __esm({
   }
 });
 
+// node_modules/@capacitor/geolocation/dist/esm/web.js
+var web_exports3 = {};
+__export(web_exports3, {
+  Geolocation: () => Geolocation,
+  GeolocationWeb: () => GeolocationWeb
+});
+var GeolocationWeb, Geolocation;
+var init_web3 = __esm({
+  "node_modules/@capacitor/geolocation/dist/esm/web.js"() {
+    init_dist();
+    GeolocationWeb = class extends WebPlugin {
+      constructor() {
+        super();
+        this.latestOrientation = null;
+        if (typeof window !== "undefined") {
+          const win = window;
+          if ("ondeviceorientationabsolute" in win) {
+            win.addEventListener("deviceorientationabsolute", (event) => this.updateOrientation(event, true), true);
+          } else if ("ondeviceorientation" in win) {
+            win.addEventListener("deviceorientation", (event) => this.updateOrientation(event, false), true);
+          }
+        }
+      }
+      updateOrientation(event, isAbsolute) {
+        let trueHeading = null;
+        let magneticHeading = null;
+        let headingAccuracy = null;
+        if (isAbsolute && event.alpha !== null) {
+          trueHeading = (360 - event.alpha) % 360;
+        } else if (event.webkitCompassHeading !== void 0 && event.webkitCompassHeading !== null) {
+          magneticHeading = event.webkitCompassHeading;
+          headingAccuracy = event.webkitCompassAccuracy;
+        } else if (event.alpha !== null && event.absolute === true) {
+          trueHeading = (360 - event.alpha) % 360;
+        } else if (event.alpha !== null) {
+          magneticHeading = (360 - event.alpha) % 360;
+        }
+        if (trueHeading !== null || magneticHeading !== null) {
+          this.latestOrientation = {
+            trueHeading,
+            magneticHeading,
+            headingAccuracy
+          };
+        }
+      }
+      augmentPosition(pos, isWatch = false) {
+        var _a, _b, _c, _d, _e, _f, _g;
+        const coords = pos.coords;
+        const orientation = isWatch ? this.latestOrientation : null;
+        const heading = (_c = (_b = (_a = orientation === null || orientation === void 0 ? void 0 : orientation.trueHeading) !== null && _a !== void 0 ? _a : orientation === null || orientation === void 0 ? void 0 : orientation.magneticHeading) !== null && _b !== void 0 ? _b : isWatch ? coords.heading : null) !== null && _c !== void 0 ? _c : null;
+        return {
+          timestamp: pos.timestamp,
+          coords: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracy: coords.accuracy,
+            altitude: coords.altitude,
+            altitudeAccuracy: coords.altitudeAccuracy,
+            speed: coords.speed,
+            heading,
+            magneticHeading: (_d = orientation === null || orientation === void 0 ? void 0 : orientation.magneticHeading) !== null && _d !== void 0 ? _d : null,
+            trueHeading: (_e = orientation === null || orientation === void 0 ? void 0 : orientation.trueHeading) !== null && _e !== void 0 ? _e : null,
+            headingAccuracy: (_f = orientation === null || orientation === void 0 ? void 0 : orientation.headingAccuracy) !== null && _f !== void 0 ? _f : null,
+            course: (_g = isWatch ? coords.heading : null) !== null && _g !== void 0 ? _g : null
+          }
+        };
+      }
+      async getCurrentPosition(options) {
+        return new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition((pos) => {
+            resolve(this.augmentPosition(pos, false));
+          }, (err) => {
+            reject(err);
+          }, Object.assign({ enableHighAccuracy: false, timeout: 1e4, maximumAge: 0 }, options));
+        });
+      }
+      async watchPosition(options, callback) {
+        const id = navigator.geolocation.watchPosition((pos) => {
+          callback(this.augmentPosition(pos, true));
+        }, (err) => {
+          callback(null, err);
+        }, Object.assign({ enableHighAccuracy: false, timeout: 1e4, maximumAge: 0, minimumUpdateInterval: 5e3 }, options));
+        return `${id}`;
+      }
+      async clearWatch(options) {
+        navigator.geolocation.clearWatch(parseInt(options.id, 10));
+      }
+      async checkPermissions() {
+        if (typeof navigator === "undefined" || !navigator.permissions) {
+          throw this.unavailable("Permissions API not available in this browser");
+        }
+        const permission = await navigator.permissions.query({
+          name: "geolocation"
+        });
+        return { location: permission.state, coarseLocation: permission.state };
+      }
+      async requestPermissions() {
+        throw this.unimplemented("Not implemented on web.");
+      }
+    };
+    Geolocation = new GeolocationWeb();
+  }
+});
+
 // node_modules/@capgo/capacitor-updater/dist/esm/history.js
 var KEEP_FLAG_KEY, HISTORY_STORAGE_KEY, MAX_STACK_ENTRIES, isBrowser;
 var init_history = __esm({
@@ -2584,12 +2688,12 @@ var init_definitions2 = __esm({
 });
 
 // node_modules/@capgo/capacitor-updater/dist/esm/web.js
-var web_exports3 = {};
-__export(web_exports3, {
+var web_exports4 = {};
+__export(web_exports4, {
   CapacitorUpdaterWeb: () => CapacitorUpdaterWeb
 });
 var BUNDLE_BUILTIN, CapacitorUpdaterWeb;
-var init_web3 = __esm({
+var init_web4 = __esm({
   "node_modules/@capgo/capacitor-updater/dist/esm/web.js"() {
     init_dist();
     init_definitions2();
@@ -2838,7 +2942,7 @@ var init_esm2 = __esm({
     init_history();
     init_definitions2();
     CapacitorUpdater = registerPlugin("CapacitorUpdater", {
-      web: () => Promise.resolve().then(() => (init_web3(), web_exports3)).then((m) => new m.CapacitorUpdaterWeb())
+      web: () => Promise.resolve().then(() => (init_web4(), web_exports4)).then((m) => new m.CapacitorUpdaterWeb())
     });
   }
 });
@@ -4120,15 +4224,18 @@ function renderDashboard(transactions, state2) {
 
         <!-- Header Text -->
         <div
+          class="finance-dashboard-title-copy"
           style="
             position: relative;
             z-index: 2;
+            text-align: left;
           "
         >
           <div
             style="
               display: flex;
               align-items: center;
+              justify-content: flex-start;
               gap: 9px;
               margin-bottom: 5px;
             "
@@ -4180,41 +4287,7 @@ function renderDashboard(transactions, state2) {
   })}
           </div>
         </div>
-
-        <!-- Reset Button -->
-        <button
-          data-action="show-finance-reset-confirm"
-          type="button"
-          title="Reset Transactions"
-          style="
-            position: relative;
-            z-index: 3;
-            width: 44px;
-            height: 44px;
-            border-radius: 15px;
-            display: grid;
-            place-items: center;
-            background:
-              linear-gradient(
-                145deg,
-                rgba(47,55,72,0.95),
-                rgba(20,24,34,0.95)
-              );
-            border: 1px solid rgba(255,255,255,0.14);
-            border-top: 1px solid rgba(255,255,255,0.28);
-            color: #8dc1ff;
-            cursor: pointer;
-            box-shadow:
-              0 8px 18px rgba(0,0,0,0.35),
-              inset 0 1px 1px rgba(255,255,255,0.12);
-            transition:
-              transform 0.18s ease,
-              box-shadow 0.18s ease;
-          "
-        >
-          \u{1F504}
-        </button>
-      </div>
+</div>
 
 
       <!-- TOTAL BALANCE -->
@@ -5645,6 +5718,62 @@ var LocalNotifications = registerPlugin("LocalNotifications", {
   web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.LocalNotificationsWeb())
 });
 
+// node_modules/@capacitor/geolocation/dist/esm/index.js
+init_dist();
+
+// node_modules/@capacitor/synapse/dist/synapse.mjs
+function s(t) {
+  t.CapacitorUtils.Synapse = new Proxy(
+    {},
+    {
+      get(e, n) {
+        return new Proxy({}, {
+          get(w, o) {
+            return (c, p, r) => {
+              const i = t.Capacitor.Plugins[n];
+              if (i === void 0) {
+                r(new Error(`Capacitor plugin ${n} not found`));
+                return;
+              }
+              if (typeof i[o] != "function") {
+                r(new Error(`Method ${o} not found in Capacitor plugin ${n}`));
+                return;
+              }
+              (async () => {
+                try {
+                  const a = await i[o](c);
+                  p(a);
+                } catch (a) {
+                  r(a);
+                }
+              })();
+            };
+          }
+        });
+      }
+    }
+  );
+}
+function u(t) {
+  t.CapacitorUtils.Synapse = new Proxy(
+    {},
+    {
+      get(e, n) {
+        return t.cordova.plugins[n];
+      }
+    }
+  );
+}
+function f(t = false) {
+  typeof window > "u" || (window.CapacitorUtils = window.CapacitorUtils || {}, window.Capacitor !== void 0 && !t ? s(window) : window.cordova !== void 0 && u(window));
+}
+
+// node_modules/@capacitor/geolocation/dist/esm/index.js
+var Geolocation2 = registerPlugin("Geolocation", {
+  web: () => Promise.resolve().then(() => (init_web3(), web_exports3)).then((m) => new m.GeolocationWeb())
+});
+f();
+
 // app.js
 var EMPTY_DATA = {
   events: [],
@@ -5716,12 +5845,17 @@ var state = {
   selectedDate: hasNotificationTarget ? notificationTargetDate : formatDateKey2(/* @__PURE__ */ new Date()),
   authenticated: false,
   data: { ...EMPTY_DATA },
-  user: JSON.parse(localStorage.getItem("sahraUser") || "null") || { name: "Sahra" },
+  user: JSON.parse(localStorage.getItem("sahraUser") || "null") || { name: "DaySync User" },
   theme: localStorage.getItem("theme") || "dark",
   focusSeconds: 25 * 60,
   focusInitialSeconds: 25 * 60,
   focusRunning: false,
   focusStartedAt: null,
+  focusEndsAt: null,
+  focusAlarmActive: false,
+  focusAlarmStartedAt: null,
+  focusSessionId: null,
+  focusLastCompletedId: null,
   focusSessions: JSON.parse(localStorage.getItem("sahraFocusSessions") || "[]"),
   focusLabel: "Study session",
   menuOpen: false,
@@ -5756,6 +5890,10 @@ var state = {
   showFinanceResetConfirm: false,
   financeResetLoading: false,
   tempFinanceType: null,
+  resetOptionsSelected: { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false },
+  resetConfirmOpen: false,
+  resetOptionsBusy: false,
+  settingsInfoPanel: "",
   weather: { status: "idle", data: null, locationLabel: "", error: "", updatedAt: null, requestId: 0 }
 };
 var notificationInterval = null;
@@ -5899,7 +6037,17 @@ async function apiRequest(path, options = {}) {
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
   if (!response.ok) {
-    const message = typeof payload === "string" ? payload : payload?.message || "Request failed";
+    let message = typeof payload === "string" ? payload : payload?.message || "Request failed";
+    if (typeof message === "string" && /<\s*(?:!doctype|html|head|body|pre)\b/i.test(message)) {
+      const routeMatch = message.match(/Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+([^<\s]+)/i);
+      if (routeMatch && /reset-data/i.test(routeMatch[2])) {
+        message = "The DaySync reset API is not deployed on the server yet. Push backend/routes/dashboard.js from the project root and wait for the hosted API to redeploy, then try again.";
+      } else {
+        message = `The server returned an unexpected HTML error (HTTP ${response.status}). Check the API deployment and try again.`;
+      }
+    } else if (typeof message === "string") {
+      message = message.trim().slice(0, 600);
+    }
     if ([502, 503, 504].includes(response.status) && token) {
       try {
         if (method === "GET" && cleanApiPath(path) === "api/dashboard") {
@@ -5980,77 +6128,139 @@ function renderMenuPage() {
         <button class="menu-item" type="button" data-view="finance">\u{1F4B0} Expense Tracker</button>
         <button class="menu-item" type="button" data-view="focus">\u23F1\uFE0F Focus Timer</button>
         <button class="menu-item" type="button" data-view="progress">\u{1F4C8} Progress &amp; Stats</button>
-        <button class="menu-item settings-menu-entry" type="button" data-view="settings">\u2699\uFE0F Settings</button>
+        <button class="menu-item" type="button" data-view="settings">\u2699\uFE0F Settings</button>
       </div>
     </section>
   `;
 }
 function renderSettingsPage() {
   const isLightTheme = state.theme === "light";
-  const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
-  const user = state.user || {};
-  const displayName = escapeHtml5(user.name || "Sahra User");
-  const displayEmail = escapeHtml5(user.email || "Manage your personal information");
+  const notificationsEnabled = areDeviceNotificationsEnabled();
+  const native = Boolean(window.SAHRA_NOTIFICATIONS?.isNative?.());
+  const tasksCount = Array.isArray(state.data?.tasks) ? state.data.tasks.length : 0;
+  const notesCount = Array.isArray(state.data?.assets) && state.data.assets.length ? state.data.assets.length : Array.isArray(state.data?.notes) ? state.data.notes.length : 0;
+  const eventsCount = (state.data?.events?.length || 0) + (state.data?.reminders?.length || 0);
+  const expensesCount = Array.isArray(state.financeData) && state.financeData.length ? state.financeData.length : (state.data?.expenses?.length || 0) + (state.data?.subscriptions?.length || 0);
+  const progressCount = (state.data?.goals?.length || 0) + (state.data?.habits?.length || 0) + (state.data?.habitLogs?.length || 0) + (state.data?.moods?.length || 0);
+  const focusCount = Array.isArray(state.focusSessions) ? state.focusSessions.length : 0;
   return `
-    <section class="screen settings-screen" aria-label="Settings">
-      <div class="settings-shell">
-        <header class="settings-page-header">
-          <div class="settings-header-icon" aria-hidden="true">\u2637</div>
-          <div class="settings-header-copy">
-            <h1>Settings</h1>
-            <p>Personalize your Sahra experience</p>
-          </div>
-          <button class="settings-close" type="button" data-settings-action="back" aria-label="Back to menu">\xD7</button>
-        </header>
-
-        <p class="settings-section-title">PERSONALIZATION</p>
-        <div class="settings-group">
-          <button class="settings-row" type="button" data-menu-action="toggle-theme" aria-label="Toggle appearance theme">
-            <span class="settings-row-icon appearance-icon" aria-hidden="true">${isLightTheme ? "\u2600\uFE0F" : "\u{1F319}"}</span>
-            <span class="settings-row-copy"><strong>Appearance</strong><small>${isLightTheme ? "Light mode, theme" : "Dark mode, theme"}</small></span>
-            <span class="settings-row-switch ${isLightTheme ? "is-on" : ""}" aria-hidden="true"><span></span></span>
+    <section class="screen daysync-settings-screen" aria-label="DaySync settings">
+      <header class="daysync-settings-header">
+        <button class="daysync-settings-back daysync-page-back-button" type="button" data-action="settings-back" aria-label="Back">\u2039</button>
+        <div class="daysync-settings-mark" aria-hidden="true">\u2637</div>
+        <div class="daysync-settings-title"><h1>Settings</h1><p>Personalize your DaySync experience</p></div>
+      </header>
+      <section class="daysync-settings-group" aria-labelledby="settings-personalization-heading">
+        <p class="daysync-settings-section-label" id="settings-personalization-heading">PERSONALIZATION</p>
+        <div class="daysync-settings-list">
+          <button class="daysync-setting-row" type="button" data-menu-action="toggle-theme">
+            <span class="daysync-setting-icon">${isLightTheme ? "\u2600\uFE0F" : "\u{1F319}"}</span><span class="daysync-setting-copy"><strong>Appearance</strong><small>${isLightTheme ? "Light theme enabled" : "Dark theme enabled"}</small></span><span class="daysync-setting-trail">\u203A</span>
           </button>
-          <button class="settings-row" type="button" data-menu-action="profile">
-            <span class="settings-row-icon profile-icon" aria-hidden="true">\u2659</span>
-            <span class="settings-row-copy"><strong>Profile</strong><small>${displayName} \xB7 ${displayEmail}</small></span>
-            <span class="settings-row-chevron" aria-hidden="true">\u203A</span>
+          <button class="daysync-setting-row" type="button" data-menu-action="profile">
+            <span class="daysync-setting-icon">\u2659</span><span class="daysync-setting-copy"><strong>Profile</strong><small>${escapeHtml5(state.user?.name || "Your personal information")}</small></span><span class="daysync-setting-trail">\u203A</span>
           </button>
-          <button class="settings-row" type="button" data-menu-action="notifications" aria-label="Toggle notifications">
-            <span class="settings-row-icon notifications-icon" aria-hidden="true">\u2667</span>
-            <span class="settings-row-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? "Reminders and alerts are enabled" : "Reminders and alerts are disabled"}</small></span>
-            <span class="settings-row-switch ${deviceNotificationsEnabled ? "is-on" : ""}" aria-hidden="true"><span></span></span>
+          <button class="daysync-setting-row" type="button" data-menu-action="notifications" role="switch" aria-checked="${notificationsEnabled}" aria-label="Notifications ${notificationsEnabled ? "on" : "off"}">
+            <span class="daysync-setting-icon">\u2667</span><span class="daysync-setting-copy"><strong>Notifications</strong><small>${notificationsEnabled ? "Device permission granted" : "Manage task, event and focus reminders"}</small></span><span class="daysync-settings-switch ${notificationsEnabled ? "is-on" : ""}" aria-hidden="true"><span></span></span>
           </button>
         </div>
-
-        <p class="settings-section-title">APP &amp; DATA</p>
-        <div class="settings-group">
-          <button class="settings-row" type="button" data-settings-action="sync-now">
-            <span class="settings-row-icon sync-icon" aria-hidden="true">\u21BB</span>
-            <span class="settings-row-copy"><strong>Data &amp; Sync</strong><small>Sync online and offline changes</small></span>
-            <span class="settings-row-chevron" aria-hidden="true">\u203A</span>
+      </section>
+      <section class="daysync-settings-group" aria-labelledby="settings-data-heading">
+        <p class="daysync-settings-section-label" id="settings-data-heading">APP &amp; DATA</p>
+        <div class="daysync-settings-list">
+          <button class="daysync-setting-row" type="button" data-menu-action="sync-now">
+            <span class="daysync-setting-icon">\u27F3</span><span class="daysync-setting-copy"><strong>Data &amp; Sync</strong><small>${tasksCount} tasks \xB7 ${notesCount} notes \xB7 ${expensesCount} transactions \xB7 ${eventsCount} calendar items</small><small class="daysync-setting-subline">${progressCount} progress records \xB7 ${focusCount} focus sessions \xB7 Tap to sync now</small></span><span class="daysync-setting-trail">\u203A</span>
           </button>
-          <button class="settings-row" type="button" data-settings-action="privacy">
-            <span class="settings-row-icon privacy-icon" aria-hidden="true">\u25C7</span>
-            <span class="settings-row-copy"><strong>Privacy &amp; Security</strong><small>Account and device safety tips</small></span>
-            <span class="settings-row-chevron" aria-hidden="true">\u203A</span>
+          <button class="daysync-setting-row" type="button" data-menu-action="privacy-security" aria-expanded="${state.settingsInfoPanel === "privacy" ? "true" : "false"}">
+            <span class="daysync-setting-icon">\u25C7</span><span class="daysync-setting-copy"><strong>Privacy &amp; Security</strong><small>Account-scoped data and device permissions</small></span><span class="daysync-setting-trail">${state.settingsInfoPanel === "privacy" ? "\u2304" : "\u203A"}</span>
           </button>
-          <button class="settings-row" type="button" data-settings-action="help">
-            <span class="settings-row-icon help-icon" aria-hidden="true">?</span>
-            <span class="settings-row-copy"><strong>Help &amp; Support</strong><small>Quick tips for using Sahra</small></span>
-            <span class="settings-row-chevron" aria-hidden="true">\u203A</span>
-          </button>
-          <button class="settings-row" type="button" data-settings-action="about">
-            <span class="settings-row-icon about-icon" aria-hidden="true">\u24D8</span>
-            <span class="settings-row-copy"><strong>About Sahra</strong><small>Sahra Life Calendar \xB7 Version 1.0</small></span>
-            <span class="settings-row-chevron" aria-hidden="true">\u203A</span>
+          ${state.settingsInfoPanel === "privacy" ? `<div class="daysync-settings-detail-panel"><strong>Your account and device</strong><p>DaySync requests access only when a feature needs it. Location is used to find local weather. Your saved records are associated with your signed-in account; sign out on shared devices.</p><button type="button" data-action="open-location-permission-settings">Location permissions</button><button type="button" data-action="open-notification-permission-settings">Notification permissions</button></div>` : ""}
+          ${native ? `<button class="daysync-setting-row" type="button" data-action="open-location-permission-settings"><span class="daysync-setting-icon">\u2316</span><span class="daysync-setting-copy"><strong>Location access</strong><small>Manage location permission for local weather</small></span><span class="daysync-setting-trail">\u203A</span></button><button class="daysync-setting-row" type="button" data-action="open-notification-permission-settings"><span class="daysync-setting-icon">\u2667</span><span class="daysync-setting-copy"><strong>Notification permissions</strong><small>Manage reminders on this device</small></span><span class="daysync-setting-trail">\u203A</span></button><button class="daysync-setting-row" type="button" data-menu-action="exact-alarms"><span class="daysync-setting-icon">\u23F0</span><span class="daysync-setting-copy"><strong>Timer alarms</strong><small>Open Android's precise alarm setting where available</small></span><span class="daysync-setting-trail">\u203A</span></button>` : ""}
+          <button class="daysync-setting-row daysync-setting-row-danger" type="button" data-action="open-reset-options">
+            <span class="daysync-setting-icon daysync-danger-icon">\u26A0</span><span class="daysync-setting-copy"><strong>Reset Options</strong><small>Review saved data by section and date before deleting</small></span><span class="daysync-setting-trail">\u203A</span>
           </button>
         </div>
-
-        <button class="settings-signout" type="button" data-menu-action="logout">\u21AA Sign Out</button>
-        <p class="settings-footer-note">Your day, organized with Sahra.</p>
+      </section>
+      <p class="daysync-settings-section-label">ABOUT DAYSYNC</p>
+      <section class="daysync-about-card"><div class="daysync-about-top"><span class="daysync-about-logo">DS</span><div><strong>DaySync</strong><p>Your personal planner for tasks, calendar, expenses, goals, and focus sessions.</p></div></div><span class="daysync-about-version">DaySync \xB7 Version 1.0 \xB7 AI assistant: Sahra</span></section>
+      <button class="daysync-signout-row" type="button" data-menu-action="logout"><span>\u21AA</span> Sign out</button>
+    </section>`;
+}
+var RESET_CATEGORY_META = {
+  tasks: { title: "To Do List", icon: "\u2705", description: "Saved tasks and their completion status", collections: ["tasks"] },
+  notepad: { title: "Notepad", icon: "\u{1F4DD}", description: "Saved notes and vault entries", collections: ["notes", "assets"] },
+  expenses: { title: "Expense Tracker", icon: "\u{1F4B0}", description: "Income, expenses and transactions", collections: ["transactions", "expenses", "subscriptions"] },
+  calendar: { title: "Calendar Data", icon: "\u{1F5D3}\uFE0F", description: "Calendar events and reminders", collections: ["events", "reminders"] },
+  progress: { title: "Progress Tracker", icon: "\u{1F4C8}", description: "Goals, habits, mood entries and habit logs", collections: ["goals", "habits", "habitLogs", "moods"] },
+  focus: { title: "Focus Timer", icon: "\u23F1\uFE0F", description: "Saved focus sessions and timer history", collections: [] }
+};
+function getResetCategoryRecords(category) {
+  const data = state.data || {};
+  const tag = (rows, kind) => (Array.isArray(rows) ? rows : []).map((record) => ({ ...record, _resetKind: kind }));
+  if (category === "tasks") return tag(data.tasks, "Task");
+  if (category === "notepad") {
+    const rows = (data.assets?.length ? data.assets : data.notes) || [];
+    return tag(rows, "Note");
+  }
+  if (category === "expenses") {
+    const rows = state.financeData?.length ? state.financeData : [...data.expenses || [], ...data.subscriptions || []];
+    return tag(rows, "Transaction");
+  }
+  if (category === "calendar") return [...tag(data.events, "Event"), ...tag(data.reminders, "Reminder")];
+  if (category === "progress") return [
+    ...tag(data.goals, "Goal"),
+    ...tag(data.habits, "Habit"),
+    ...tag(data.habitLogs, "Habit log"),
+    ...tag(data.moods, "Mood entry")
+  ];
+  if (category === "focus") return tag(state.focusSessions, "Focus session");
+  return [];
+}
+function resetRecordDate(record) {
+  const candidate = record?.date || record?.createdAt || record?.updatedAt || record?.startedAt || record?.completedAt || record?.endedAt || record?.timestamp || record?.startDate;
+  if (!candidate) return "Undated";
+  const raw = String(candidate);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? /* @__PURE__ */ new Date(`${raw}T00:00:00`) : new Date(candidate);
+  return Number.isNaN(date.getTime()) ? "Undated" : date.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+}
+function resetRecordTitle(record) {
+  const value = record?.title || record?.name || record?.label || record?.note || record?.content || record?.description || record?.category || record?._resetKind || "Saved record";
+  return String(value).replace(/\s+/g, " ").trim().slice(0, 88) || "Saved record";
+}
+function renderResetRecordGroups(category) {
+  const records = getResetCategoryRecords(category);
+  if (!records.length) return '<p class="daysync-reset-empty">No saved records found in this section.</p>';
+  const groups = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    const date = resetRecordDate(record);
+    if (!groups.has(date)) groups.set(date, []);
+    groups.get(date).push(record);
+  }
+  return [...groups.entries()].sort((a, b) => {
+    if (a[0] === "Undated") return 1;
+    if (b[0] === "Undated") return -1;
+    return new Date(b[0]) - new Date(a[0]);
+  }).map(([date, rows]) => `<section class="daysync-reset-date-group"><header><strong>${escapeHtml5(date)}</strong><span>${rows.length} ${rows.length === 1 ? "item" : "items"}</span></header><div>${rows.map((record) => `<article class="daysync-reset-record"><span>${escapeHtml5(record._resetKind || "Saved item")}</span><strong>${escapeHtml5(resetRecordTitle(record))}</strong>${record.amount != null ? `<small>${escapeHtml5(formatINR(record.amount))}</small>` : ""}</article>`).join("")}</div></section>`).join("");
+}
+function renderResetOptionsPage() {
+  const selected = state.resetOptionsSelected || {};
+  const selectedCategories = Object.keys(RESET_CATEGORY_META).filter((key) => selected[key]);
+  const selectedCount = selectedCategories.reduce((sum, key) => sum + getResetCategoryRecords(key).length, 0);
+  const summary = selectedCategories.map((key) => `<li>${escapeHtml5(RESET_CATEGORY_META[key].title)} <strong>${getResetCategoryRecords(key).length}</strong></li>`).join("");
+  return `
+    <section class="screen daysync-reset-screen" aria-label="Reset options">
+      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which saved information to review and remove.</p></div></header>
+      <div class="daysync-reset-warning"><span>\u26A0</span><div><strong>Permanent deletion</strong><p>Review each section and its saved dates. Reset only the categories you select. This action cannot be undone.</p></div></div>
+      <div class="daysync-reset-category-list">
+        ${Object.entries(RESET_CATEGORY_META).map(([key, meta]) => {
+    const records = getResetCategoryRecords(key);
+    const isSelected = Boolean(selected[key]);
+    return `<button type="button" class="daysync-reset-category ${isSelected ? "is-selected" : ""}" data-action="reset-toggle-category" data-category="${key}" aria-pressed="${isSelected}"><span class="daysync-reset-category-check">${isSelected ? "\u2713" : ""}</span><span class="daysync-reset-category-icon">${meta.icon}</span><span class="daysync-reset-category-copy"><strong>${meta.title}</strong><small>${meta.description}</small><small>${records.length} saved ${records.length === 1 ? "item" : "items"} \xB7 ${isSelected ? "Included in reset" : "Tap to select and preview"}</small></span><span class="daysync-setting-trail">${isSelected ? "\u2304" : "\u203A"}</span></button>${isSelected ? `<div class="daysync-reset-preview">${renderResetRecordGroups(key)}</div>` : ""}`;
+  }).join("")}
       </div>
-    </section>
-  `;
+      <div class="daysync-reset-select-actions"><button type="button" data-action="reset-select-all">${selectedCategories.length === Object.keys(RESET_CATEGORY_META).length ? "Deselect all sections" : "Select all sections"}</button><span>${selectedCategories.length} sections \xB7 ${selectedCount} records selected</span></div>
+      <div class="daysync-reset-review-bar"><button type="button" class="daysync-reset-cancel" data-action="reset-back-settings">Cancel</button><button type="button" class="daysync-reset-review-button" data-action="reset-review" ${!selectedCategories.length || state.resetOptionsBusy ? "disabled" : ""}>Review reset <span>(${selectedCategories.length})</span></button></div>
+      ${state.resetConfirmOpen ? `<div class="daysync-reset-modal-backdrop" role="presentation"><section class="daysync-reset-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="reset-confirm-title"><div class="daysync-reset-danger-symbol">\u26A0\uFE0F</div><p class="daysync-eyebrow">FINAL REVIEW</p><h2 id="reset-confirm-title">Delete selected data?</h2><p class="daysync-reset-confirm-copy">This permanently deletes <strong>${selectedCount} saved records</strong> across the selected sections. Your account will not be deleted, but this data cannot be recovered.</p><ul class="daysync-reset-confirm-list">${summary}</ul><label class="daysync-reset-ack"><input type="checkbox" data-reset-acknowledge> <span>I understand this deletion is permanent.</span></label><label class="daysync-reset-phrase-label" for="reset-confirm-phrase">Type <strong>DELETE</strong> to confirm</label><input id="reset-confirm-phrase" class="daysync-reset-phrase" type="text" autocomplete="off" autocapitalize="characters" placeholder="Type DELETE" aria-label="Type DELETE to confirm"><div class="daysync-reset-modal-actions"><button type="button" class="daysync-reset-cancel" data-action="reset-cancel">Go back</button><button type="button" class="daysync-reset-confirm-button" data-action="reset-confirm" ${state.resetOptionsBusy ? "disabled" : ""}>${state.resetOptionsBusy ? "Deleting\u2026" : "Permanently delete"}</button></div></section></div>` : ""}
+    </section>`;
 }
 async function updateThemeInDatabase(theme) {
   try {
@@ -6083,10 +6293,10 @@ async function saveReminderSettings(settings) {
 }
 function areDeviceNotificationsEnabled() {
   if (state.user?.preferences?.reminderSettings?.enabled === false) return false;
-  if (!window.SAHRA_NOTIFICATIONS?.isNative?.()) {
-    return "Notification" in window && Notification.permission === "granted";
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    return window.SAHRA_NOTIFICATIONS.getCachedPermission?.() === "granted";
   }
-  return true;
+  return "Notification" in window && Notification.permission === "granted";
 }
 async function toggleDeviceNotifications() {
   const current = state.user?.preferences?.reminderSettings || {};
@@ -6292,10 +6502,10 @@ function nativeReminderPayload(resource, item) {
   const time = resource === "event" ? item.startTime : item.time;
   return {
     id: stableNotificationId(resource, itemId),
-    title: "Sahra reminder",
+    title: "DaySync reminder",
     body: `${resource === "event" ? "Event" : "Task"}: ${item.title}${time ? ` \u2022 ${time}` : ""}`,
     schedule: { at: scheduledAt, allowWhileIdle: true },
-    channelId: "sahra-reminders",
+    channelId: "daysync-reminders",
     sound: "default",
     extra: { date: item.date, resource, id: String(itemId) }
   };
@@ -6319,7 +6529,7 @@ async function reconcileNativeNotifications({ requestPermission = false } = {}) 
     return result;
   } catch (error) {
     console.warn("Native reminder reconciliation failed:", error.message);
-    if (requestPermission) showToast("Sahra could not register this device reminder.");
+    if (requestPermission) showToast("DaySync could not register this device reminder.");
     return { native: true, error };
   }
 }
@@ -6334,10 +6544,10 @@ async function showSahraNotification(resource, item) {
     data: { date: item.date, resource, id: item.id || item._id }
   };
   if (registration?.showNotification) {
-    await registration.showNotification("Sahra reminder", options);
+    await registration.showNotification("DaySync reminder", options);
     return;
   }
-  const notification = new Notification("Sahra reminder", options);
+  const notification = new Notification("DaySync reminder", options);
   notification.onclick = () => {
     window.focus();
     window.location.href = `/dashboard?date=${encodeURIComponent(item.date)}`;
@@ -6490,6 +6700,14 @@ function setView(nextView) {
   renderLayout();
 }
 function goBackFromView() {
+  if (state.view === "calendar") {
+    state.view = "home";
+    state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== "menu" && view !== "calendar");
+    state.moreMenuOpen = false;
+    state.menuOpen = false;
+    renderLayout();
+    return;
+  }
   if (state.navigationHistory.length > 0) {
     state.view = state.navigationHistory.pop();
   } else {
@@ -6568,7 +6786,7 @@ function renderProfileModal() {
             ${(user.name || "S").charAt(0).toUpperCase()}
           </div>
           <div style="overflow: hidden;">
-            <strong style="display: block; font-size: 1.2rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.name || "Sahra User"}</strong>
+            <strong style="display: block; font-size: 1.2rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.name || "DaySync User"}</strong>
             <span style="color: var(--muted); font-size: 0.82rem; word-break: break-all;">${user.email || ""}</span>
           </div>
         </div>
@@ -6848,6 +7066,8 @@ function renderHomePage() {
   const todaysIncome = incomeOf(todaysTransactions);
   const todaysExpense = expenseOf(todaysTransactions);
   const totalBalance = incomeOf(transactions) - expenseOf(transactions);
+  const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
+  const isLightTheme = state.theme === "light";
   const weather = state.weather || {};
   const liveCurrent = weather.data?.current;
   const liveDaily = weather.data?.daily;
@@ -6857,14 +7077,13 @@ function renderHomePage() {
   const eventCountForSelectedDay = state.data.events.filter((event) => getRecordDateKey(event.date) === state.selectedDate).length;
   const selectedWeatherLocation = weather.locationLabel ? escapeHtml5(weather.locationLabel) : "Local forecast";
   return `
-    <section class="screen home-screen" aria-label="Sahra home">
+    <section class="screen home-screen" aria-label="DaySync home">
       <section class="hero glass-card page-fixed-header home-hero">
         <div class="hero-top">
           <div class="brand">
             <div class="brand-mark">${renderSahraLogo(52)}</div>
-            <div class="brand-text"><h1>Sahra</h1><p>LIFE CALENDAR</p></div>
+            <div class="brand-text"><h1>DaySync</h1><p>DAILY PLANNER</p></div>
           </div>
-
         </div>
       </section>
 
@@ -7004,10 +7223,10 @@ function renderWeatherPage() {
   const light = state.theme === "light";
   const safeLocation = escapeHtml5(weather.locationLabel || "Current location");
   const metric = (label, value, hint = "", icon = "\u2022") => `<article class="weather-metric-card"><span class="weather-metric-icon" aria-hidden="true">${icon}</span><div class="weather-metric-copy"><span>${label}</span><strong>${value}</strong>${hint ? `<small>${hint}</small>` : ""}</div></article>`;
-  const statusContent = weather.status === "loading" ? `<div class="weather-status-panel is-loading"><span class="weather-spinner"></span><div><strong>Getting real weather\u2026</strong><p>Fetching current conditions and the forecast.</p></div></div>` : weather.status === "error" ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>Weather unavailable</strong><p>${escapeHtml5(weather.error || "Could not fetch weather data.")}</p><p>Allow location access or search for a city below.</p></div></div>` : !current ? `<div class="weather-status-panel"><span class="weather-status-symbol">\u2601</span><div><strong>Live weather, not estimates</strong><p>Use your device location or search a city to load current weather from the forecast service.</p></div></div>` : "";
+  const statusContent = weather.status === "loading" ? `<div class="weather-status-panel is-loading"><span class="weather-spinner"></span><div><strong>Getting real weather\u2026</strong><p>Fetching current conditions and the forecast.</p></div></div>` : weather.status === "error" ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>Weather unavailable</strong><p>${escapeHtml5(weather.error || "Could not fetch weather data.")}</p><p>Allow location access or search for a city below.</p>${window.Capacitor?.isNativePlatform?.() && /location|permission|gps|services|denied/i.test(weather.error || "") ? `<div class="weather-permission-actions"><button type="button" data-action="open-location-permission-settings">App permissions</button><button type="button" data-action="open-device-location-settings">Device location</button></div>` : ""}</div></div>` : !current ? `<div class="weather-status-panel"><span class="weather-status-symbol">\u2601</span><div><strong>Live weather, not estimates</strong><p>Use your device location or search a city to load current weather from the forecast service.</p></div></div>` : "";
   return `
     <section class="screen weather-page" aria-label="Detailed weather">
-      <header class="weather-page-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">\u2039</button><div class="weather-page-heading"><p>SAHRA \u2022 LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === "loading" ? "disabled" : ""} aria-label="Refresh weather">\u21BB</button></header>
+      <header class="weather-page-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">\u2039</button><div class="weather-page-heading"><p>DAYSYNC \u2022 LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === "loading" ? "disabled" : ""} aria-label="Refresh weather">\u21BB</button></header>
       ${statusContent}
       ${current && data ? `
         <section class="weather-hero-panel">
@@ -7040,6 +7259,18 @@ function renderWeatherPage() {
       <p class="weather-source-note">Weather and forecast provided by Open-Meteo. Location access is used only to find local forecast coordinates.</p>
     </section>`;
 }
+async function openDaySyncNativeSettings(method) {
+  const plugin = window.Capacitor?.Plugins?.DaySyncSettings;
+  if (!window.Capacitor?.isNativePlatform?.() || typeof plugin?.[method] !== "function") {
+    showToast("Open your device Settings and select DaySync permissions.");
+    return;
+  }
+  try {
+    await plugin[method]();
+  } catch (error) {
+    showToast(error.message || "Could not open device settings.");
+  }
+}
 async function geocodeWeatherCity(city) {
   const url = `https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({ name: city, count: "1", language: "en", format: "json" })}`;
   const response = await fetch(url);
@@ -7049,13 +7280,45 @@ async function geocodeWeatherCity(city) {
   if (!place) throw new Error(`No location found for \u201C${city}\u201D. Check the spelling and try again.`);
   return { latitude: place.latitude, longitude: place.longitude, label: [place.name, place.admin1, place.country].filter(Boolean).filter((x, i, arr) => arr.indexOf(x) === i).join(", ") };
 }
-function getBrowserCoordinates() {
+async function getBrowserCoordinates() {
+  const isNative2 = Boolean(window.Capacitor?.isNativePlatform?.());
+  if (isNative2) {
+    try {
+      let permissions = await Geolocation2.checkPermissions();
+      const allowed = () => permissions.location === "granted" || permissions.coarseLocation === "granted";
+      if (!allowed()) {
+        permissions = await Geolocation2.requestPermissions({ permissions: ["location", "coarseLocation"] });
+      }
+      if (!allowed()) {
+        throw new Error("Location permission was denied. Allow DaySync location access in Android Settings, or search for a city below.");
+      }
+      const position = await Geolocation2.getCurrentPosition({
+        enableHighAccuracy: permissions.location === "granted",
+        timeout: 15e3,
+        maximumAge: 5 * 60 * 1e3
+      });
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        label: "Your current location"
+      };
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (/denied|permission/i.test(message)) {
+        throw new Error("Location permission is unavailable. Enable location for DaySync in Android Settings, or search for a city below.");
+      }
+      if (/disabled|services|location provider/i.test(message)) {
+        throw new Error("Turn on device location services and try again, or search for a city below.");
+      }
+      throw new Error(`${message || "Could not determine your device location."} You can also search for a city below.`);
+    }
+  }
+  if (!navigator.geolocation) throw new Error("This browser does not support location access. Search for a city below.");
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("This browser does not support location access."));
     navigator.geolocation.getCurrentPosition(
       (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: "Your current location" }),
-      (error) => reject(new Error(error.code === 1 ? "Location permission was denied." : "Could not determine your location.")),
-      { enableHighAccuracy: false, timeout: 12e3, maximumAge: 5 * 60 * 1e3 }
+      (error) => reject(new Error(error.code === 1 ? "Location permission was denied. Allow location access in browser settings, or search for a city below." : error.code === 2 ? "Your location is unavailable. Turn on location services or search for a city below." : "Location lookup timed out. Try again or search for a city below.")),
+      { enableHighAccuracy: false, timeout: 15e3, maximumAge: 5 * 60 * 1e3 }
     );
   });
 }
@@ -7078,6 +7341,10 @@ async function fetchLiveWeather(location, requestId) {
   if (!data.current || !data.daily || !data.hourly) throw new Error("The weather service returned incomplete data. Please refresh.");
   if (state.weather.requestId !== requestId) return;
   state.weather = { ...state.weather, status: "success", data, locationLabel: location.label, error: "", updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  try {
+    localStorage.setItem("daysyncWeatherLocation", JSON.stringify({ latitude: Number(location.latitude), longitude: Number(location.longitude), label: String(location.label || "Selected location") }));
+  } catch (_) {
+  }
 }
 async function loadWeatherForCurrentLocation(city = "") {
   const requestId = Number(state.weather.requestId || 0) + 1;
@@ -7091,10 +7358,19 @@ async function loadWeatherForCurrentLocation(city = "") {
       try {
         location = await getBrowserCoordinates();
       } catch (locationError) {
-        const savedLocation = state.user?.location || state.user?.preferences?.location || state.user?.city || "";
-        if (!String(savedLocation).trim()) throw new Error(`${locationError.message} Allow location access in your browser, or search for a city below.`);
-        location = await geocodeWeatherCity(String(savedLocation));
-        location.label = `${location.label} \xB7 saved profile location`;
+        let savedWeatherLocation = null;
+        try {
+          savedWeatherLocation = JSON.parse(localStorage.getItem("daysyncWeatherLocation") || "null");
+        } catch (_) {
+        }
+        if (savedWeatherLocation && Number.isFinite(Number(savedWeatherLocation.latitude)) && Number.isFinite(Number(savedWeatherLocation.longitude)) && Math.abs(Number(savedWeatherLocation.latitude)) <= 90 && Math.abs(Number(savedWeatherLocation.longitude)) <= 180) {
+          location = { latitude: Number(savedWeatherLocation.latitude), longitude: Number(savedWeatherLocation.longitude), label: `${String(savedWeatherLocation.label || "Selected location")} \xB7 last selected` };
+        } else {
+          const savedLocation = state.user?.location || state.user?.preferences?.location || state.user?.city || "";
+          if (!String(savedLocation).trim()) throw new Error(`${locationError.message} Allow location access in your browser, or search for a city below.`);
+          location = await geocodeWeatherCity(String(savedLocation));
+          location.label = `${location.label} \xB7 saved profile location`;
+        }
       }
     }
     await fetchLiveWeather(location, requestId);
@@ -7112,17 +7388,17 @@ function renderFocusPage() {
   const progress = Math.min(100, Math.max(0, (total - left) / total * 100));
   const mm = String(Math.floor(left / 60)).padStart(2, "0");
   const ss = String(left % 60).padStart(2, "0");
-  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
-  const today = formatDateKey2(/* @__PURE__ */ new Date());
-  const todaySessions = sessions.filter((x) => x.date === today && x.completed);
-  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
   const light = state.theme === "light";
+  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const todayKey = formatDateKey2(/* @__PURE__ */ new Date());
+  const todaySessions = sessions.filter((x) => x.date === todayKey && x.completed);
+  const todayMinutes = todaySessions.reduce((sum, x) => sum + (Number(x.minutes) || 0), 0);
   return `
-    <section class="screen focus-screen" aria-label="Focus timer">
+    <section class="screen focus-screen" aria-label="Focus Timer">
       <header class="focus-header">
         <button class="focus-back" type="button" data-action="focus-back" aria-label="Back">\u2039</button>
-        <div><p class="focus-eyebrow">SAHRA \u2022 DEEP WORK</p><h1>Focus &amp; Study</h1></div>
-        <span class="focus-mode-pill">${state.focusRunning ? "FOCUSING" : "READY"}</span>
+        <div class="focus-title-copy"><p class="focus-eyebrow">DAYSYNC \u2022 FOCUS SESSION</p><h1>Focus Timer</h1></div>
+        <span class="focus-mode-pill">${state.focusRunning ? "FOCUSING" : state.focusAlarmActive ? "COMPLETE" : "READY"}</span>
       </header>
       <div class="focus-card glass-card">
         <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || "Study session")}" placeholder="Study session" /></div>
@@ -7131,121 +7407,324 @@ function renderFocusPage() {
             <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
             <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2 * Math.PI * 101}; stroke-dashoffset: ${2 * Math.PI * 101 * (1 - progress / 100)}"></circle>
           </svg>
-          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? "STAY IN THE FLOW" : "READY WHEN YOU ARE"}</span></div>
+          <div class="focus-clock"><strong id="focus-clock">${mm}:${ss}</strong><span id="focus-status">${state.focusRunning ? "STAY IN THE FLOW" : state.focusAlarmActive ? "SESSION COMPLETE" : "READY WHEN YOU ARE"}</span></div>
         </div>
         <div class="focus-controls">
           <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">\u21BA</button>
           <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? "Pause timer" : "Start timer"}">${state.focusRunning ? "\u2161" : "\u25B6"}</button>
           <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">\u25A0</button>
         </div>
-        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round(total / 60))}" ${state.focusRunning ? "disabled" : ""}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? "disabled" : ""}>Set time</button></div></div>
+        <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round((state.focusSeconds > 0 ? state.focusSeconds : total) / 60))}" ${state.focusRunning ? "disabled" : ""}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? "disabled" : ""}>Set time</button></div></div>
         <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? "disabled" : ""}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? "disabled" : ""}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? "disabled" : ""}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? "disabled" : ""}>60 min</button></div>
         <p class="focus-tip">${light ? "A clear mind starts with one focused session." : "One session. One goal. Keep your momentum."}</p>
       </div>
       <div class="focus-stats"><div class="focus-stat glass-card"><span>Today\u2019s focus</span><strong>${todayMinutes} <small>min</small></strong></div><div class="focus-stat glass-card"><span>Sessions completed</span><strong>${todaySessions.length}</strong></div><div class="focus-stat glass-card"><span>Total sessions</span><strong>${sessions.filter((x) => x.completed).length}</strong></div></div>
-      <p class="focus-notice">Keep Sahra open for the on-screen alarm. Mobile notifications require permission; native app notifications can appear while the app is in the background.</p>
     </section>`;
 }
 var focusTicker = null;
 var focusCompletionNotificationId = 941207;
-function focusBeep() {
+var focusAudioContext = null;
+var focusAudioNodes = [];
+var focusAudioInterval = null;
+var focusAudioStopTimeout = null;
+var lastFocusPersistedSecond = -1;
+var FOCUS_TIMER_STORAGE_KEY = "daysyncFocusTimerState";
+function focusCreateSessionId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+function persistFocusTimerState() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    [0, 0.35, 0.7].forEach((delay) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(1e-4, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + delay + 0.03);
-      gain.gain.exponentialRampToValueAtTime(1e-4, ctx.currentTime + delay + 0.22);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.24);
-    });
-    setTimeout(() => ctx.close().catch(() => {
-    }), 1500);
+    localStorage.setItem(FOCUS_TIMER_STORAGE_KEY, JSON.stringify({
+      focusSeconds: Number(state.focusSeconds) || 0,
+      focusInitialSeconds: Number(state.focusInitialSeconds) || 1500,
+      focusRunning: Boolean(state.focusRunning),
+      focusEndsAt: Number(state.focusEndsAt) || null,
+      focusLabel: String(state.focusLabel || "Study session").slice(0, 60),
+      focusAlarmActive: Boolean(state.focusAlarmActive),
+      focusAlarmStartedAt: Number(state.focusAlarmStartedAt) || null,
+      focusSessionId: state.focusSessionId || null,
+      focusLastCompletedId: state.focusLastCompletedId || null
+    }));
   } catch (error) {
-    console.warn("Focus alarm audio unavailable:", error);
+    console.warn("Could not persist Focus Timer state:", error);
   }
 }
-async function focusCancelNotification() {
+function focusStopAudio({ closeContext = true } = {}) {
+  if (focusAudioInterval) clearInterval(focusAudioInterval);
+  if (focusAudioStopTimeout) clearTimeout(focusAudioStopTimeout);
+  focusAudioInterval = null;
+  focusAudioStopTimeout = null;
+  focusAudioNodes.forEach((node) => {
+    try {
+      node.stop();
+    } catch (_) {
+    }
+  });
+  focusAudioNodes = [];
+  if (closeContext && focusAudioContext) {
+    const context = focusAudioContext;
+    focusAudioContext = null;
+    try {
+      void context.close();
+    } catch (_) {
+    }
+  }
+}
+function focusPrimeAudio() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
   try {
-    if (window.Capacitor?.isNativePlatform?.()) await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] });
+    if (!focusAudioContext || focusAudioContext.state === "closed") focusAudioContext = new AudioCtx();
+    if (focusAudioContext.state === "suspended") void focusAudioContext.resume().catch(() => {
+    });
   } catch (error) {
-    console.warn("Could not cancel focus notification:", error.message);
+    console.warn("Focus alarm audio could not be prepared:", error);
+  }
+}
+function focusStartAlarmTone(durationMs = 1e4) {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx || durationMs <= 0) return;
+  focusStopAudio({ closeContext: false });
+  try {
+    if (!focusAudioContext || focusAudioContext.state === "closed") focusAudioContext = new AudioCtx();
+    const context = focusAudioContext;
+    if (context.state === "suspended") void context.resume().catch(() => {
+    });
+    const startedAt = Date.now();
+    const pulse = () => {
+      if (!focusAudioContext || focusAudioContext !== context || Date.now() - startedAt >= durationMs) return;
+      const now = context.currentTime;
+      [0, 0.18].forEach((delay, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = index ? 1046.5 : 880;
+        gain.gain.setValueAtTime(1e-4, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.2, now + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(1e-4, now + delay + 0.15);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now + delay);
+        oscillator.stop(now + delay + 0.17);
+        focusAudioNodes.push(oscillator);
+        oscillator.onended = () => {
+          focusAudioNodes = focusAudioNodes.filter((node) => node !== oscillator);
+          try {
+            oscillator.disconnect();
+            gain.disconnect();
+          } catch (_) {
+          }
+        };
+      });
+    };
+    pulse();
+    focusAudioInterval = setInterval(pulse, 650);
+    focusAudioStopTimeout = setTimeout(() => focusStopAudio({ closeContext: true }), durationMs);
+  } catch (error) {
+    console.warn("Focus alarm audio is unavailable on this device:", error);
+    focusStopAudio();
+  }
+}
+async function focusCancelNotification({ removeDelivered = false } = {}) {
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id: focusCompletionNotificationId }] });
+    if (removeDelivered) await LocalNotifications.removeDeliveredNotifications({ notifications: [{ id: focusCompletionNotificationId }] });
+  } catch (error) {
+    console.warn("Could not cancel Focus Timer notification:", error.message);
   }
 }
 async function focusScheduleNotification(seconds) {
-  if (window.Capacitor?.isNativePlatform?.()) {
-    try {
-      let permission = await LocalNotifications.checkPermissions();
-      if (permission.display !== "granted") permission = await LocalNotifications.requestPermissions();
-      if (permission.display === "granted") {
-        await LocalNotifications.schedule({ notifications: [{ id: focusCompletionNotificationId, title: "Focus session complete \u{1F389}", body: `${state.focusLabel || "Your focus session"} is finished. Take a short break.`, schedule: { at: new Date(Date.now() + seconds * 1e3), allowWhileIdle: true }, sound: "default", channelId: "sahra-reminders" }] });
+  if (!window.Capacitor?.isNativePlatform?.()) {
+    if ("Notification" in window && Notification.permission === "default") {
+      try {
+        await Notification.requestPermission();
+      } catch (_) {
       }
-    } catch (error) {
-      console.warn("Native focus notification unavailable:", error.message);
     }
-  } else if ("Notification" in window && Notification.permission === "default") {
-    try {
-      await Notification.requestPermission();
-    } catch (_) {
+    return;
+  }
+  try {
+    if (window.SAHRA_NOTIFICATIONS?.ready) await window.SAHRA_NOTIFICATIONS.ready;
+    let permission = await LocalNotifications.checkPermissions();
+    if (permission.display !== "granted" && ["prompt", "prompt-with-rationale", "unknown"].includes(permission.display)) {
+      permission = await LocalNotifications.requestPermissions();
     }
+    if (permission.display !== "granted") {
+      showToast("Enable DaySync notifications in Android Settings to receive timer alerts while the app is in the background.");
+      return;
+    }
+    await LocalNotifications.schedule({ notifications: [{
+      id: focusCompletionNotificationId,
+      title: "Focus session complete",
+      body: `${state.focusLabel || "Your focus session"} is finished. Tap Reset to start another session.`,
+      schedule: { at: new Date(Date.now() + Math.max(1, seconds) * 1e3), allowWhileIdle: true },
+      sound: "daysync_alarm.wav",
+      channelId: "daysync-focus-alarm",
+      actionTypeId: "daysync-focus-alarm",
+      autoCancel: false,
+      extra: { type: "focus-alarm", sessionId: String(state.focusSessionId || "") }
+    }] });
+  } catch (error) {
+    console.warn("Could not schedule background Focus Timer alert:", error.message);
+    showToast("The on-screen timer works, but Android could not schedule its background alert. Check notification/alarm permissions in Settings.");
   }
 }
+function focusUpdateClock() {
+  const clock = document.getElementById("focus-clock");
+  if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds / 60)).padStart(2, "0")}:${String(state.focusSeconds % 60).padStart(2, "0")}`;
+  const progress = document.querySelector(".focus-ring-progress");
+  if (progress) progress.style.strokeDashoffset = `${2 * Math.PI * 101 * (1 - (state.focusInitialSeconds - state.focusSeconds) / Math.max(1, state.focusInitialSeconds))}`;
+}
 function focusFinish() {
+  if (state.focusAlarmActive || !state.focusRunning && state.focusSeconds === 0 && state.focusLastCompletedId === state.focusSessionId) return;
   clearInterval(focusTicker);
   focusTicker = null;
   state.focusRunning = false;
+  state.focusStartedAt = null;
+  state.focusEndsAt = null;
   state.focusSeconds = 0;
-  const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
-  const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
-  sessions.unshift({ date: formatDateKey2(/* @__PURE__ */ new Date()), minutes, label: state.focusLabel || "Study session", completed: true, completedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  state.focusSessions = sessions.slice(0, 500);
-  try {
-    localStorage.setItem("sahraFocusSessions", JSON.stringify(state.focusSessions));
-  } catch (_) {
-  }
-  focusBeep();
-  if ("Notification" in window && Notification.permission === "granted") {
+  if (!state.focusSessionId) state.focusSessionId = focusCreateSessionId();
+  if (state.focusLastCompletedId !== state.focusSessionId) {
+    const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+    const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+    sessions.unshift({ date: formatDateKey2(/* @__PURE__ */ new Date()), minutes, label: state.focusLabel || "Study session", completed: true, completedAt: (/* @__PURE__ */ new Date()).toISOString(), sessionId: state.focusSessionId });
+    state.focusSessions = sessions.slice(0, 500);
+    state.focusLastCompletedId = state.focusSessionId;
     try {
-      new Notification("Focus session complete \u{1F389}", { body: `${state.focusLabel || "Your focus session"} is finished. Take a short break.` });
+      localStorage.setItem("sahraFocusSessions", JSON.stringify(state.focusSessions));
     } catch (_) {
     }
   }
-  void focusCancelNotification();
-  showToast("Focus session complete! Great work.");
+  state.focusAlarmActive = true;
+  state.focusAlarmStartedAt = Date.now();
+  persistFocusTimerState();
+  if (document.visibilityState !== "hidden") focusStartAlarmTone(1e4);
+  if ("Notification" in window && Notification.permission === "granted" && !window.Capacitor?.isNativePlatform?.() && document.visibilityState === "hidden") {
+    try {
+      new Notification("DaySync Focus Timer", { body: `${state.focusLabel || "Focus session"} is complete.`, icon: "./image-192.png", tag: "daysync-focus-complete" });
+    } catch (_) {
+    }
+  }
+  if (document.visibilityState === "visible") void focusCancelNotification({ removeDelivered: true });
+  showToast("Focus session complete! Your alarm will stop after 10 seconds.");
   renderLayout();
 }
-function focusStartTicker() {
+function focusTick() {
+  if (!state.focusRunning || !state.focusEndsAt) return;
+  state.focusSeconds = Math.max(0, Math.ceil((state.focusEndsAt - Date.now()) / 1e3));
+  if (state.focusSeconds !== lastFocusPersistedSecond) {
+    lastFocusPersistedSecond = state.focusSeconds;
+    persistFocusTimerState();
+  }
+  focusUpdateClock();
+  if (state.focusSeconds <= 0) focusFinish();
+}
+function focusStartTicker({ resume = false } = {}) {
   clearInterval(focusTicker);
   state.focusRunning = true;
+  if (!resume || !state.focusEndsAt) state.focusEndsAt = Date.now() + Math.max(1, state.focusSeconds) * 1e3;
   state.focusStartedAt = Date.now();
+  if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
+  state.focusAlarmActive = false;
+  state.focusAlarmStartedAt = null;
+  lastFocusPersistedSecond = -1;
+  persistFocusTimerState();
   void focusScheduleNotification(state.focusSeconds);
-  focusTicker = setInterval(() => {
-    if (!state.focusRunning) return;
-    const elapsed = Math.floor((Date.now() - state.focusStartedAt) / 1e3);
-    state.focusSeconds = Math.max(0, state.focusInitialSeconds - elapsed);
-    const clock = document.getElementById("focus-clock");
-    if (clock) clock.textContent = `${String(Math.floor(state.focusSeconds / 60)).padStart(2, "0")}:${String(state.focusSeconds % 60).padStart(2, "0")}`;
-    const progress = document.querySelector(".focus-ring-progress");
-    if (progress) progress.style.strokeDashoffset = `${2 * Math.PI * 101 * (1 - (state.focusInitialSeconds - state.focusSeconds) / Math.max(1, state.focusInitialSeconds))}`;
-    if (state.focusSeconds <= 0) focusFinish();
-  }, 250);
+  focusTick();
+  if (state.focusRunning) focusTicker = setInterval(focusTick, 250);
   renderLayout();
 }
 function focusPause() {
   if (!state.focusRunning) return;
-  state.focusSeconds = Math.max(0, state.focusInitialSeconds - Math.floor((Date.now() - state.focusStartedAt) / 1e3));
-  state.focusInitialSeconds = Math.max(1, state.focusSeconds);
+  state.focusSeconds = Math.max(0, Math.ceil(((state.focusEndsAt || Date.now()) - Date.now()) / 1e3));
   state.focusRunning = false;
+  state.focusStartedAt = null;
+  state.focusEndsAt = null;
   clearInterval(focusTicker);
   focusTicker = null;
   void focusCancelNotification();
+  persistFocusTimerState();
+  renderLayout();
+}
+function focusDismissAlarm({ reset = false, expectedSessionId = null } = {}) {
+  if (expectedSessionId && state.focusSessionId && expectedSessionId !== state.focusSessionId) return;
+  focusStopAudio();
+  state.focusAlarmActive = false;
+  state.focusAlarmStartedAt = null;
+  state.focusRunning = false;
+  state.focusEndsAt = null;
+  clearInterval(focusTicker);
+  focusTicker = null;
+  void focusCancelNotification({ removeDelivered: true });
+  if (reset) {
+    state.view = "focus";
+    state.focusSeconds = Math.max(1, Number(state.focusInitialSeconds) || 1500);
+    state.focusSessionId = null;
+  }
+  persistFocusTimerState();
+  renderLayout();
+}
+function renderFocusAlarmOverlay() {
+  document.getElementById("daysync-focus-alarm-overlay")?.remove();
+  if (!state.focusAlarmActive) return;
+  const banner = document.createElement("section");
+  banner.id = "daysync-focus-alarm-overlay";
+  banner.className = "daysync-focus-alarm";
+  banner.setAttribute("role", "alertdialog");
+  banner.setAttribute("aria-live", "assertive");
+  banner.innerHTML = `
+    <div class="daysync-focus-alarm-copy"><span class="daysync-focus-alarm-icon" aria-hidden="true">\u23F1</span><div><strong>Focus session completed</strong><p>${escapeHtml5(state.focusLabel || "Your focus session")} is finished.</p></div></div>
+    <div class="daysync-focus-alarm-actions"><button type="button" data-focus-alarm-action="stop">Stop</button><button type="button" data-focus-alarm-action="reset">Reset</button></div>`;
+  document.body.appendChild(banner);
+}
+function handleFocusAlarmAction({ actionId, sessionId } = {}) {
+  const expected = sessionId ? String(sessionId) : null;
+  if (expected && state.focusSessionId && expected !== String(state.focusSessionId)) return;
+  if (state.focusRunning && state.focusEndsAt && state.focusEndsAt <= Date.now()) focusFinish();
+  if (actionId === "stop") focusDismissAlarm({ expectedSessionId: expected });
+  if (actionId === "reset") focusDismissAlarm({ reset: true, expectedSessionId: expected });
+}
+window.SAHRA_HANDLE_FOCUS_ALARM_ACTION = handleFocusAlarmAction;
+function processPendingFocusAlarmAction() {
+  try {
+    const raw = localStorage.getItem("daysyncPendingFocusAlarmAction");
+    if (!raw) return;
+    localStorage.removeItem("daysyncPendingFocusAlarmAction");
+    handleFocusAlarmAction(JSON.parse(raw));
+  } catch (error) {
+    console.warn("Could not restore Focus Timer notification action:", error);
+  }
+}
+function restorePersistedFocusTimer() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FOCUS_TIMER_STORAGE_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+    state.focusInitialSeconds = Math.max(60, Math.min(180 * 60, Number(saved.focusInitialSeconds) || 1500));
+    state.focusSeconds = Math.max(0, Math.min(state.focusInitialSeconds, Number(saved.focusSeconds) || 0));
+    state.focusLabel = String(saved.focusLabel || "Study session").slice(0, 60);
+    state.focusSessionId = saved.focusSessionId || null;
+    state.focusLastCompletedId = saved.focusLastCompletedId || null;
+    state.focusAlarmActive = Boolean(saved.focusAlarmActive);
+    state.focusAlarmStartedAt = Number(saved.focusAlarmStartedAt) || null;
+    if (saved.focusRunning && Number(saved.focusEndsAt) > 0) {
+      state.focusRunning = true;
+      state.focusEndsAt = Number(saved.focusEndsAt);
+      state.focusSeconds = Math.max(0, Math.ceil((state.focusEndsAt - Date.now()) / 1e3));
+      if (state.focusSeconds <= 0) focusFinish();
+      else focusStartTicker({ resume: true });
+    } else {
+      state.focusRunning = false;
+      state.focusEndsAt = null;
+      if (state.focusAlarmActive) {
+        const alarmAge = state.focusAlarmStartedAt ? Date.now() - state.focusAlarmStartedAt : 1e4;
+        if (alarmAge >= 0 && alarmAge < 1e4 && document.visibilityState !== "hidden") focusStartAlarmTone(1e4 - alarmAge);
+      }
+      persistFocusTimerState();
+    }
+  } catch (error) {
+    console.warn("Could not restore Focus Timer state:", error);
+  }
   renderLayout();
 }
 function bindFocusTimer() {
@@ -7254,18 +7733,21 @@ function bindFocusTimer() {
   const label = app.querySelector("#focus-label");
   label?.addEventListener("change", () => {
     state.focusLabel = label.value.trim() || "Study session";
+    persistFocusTimerState();
   });
   app.querySelectorAll("[data-focus-minutes]").forEach((button) => button.addEventListener("click", () => {
     if (state.focusRunning) return;
     const minutes = Math.max(1, Math.min(180, Number(button.dataset.focusMinutes) || 25));
     state.focusSeconds = state.focusInitialSeconds = minutes * 60;
+    state.focusSessionId = null;
+    state.focusAlarmActive = false;
+    persistFocusTimerState();
     renderLayout();
   }));
   app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener("click", () => {
     const action = button.dataset.action;
     if (action === "focus-back") {
-      state.view = "menu";
-      renderLayout();
+      goBackFromView();
     }
     if (action === "focus-toggle") {
       if (state.focusRunning) focusPause();
@@ -7273,34 +7755,65 @@ function bindFocusTimer() {
         const labelInput = document.getElementById("focus-label");
         state.focusLabel = labelInput?.value?.trim() || state.focusLabel || "Study session";
         if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
-        state.focusInitialSeconds = state.focusSeconds;
+        if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
+        focusStopAudio();
+        focusPrimeAudio();
         focusStartTicker();
       }
     }
     if (action === "focus-reset") {
       state.focusRunning = false;
+      state.focusEndsAt = null;
       clearInterval(focusTicker);
       focusTicker = null;
-      void focusCancelNotification();
+      focusStopAudio();
+      void focusCancelNotification({ removeDelivered: true });
+      state.focusAlarmActive = false;
+      state.focusAlarmStartedAt = null;
       state.focusSeconds = state.focusInitialSeconds;
+      state.focusSessionId = null;
+      persistFocusTimerState();
       renderLayout();
     }
     if (action === "focus-stop") {
       state.focusRunning = false;
+      state.focusEndsAt = null;
       clearInterval(focusTicker);
       focusTicker = null;
-      void focusCancelNotification();
+      focusStopAudio();
+      void focusCancelNotification({ removeDelivered: true });
+      state.focusAlarmActive = false;
+      state.focusAlarmStartedAt = null;
       state.focusSeconds = state.focusInitialSeconds = 25 * 60;
+      state.focusSessionId = null;
+      persistFocusTimerState();
       renderLayout();
     }
     if (action === "focus-set") {
       const input = document.getElementById("focus-minutes");
       const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25));
       state.focusSeconds = state.focusInitialSeconds = minutes * 60;
+      state.focusSessionId = null;
+      state.focusAlarmActive = false;
+      persistFocusTimerState();
       renderLayout();
     }
   }));
 }
+document.addEventListener("click", (event) => {
+  const alarmAction = event.target.closest("[data-focus-alarm-action]");
+  if (!alarmAction) return;
+  handleFocusAlarmAction({ actionId: alarmAction.dataset.focusAlarmAction, sessionId: state.focusSessionId });
+});
+window.addEventListener("daysync:resume", () => {
+  if (state.focusRunning) focusTick();
+  if (state.focusAlarmActive) renderFocusAlarmOverlay();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (state.focusRunning) focusTick();
+  if (state.focusAlarmActive) renderFocusAlarmOverlay();
+});
 function renderProgressPage() {
   const tasks = Array.isArray(state.data.tasks) ? state.data.tasks : [];
   const events = Array.isArray(state.data.events) ? state.data.events : [];
@@ -7814,6 +8327,53 @@ function renderProgressPage() {
 var isRendering = false;
 var lastAssistantMessageCount = null;
 var lastAssistantLoadingState = null;
+function applySharedPageBackButton() {
+  if (["home", "assistant", "menu"].includes(state.view)) return;
+  if (state.view === "finance" && ["transactions", "add-choice", "add-expense"].includes(state.financeView)) return;
+  const app = document.getElementById("app");
+  if (!app) return;
+  const selectors = {
+    tasks: ".todo-header",
+    vault: ".notepad-page-header",
+    finance: ".finance-dashboard-header, .finance-transactions-header",
+    calendar: ".page-header",
+    mood: ".page-header",
+    habits: ".page-header",
+    goals: ".page-header",
+    progress: ".dashboard-topbar",
+    focus: ".focus-header",
+    weather: ".weather-page-header",
+    settings: ".daysync-settings-header",
+    "reset-options": ".daysync-reset-header"
+  };
+  let header = app.querySelector(selectors[state.view] || ".screen > header, .screen > .page-header");
+  if (!header && state.view === "finance") header = app.querySelector(".finance-transactions-header");
+  if (!header) {
+    const root = app.querySelector(".screen, .finance-dashboard-page, .notepad-container") || app.firstElementChild;
+    if (!root) return;
+    header = document.createElement("header");
+    header.className = "daysync-generated-page-header daysync-common-header";
+    root.prepend(header);
+  }
+  header.classList.add("daysync-common-header");
+  let button = header.querySelector(".daysync-page-back-button, .weather-back-button, .focus-back, .daysync-settings-back, .back-button");
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.className = "daysync-page-back-button";
+    button.dataset.action = "shared-page-back";
+    button.setAttribute("aria-label", "Back");
+    button.title = "Back";
+    button.textContent = "\u2039";
+    header.prepend(button);
+  } else {
+    button.classList.add("daysync-page-back-button");
+    button.setAttribute("aria-label", "Back");
+    button.title = "Back";
+    if (button.classList.contains("back-button")) button.textContent = "\u2039";
+  }
+  if (header.classList.contains("menu-page-heading")) header.classList.add("daysync-menu-header");
+}
 function renderLayout() {
   if (isRendering) return;
   isRendering = true;
@@ -7844,6 +8404,8 @@ function renderLayout() {
     content = renderMenuPage();
   } else if (state.view === "settings") {
     content = renderSettingsPage();
+  } else if (state.view === "reset-options") {
+    content = renderResetOptionsPage();
   } else if (state.view === "focus") {
     content = renderFocusPage();
   } else if (state.view === "weather") {
@@ -7852,6 +8414,8 @@ function renderLayout() {
     content = renderProgressPage();
   }
   app.innerHTML = content + renderEntryModal() + renderProfileModal();
+  renderFocusAlarmOverlay();
+  applySharedPageBackButton();
   const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
   const assistantLoadingNow = Boolean(state.assistantLoading);
   const assistantConversationChanged = state.view === "assistant" && !viewChanged && (assistantMessageCount !== lastAssistantMessageCount || assistantLoadingNow !== lastAssistantLoadingState);
@@ -7875,7 +8439,7 @@ function renderLayout() {
     nav?.classList.remove("scroll-hidden");
   }
   syncKeyboardViewport();
-  const menuSubPages = ["menu", "settings", "tasks", "vault", "finance", "progress", "habits", "goals", "focus", "weather"];
+  const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals", "focus", "weather", "settings", "reset-options"];
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
     const isMenuButton = button.dataset.action === "toggle-more-menu";
     if (isMenuButton) {
@@ -7895,56 +8459,13 @@ function renderLayout() {
   app.querySelectorAll("[data-view]").forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener("click", () => {
-      if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "mood", "finance", "vault", "focus", "weather", "settings"].includes(button.dataset.view)) {
+      if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "mood", "finance", "vault", "focus", "weather", "settings", "reset-options"].includes(button.dataset.view)) {
+        if (state.view !== button.dataset.view && state.view !== "home" && state.view !== "assistant") state.navigationHistory.push(state.view);
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
         state.moreMenuOpen = false;
         renderLayout();
-      }
-    });
-  });
-  app.querySelectorAll("[data-settings-action]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const action = button.dataset.settingsAction;
-      if (action === "back") {
-        state.view = "menu";
-        state.profileModalOpen = false;
-        state.menuOpen = false;
-        renderLayout();
-        return;
-      }
-      if (action === "privacy") {
-        showToast("Use a strong account password and sign out when using a shared device.");
-        return;
-      }
-      if (action === "help") {
-        showToast("Tip: open Menu to access tasks, notes, expenses, Focus Timer, and progress.");
-        return;
-      }
-      if (action === "about") {
-        showToast("Sahra Life Calendar \xB7 Version 1.0");
-        return;
-      }
-      if (action === "sync-now") {
-        if (!navigator.onLine) {
-          showToast("You are offline. Saved changes will sync when you reconnect.");
-          return;
-        }
-        const copy = button.querySelector(".settings-row-copy small");
-        button.disabled = true;
-        if (copy) copy.textContent = "Syncing your changes\u2026";
-        try {
-          const token = await getAuthToken();
-          await offlineSync.flush(token);
-          await loadDashboardData();
-          await fetchFinanceData();
-          showToast("Sahra data sync completed.");
-        } catch (error) {
-          showToast(error?.message || "Could not sync right now. Please try again.");
-        } finally {
-          renderLayout();
-        }
       }
     });
   });
@@ -8701,11 +9222,50 @@ function renderLayout() {
         renderLayout();
         return;
       }
+      if (action === "privacy-security") {
+        state.settingsInfoPanel = state.settingsInfoPanel === "privacy" ? "" : "privacy";
+        renderLayout();
+        return;
+      }
+      if (action === "sync-now") {
+        try {
+          const token = await getAuthToken();
+          if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
+          await loadDashboardData();
+          await fetchFinanceData();
+          showToast("DaySync data sync finished.");
+        } catch (error) {
+          showToast(error.message || "Unable to sync DaySync data.");
+        }
+        return;
+      }
+      if (action === "exact-alarms") {
+        try {
+          if (!window.Capacitor?.isNativePlatform?.()) {
+            showToast("Timer alarm settings are available in the installed mobile app.");
+            return;
+          }
+          const permission = await LocalNotifications.checkExactNotificationSetting();
+          if (permission.exact_alarm !== "granted") {
+            await LocalNotifications.changeExactNotificationSetting();
+            showToast("Check Android alarm access, then return to DaySync.");
+          } else showToast("Precise timer alarms are already allowed.");
+        } catch (error) {
+          showToast(error.message || "Unable to open Android alarm settings.");
+        }
+        return;
+      }
       if (action === "logout") {
+        focusStopAudio();
+        state.focusRunning = false;
+        state.focusEndsAt = null;
+        clearInterval(focusTicker);
+        focusTicker = null;
+        persistFocusTimerState();
         await removeAuthToken();
         localStorage.removeItem("sahraUser");
         state.authenticated = false;
-        state.user = { name: "Sahra" };
+        state.user = { name: "DaySync User" };
         state.view = "home";
         window.location.href = getLoginPath();
       }
@@ -9048,6 +9608,7 @@ function bindBottomNav() {
       state.progressPickerOpen = false;
       state.profileModalOpen = false;
       state.moreMenuOpen = false;
+      if (state.view !== view && state.view !== "home" && state.view !== "assistant") state.navigationHistory.push(state.view);
       state.view = view;
       renderLayout();
       if (view === "progress") {
@@ -9132,11 +9693,247 @@ function bindSmartNavigationAndKeyboard() {
   window.visualViewport?.addEventListener("resize", syncKeyboardViewport, { passive: true });
   window.visualViewport?.addEventListener("scroll", syncKeyboardViewport, { passive: true });
 }
+async function clearResetCategoryLocalCache(token, category) {
+  const collections = RESET_CATEGORY_META[category]?.collections || [];
+  const names = new Set(collections);
+  if (category === "notepad") {
+    names.add("notes");
+    names.add("assets");
+  }
+  if (category === "expenses") {
+    names.add("transactions");
+    names.add("expenses");
+    names.add("subscriptions");
+  }
+  if (category === "calendar") {
+    names.add("events");
+    names.add("reminders");
+  }
+  if (category === "progress") {
+    names.add("goals");
+    names.add("habits");
+    names.add("habitLogs");
+    names.add("moods");
+  }
+  for (const collection of names) {
+    try {
+      const cached = await offlineSync.read(token, collection);
+      for (const row of cached) await offlineSync.remove(token, collection, row.id || row._id);
+    } catch (error) {
+      console.warn(`Could not clear ${collection} local cache after reset:`, error.message);
+    }
+  }
+  try {
+    const outbox = await offlineSync.read(token, "syncOutbox");
+    const roots = category === "tasks" ? ["tasks"] : category === "notepad" ? ["assets", "notes"] : category === "expenses" ? ["transactions", "expenses", "subscriptions"] : category === "calendar" ? ["events", "reminders"] : category === "progress" ? ["goals", "habits", "habitlogs", "habit-logs", "moods"] : [];
+    for (const op of outbox) {
+      if (roots.includes(String(op.resource || op.root || op.collection || "").toLowerCase())) {
+        await offlineSync.remove(token, "syncOutbox", op.id || op._id);
+      }
+    }
+  } catch (error) {
+    console.warn("Could not reconcile reset queue:", error.message);
+  }
+}
+async function performSelectedDataReset() {
+  const selected = Object.keys(RESET_CATEGORY_META).filter((key) => state.resetOptionsSelected?.[key]);
+  if (!selected.length) {
+    showToast("Select at least one data section to reset.");
+    return;
+  }
+  const token = await getAuthToken();
+  if (!token) {
+    showToast("Sign in again to reset saved data.");
+    return;
+  }
+  if (!globalThis.navigator?.onLine) {
+    showToast("Connect to the internet before resetting synced data.");
+    return;
+  }
+  state.resetOptionsBusy = true;
+  renderLayout();
+  try {
+    const syncStatus = await offlineSync.flush(token);
+    if (syncStatus?.pending) {
+      throw new Error("Some offline changes are still waiting to sync. Reconnect and try again before resetting so deleted data cannot return.");
+    }
+    const results = [];
+    for (const category of selected) {
+      const response = await apiRequest(`/api/reset-data/${encodeURIComponent(category)}`, { method: "DELETE" });
+      results.push({ category, count: Number(response.deletedCount || 0) });
+      await clearResetCategoryLocalCache(token, category);
+      if (category === "focus") {
+        focusStopAudio();
+        state.focusRunning = false;
+        state.focusEndsAt = null;
+        state.focusStartedAt = null;
+        state.focusAlarmActive = false;
+        state.focusAlarmStartedAt = null;
+        state.focusSessionId = null;
+        state.focusSeconds = state.focusInitialSeconds || 25 * 60;
+        state.focusSessions = [];
+        try {
+          localStorage.removeItem("sahraFocusSessions");
+          localStorage.removeItem(FOCUS_TIMER_STORAGE_KEY);
+        } catch (_) {
+        }
+        try {
+          await LocalNotifications.cancel({ notifications: [{ id: 7001 }] });
+        } catch (_) {
+        }
+      }
+    }
+    if (selected.includes("tasks")) state.data.tasks = [];
+    if (selected.includes("notepad")) {
+      state.data.assets = [];
+      state.data.notes = [];
+    }
+    if (selected.includes("expenses")) {
+      state.financeData = [];
+      state.data.expenses = [];
+      state.data.subscriptions = [];
+    }
+    if (selected.includes("calendar")) {
+      state.data.events = [];
+      state.data.reminders = [];
+      state.calendarCache = /* @__PURE__ */ new Set();
+    }
+    if (selected.includes("progress")) {
+      state.data.goals = [];
+      state.data.habits = [];
+      state.data.habitLogs = [];
+      state.data.moods = [];
+      state.progressData = null;
+    }
+    state.resetConfirmOpen = false;
+    state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false };
+    await loadDashboardData();
+    await fetchFinanceData();
+    await loadProgressData(false);
+    try {
+      await reconcileNativeNotifications();
+    } catch (error) {
+      console.warn("Notification reconciliation after reset failed:", error.message);
+    }
+    const summary = results.map((row) => `${RESET_CATEGORY_META[row.category].title}: ${row.count}`).join(" \xB7 ");
+    showToast(`Selected data reset. ${summary}`);
+    state.view = "settings";
+    renderLayout();
+  } catch (error) {
+    console.error("DaySync reset operation failed:", error);
+    showToast(error.message || "The reset could not finish. Check your connection and review the selected data.");
+    try {
+      await loadDashboardData();
+      await fetchFinanceData();
+      await loadProgressData(false);
+    } catch (refreshError) {
+      console.warn("Unable to refresh after a partial reset:", refreshError.message);
+    }
+    state.resetConfirmOpen = true;
+    renderLayout();
+  } finally {
+    state.resetOptionsBusy = false;
+    renderLayout();
+  }
+}
 function bindGlobalListeners() {
   if (globalListenersBound) return;
   globalListenersBound = true;
   bindSmartNavigationAndKeyboard();
-  document.addEventListener("click", (event) => {
+  document.addEventListener("click", async (event) => {
+    const sharedBack = event.target.closest('[data-action="shared-page-back"]');
+    if (sharedBack) {
+      goBackFromView();
+      return;
+    }
+    const openReset = event.target.closest('[data-action="open-reset-options"]');
+    if (openReset) {
+      state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false };
+      state.resetConfirmOpen = false;
+      setView("reset-options");
+      return;
+    }
+    const resetBack = event.target.closest('[data-action="reset-back-settings"]');
+    if (resetBack) {
+      state.resetConfirmOpen = false;
+      state.view = "settings";
+      renderLayout();
+      return;
+    }
+    const toggleResetCategory = event.target.closest('[data-action="reset-toggle-category"]');
+    if (toggleResetCategory) {
+      const category = toggleResetCategory.dataset.category;
+      if (Object.prototype.hasOwnProperty.call(RESET_CATEGORY_META, category)) {
+        state.resetOptionsSelected = { ...state.resetOptionsSelected, [category]: !state.resetOptionsSelected[category] };
+        renderLayout();
+      }
+      return;
+    }
+    const selectAllReset = event.target.closest('[data-action="reset-select-all"]');
+    if (selectAllReset) {
+      const allSelected = Object.keys(RESET_CATEGORY_META).every((key) => state.resetOptionsSelected?.[key]);
+      state.resetOptionsSelected = Object.fromEntries(Object.keys(RESET_CATEGORY_META).map((key) => [key, !allSelected]));
+      renderLayout();
+      return;
+    }
+    const reviewReset = event.target.closest('[data-action="reset-review"]');
+    if (reviewReset) {
+      const anySelected = Object.keys(RESET_CATEGORY_META).some((key) => state.resetOptionsSelected?.[key]);
+      if (!anySelected) {
+        showToast("Select at least one data section to reset.");
+        return;
+      }
+      state.resetConfirmOpen = true;
+      renderLayout();
+      return;
+    }
+    const cancelReset = event.target.closest('[data-action="reset-cancel"]');
+    if (cancelReset) {
+      state.resetConfirmOpen = false;
+      renderLayout();
+      return;
+    }
+    const confirmReset = event.target.closest('[data-action="reset-confirm"]');
+    if (confirmReset) {
+      if (state.resetOptionsBusy) return;
+      const phrase = String(document.getElementById("reset-confirm-phrase")?.value || "").trim();
+      const acknowledged = Boolean(document.querySelector("[data-reset-acknowledge]")?.checked);
+      if (phrase !== "DELETE" || !acknowledged) {
+        showToast("Check the permanent deletion acknowledgment and type DELETE to continue.");
+        return;
+      }
+      await performSelectedDataReset();
+      return;
+    }
+    const locationSettingsButton = event.target.closest('[data-action="open-location-permission-settings"]');
+    if (locationSettingsButton) {
+      void openDaySyncNativeSettings("openAppSettings");
+      return;
+    }
+    const deviceLocationSettingsButton = event.target.closest('[data-action="open-device-location-settings"]');
+    if (deviceLocationSettingsButton) {
+      void openDaySyncNativeSettings("openLocationSettings");
+      return;
+    }
+    const notificationSettingsButton = event.target.closest('[data-action="open-notification-permission-settings"]');
+    if (notificationSettingsButton) {
+      void openDaySyncNativeSettings("openNotificationSettings");
+      return;
+    }
+    const openSettingsButton = event.target.closest('[data-action="open-settings"]');
+    if (openSettingsButton) {
+      state.menuOpen = false;
+      state.moreMenuOpen = false;
+      state.entryModalOpen = false;
+      state.entryDraft = null;
+      setView("settings");
+      return;
+    }
+    const settingsBackButton = event.target.closest('[data-action="settings-back"]');
+    if (settingsBackButton) {
+      goBackFromView();
+      return;
+    }
     const clearAssistantButton = event.target.closest('[data-action="clear-assistant-chat"]');
     if (clearAssistantButton) {
       state.assistantGeneration += 1;
@@ -9175,6 +9972,10 @@ function bindGlobalListeners() {
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     let changed = false;
+    if (state.resetConfirmOpen) {
+      state.resetConfirmOpen = false;
+      changed = true;
+    }
     if (state.progressPickerOpen) {
       state.progressPickerOpen = false;
       changed = true;
@@ -9427,6 +10228,9 @@ document.addEventListener("submit", (event) => {
 });
 async function initializeApp() {
   await initializeLocalDatabase();
+  window.addEventListener("daysync:permissions-updated", () => {
+    if (state.view === "settings") renderLayout();
+  });
   applyTheme(getStoredTheme());
   bindBottomNav();
   bindGlobalListeners();
@@ -9440,6 +10244,14 @@ async function initializeApp() {
   if (globalThis.navigator?.onLine) await offlineSync.flush(token);
   await loadDashboardData();
   await fetchFinanceData();
+  restorePersistedFocusTimer();
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    void window.SAHRA_NOTIFICATIONS.permissionStatus().then(() => {
+      if (state.view === "settings") renderLayout();
+    });
+  }
+  window.SAHRA_FOCUS_TIMER_READY = true;
+  processPendingFocusAlarmAction();
   if (window.Capacitor?.isNativePlatform()) {
     const { markSahraOtaReady: markSahraOtaReady2 } = await Promise.resolve().then(() => (init_mobile_ota(), mobile_ota_exports));
     await markSahraOtaReady2();
@@ -9447,7 +10259,7 @@ async function initializeApp() {
 }
 initializeApp().catch((error) => {
   console.error("App initialization failed:", error);
-  showToast(error.message || "Unable to initialize Sahra.");
+  showToast(error.message || "Unable to initialize DaySync.");
   renderLayout();
 });
 /*! Bundled license information:

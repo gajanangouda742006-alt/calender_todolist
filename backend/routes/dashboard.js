@@ -2298,4 +2298,35 @@ router.put('/security/preferences', verifyToken, async (req, res) => {
   }
 });
 
+
+const RESET_DATA_MODELS = {
+  tasks: [Task],
+  notepad: [Asset, Note],
+  expenses: [Transaction],
+  calendar: [Event, Reminder],
+  progress: [Goal, Habit, HabitLog, Mood],
+  focus: [FocusSession],
+};
+
+router.delete('/reset-data/:category', verifyToken, async (req, res) => {
+  const category = String(req.params.category || '').toLowerCase();
+  const models = RESET_DATA_MODELS[category];
+  if (!models) return res.status(400).json({ message: 'Unknown reset category.' });
+  try {
+    let deletedCount = 0;
+    const deletedByCollection = {};
+    // All filters are scoped to the authenticated user; no global delete is permitted.
+    for (const Model of models) {
+      const result = await Model.deleteMany({ userId: req.user.id });
+      const count = Number(result.deletedCount || 0);
+      deletedCount += count;
+      deletedByCollection[Model.collection.collectionName] = count;
+    }
+    return res.status(200).json({ message: 'Selected data section reset.', category, deletedCount, deletedByCollection });
+  } catch (error) {
+    console.error(`Reset data error (${category}):`, error);
+    return res.status(500).json({ message: 'Unable to reset the selected data section.' });
+  }
+});
+
 module.exports = router;

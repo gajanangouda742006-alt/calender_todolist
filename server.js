@@ -148,7 +148,7 @@ function startServer() {
   // opening the HTTP port, otherwise Render's port scan can time out.
   const port = Number(process.env.PORT) || 9090;
   const server = app.listen(port, '0.0.0.0', () => {
-    console.log(`Sahra server listening on 0.0.0.0:${port}`);
+    console.log(`DaySync server listening on 0.0.0.0:${port}`);
     console.log('Open /login to access the auth flow.');
     initializeDatabaseWithRetry().catch((error) => {
       console.error('Database initialization loop failed:', error.message);

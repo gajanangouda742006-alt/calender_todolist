@@ -1,6 +1,6 @@
-﻿{
+{
   "appId": "com.sahra.lifecalendar",
-  "appName": "Sahra Life Calendar",
+  "appName": "DaySync",
   "webDir": "www",
   "plugins": {
     "CapacitorUpdater": {

@@ -199,15 +199,18 @@ function renderDashboard(transactions, state) {
 
         <!-- Header Text -->
         <div
+          class="finance-dashboard-title-copy"
           style="
             position: relative;
             z-index: 2;
+            text-align: left;
           "
         >
           <div
             style="
               display: flex;
               align-items: center;
+              justify-content: flex-start;
               gap: 9px;
               margin-bottom: 5px;
             "
@@ -259,41 +262,7 @@ function renderDashboard(transactions, state) {
             })}
           </div>
         </div>
-
-        <!-- Reset Button -->
-        <button
-          data-action="show-finance-reset-confirm"
-          type="button"
-          title="Reset Transactions"
-          style="
-            position: relative;
-            z-index: 3;
-            width: 44px;
-            height: 44px;
-            border-radius: 15px;
-            display: grid;
-            place-items: center;
-            background:
-              linear-gradient(
-                145deg,
-                rgba(47,55,72,0.95),
-                rgba(20,24,34,0.95)
-              );
-            border: 1px solid rgba(255,255,255,0.14);
-            border-top: 1px solid rgba(255,255,255,0.28);
-            color: #8dc1ff;
-            cursor: pointer;
-            box-shadow:
-              0 8px 18px rgba(0,0,0,0.35),
-              inset 0 1px 1px rgba(255,255,255,0.12);
-            transition:
-              transform 0.18s ease,
-              box-shadow 0.18s ease;
-          "
-        >
-          🔄
-        </button>
-      </div>
+</div>
 
 
       <!-- TOTAL BALANCE -->

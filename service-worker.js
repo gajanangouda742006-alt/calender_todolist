@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahra-shell-scroll-cleanup-20261025-1942';
+const CACHE_NAME = 'daysync-shell-reset-options-20261028-2225';
 
 
 const APP_SHELL = [
@@ -8,8 +8,8 @@ const APP_SHELL = [
   '/app-config.js',
   '/web-app.js',
   '/manifest.webmanifest',
-  '/icon-192.jpeg',
-  '/icon-512.jpeg'
+  '/image-192.png',
+  '/image-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,7 +25,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key.startsWith('sahra-shell-') && key !== CACHE_NAME)
+          .filter((key) => (key.startsWith('sahra-shell-') || key.startsWith('daysync-shell-')) && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       )
     )
@@ -71,7 +71,7 @@ self.addEventListener('fetch', (event) => {
   caches.open(CACHE_NAME).then((cache) => {
     return cache.put(request, copy);
   }).catch((error) => {
-    console.warn('Sahra cache update skipped:', error);
+    console.warn('DaySync cache update skipped:', error);
   });
 }
         return response;

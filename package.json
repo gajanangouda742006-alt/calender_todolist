@@ -1,7 +1,7 @@
 {
-  "name": "sahra-calendar",
+  "name": "daysync-app",
   "version": "1.0.0",
-  "description": "Sahra Life Calendar with Node.js, Express, and MongoDB",
+  "description": "DaySync personal planner with the Sahra AI assistant",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -19,7 +19,7 @@
     "mysql",
     "auth"
   ],
-  "author": "Sahra",
+  "author": "DaySync",
   "license": "MIT",
   "dependencies": {
     "@capacitor-community/speech-recognition": "^7.0.1",
@@ -41,7 +41,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.3",
     "mysql2": "^3.4.1",
-    "nodemailer": "10.1.0"
+    "nodemailer": "10.1.0",
+    "@capacitor/geolocation": "^8.2.4"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.3",
