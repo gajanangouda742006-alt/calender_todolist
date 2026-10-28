@@ -10332,3 +10332,195 @@ body.theme-light .home-screen .menu-panel .menu-item.danger {
     animation: none !important;
   }
 }
+
+
+/* =========================================================
+   SAHRA SETTINGS PAGE — dedicated, phone-first settings screen
+========================================================= */
+.settings-screen {
+  width: 100%;
+  min-height: 0 !important;
+  padding: 16px 14px 24px !important;
+  box-sizing: border-box;
+  color: var(--text, #edf3ff);
+}
+
+.settings-shell {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(112, 157, 230, .35);
+  border-radius: 24px;
+  background: linear-gradient(155deg, rgba(15, 31, 60, .98), rgba(8, 19, 39, .98));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.settings-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 2px 1px 4px;
+}
+
+.settings-header-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #1d5988, #17416b);
+  color: #5fe4ff;
+  font-size: 1.6rem;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+.settings-header-copy { flex: 1 1 auto; min-width: 0; }
+.settings-header-copy h1 { margin: 0; color: var(--text, #edf3ff); font-size: 1.2rem; line-height: 1.25; font-weight: 800; }
+.settings-header-copy p { margin: 5px 0 0; color: var(--muted, #9fb4d6); font-size: .82rem; line-height: 1.35; }
+
+.settings-close {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted, #a9bedf);
+  font-size: 1.65rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.settings-close:hover { background: rgba(130, 172, 235, .12); color: var(--text, #fff); }
+
+.settings-section-title {
+  margin: 20px 4px 9px;
+  color: #77c7ed;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.settings-group {
+  display: grid;
+  gap: 9px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 70px;
+  padding: 12px 12px;
+  border: 1px solid rgba(115, 159, 221, .09);
+  border-radius: 16px;
+  background: rgba(31, 55, 91, .78);
+  color: var(--text, #edf3ff);
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background .16s ease, transform .16s ease, border-color .16s ease;
+}
+.settings-row:hover { background: rgba(39, 68, 112, .94); border-color: rgba(98, 220, 255, .25); }
+.settings-row:active { transform: scale(.992); }
+.settings-row:focus-visible, .settings-close:focus-visible, .settings-signout:focus-visible { outline: 2px solid #61dfff; outline-offset: 2px; }
+.settings-row:disabled { opacity: .7; cursor: wait; }
+
+.settings-row-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  border-radius: 10px;
+  color: #63e3f8;
+  font-size: 1.22rem;
+  font-weight: 700;
+  background: rgba(49, 151, 201, .14);
+}
+.settings-row-copy { display: grid; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.settings-row-copy strong { color: #f0f5ff; font-size: .94rem; line-height: 1.2; font-weight: 750; }
+.settings-row-copy small { color: #a6badb; font-size: .75rem; font-weight: 450; line-height: 1.35; overflow-wrap: anywhere; }
+.settings-row-chevron { color: #86a9d4; font-size: 1.6rem; line-height: 1; padding: 0 2px; }
+
+.settings-row-switch {
+  position: relative;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 25px;
+  border-radius: 999px;
+  background: #425371;
+  border: 1px solid rgba(255,255,255,.12);
+  box-sizing: border-box;
+  transition: background .18s ease;
+}
+.settings-row-switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #eef4ff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform .18s ease;
+}
+.settings-row-switch.is-on { background: #1688c0; }
+.settings-row-switch.is-on > span { transform: translateX(17px); }
+
+.settings-signout {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin: 18px 0 0;
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 112, 139, .18);
+  border-radius: 14px;
+  background: rgba(205, 63, 91, .11);
+  color: #ffacbd;
+  font-size: .9rem;
+  font-weight: 750;
+  text-align: center;
+  cursor: pointer;
+}
+.settings-signout:hover { background: rgba(205, 63, 91, .18); }
+.settings-footer-note { margin: 16px 0 2px; color: #778eaf; font-size: .72rem; text-align: center; }
+
+html[data-theme="light"] .settings-shell,
+body.theme-light .settings-shell {
+  background: linear-gradient(155deg, rgba(248, 251, 255, .99), rgba(233, 240, 253, .99));
+  border-color: rgba(109, 138, 190, .24);
+  box-shadow: 0 16px 34px rgba(53, 77, 126, .12), inset 0 1px 0 #fff;
+}
+html[data-theme="light"] .settings-header-copy h1,
+body.theme-light .settings-header-copy h1 { color: #1c2d4b; }
+html[data-theme="light"] .settings-header-copy p,
+body.theme-light .settings-header-copy p,
+html[data-theme="light"] .settings-row-copy small,
+body.theme-light .settings-row-copy small { color: #657998; }
+html[data-theme="light"] .settings-section-title,
+body.theme-light .settings-section-title { color: #2678a4; }
+html[data-theme="light"] .settings-row,
+body.theme-light .settings-row { background: linear-gradient(145deg, #f8fbff, #e9f0fc); border-color: rgba(100, 125, 181, .13); box-shadow: 0 2px 5px rgba(70, 90, 135, .06), inset 0 1px 0 #fff; }
+html[data-theme="light"] .settings-row:hover,
+body.theme-light .settings-row:hover { background: linear-gradient(145deg, #fff, #e7f1ff); border-color: rgba(43, 151, 199, .28); }
+html[data-theme="light"] .settings-row-copy strong,
+body.theme-light .settings-row-copy strong { color: #1d2d4a; }
+html[data-theme="light"] .settings-row-chevron,
+body.theme-light .settings-row-chevron { color: #607ca6; }
+html[data-theme="light"] .settings-close,
+body.theme-light .settings-close { color: #637797; }
+html[data-theme="light"] .settings-footer-note,
+body.theme-light .settings-footer-note { color: #7d8ca8; }
+
+@media (max-width: 430px) {
+  .settings-screen { padding: 9px 9px 18px !important; }
+  .settings-shell { padding: 12px; border-radius: 20px; }
+  .settings-row { min-height: 66px; gap: 10px; padding: 11px 10px; }
+  .settings-row-copy strong { font-size: .9rem; }
+  .settings-row-copy small { font-size: .72rem; }
+}

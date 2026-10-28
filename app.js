@@ -396,8 +396,78 @@ function renderMenuPage() {
         <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
         <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
         <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
+        <button class="menu-item" type="button" data-view="focus">⏱️ Focus Timer</button>
         <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
-        <button class="menu-item" type="button" data-view="focus">⏱️ Focus &amp; Study Timer</button>
+        <button class="menu-item settings-menu-entry" type="button" data-view="settings">⚙️ Settings</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderSettingsPage() {
+  const isLightTheme = state.theme === 'light';
+  const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
+  const user = state.user || {};
+  const displayName = escapeHtml(user.name || 'Sahra User');
+  const displayEmail = escapeHtml(user.email || 'Manage your personal information');
+
+  return `
+    <section class="screen settings-screen" aria-label="Settings">
+      <div class="settings-shell">
+        <header class="settings-page-header">
+          <div class="settings-header-icon" aria-hidden="true">☷</div>
+          <div class="settings-header-copy">
+            <h1>Settings</h1>
+            <p>Personalize your Sahra experience</p>
+          </div>
+          <button class="settings-close" type="button" data-settings-action="back" aria-label="Back to menu">×</button>
+        </header>
+
+        <p class="settings-section-title">PERSONALIZATION</p>
+        <div class="settings-group">
+          <button class="settings-row" type="button" data-menu-action="toggle-theme" aria-label="Toggle appearance theme">
+            <span class="settings-row-icon appearance-icon" aria-hidden="true">${isLightTheme ? '☀️' : '🌙'}</span>
+            <span class="settings-row-copy"><strong>Appearance</strong><small>${isLightTheme ? 'Light mode, theme' : 'Dark mode, theme'}</small></span>
+            <span class="settings-row-switch ${isLightTheme ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+          </button>
+          <button class="settings-row" type="button" data-menu-action="profile">
+            <span class="settings-row-icon profile-icon" aria-hidden="true">♙</span>
+            <span class="settings-row-copy"><strong>Profile</strong><small>${displayName} · ${displayEmail}</small></span>
+            <span class="settings-row-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="settings-row" type="button" data-menu-action="notifications" aria-label="Toggle notifications">
+            <span class="settings-row-icon notifications-icon" aria-hidden="true">♧</span>
+            <span class="settings-row-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? 'Reminders and alerts are enabled' : 'Reminders and alerts are disabled'}</small></span>
+            <span class="settings-row-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
+          </button>
+        </div>
+
+        <p class="settings-section-title">APP &amp; DATA</p>
+        <div class="settings-group">
+          <button class="settings-row" type="button" data-settings-action="sync-now">
+            <span class="settings-row-icon sync-icon" aria-hidden="true">↻</span>
+            <span class="settings-row-copy"><strong>Data &amp; Sync</strong><small>Sync online and offline changes</small></span>
+            <span class="settings-row-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="settings-row" type="button" data-settings-action="privacy">
+            <span class="settings-row-icon privacy-icon" aria-hidden="true">◇</span>
+            <span class="settings-row-copy"><strong>Privacy &amp; Security</strong><small>Account and device safety tips</small></span>
+            <span class="settings-row-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="settings-row" type="button" data-settings-action="help">
+            <span class="settings-row-icon help-icon" aria-hidden="true">?</span>
+            <span class="settings-row-copy"><strong>Help &amp; Support</strong><small>Quick tips for using Sahra</small></span>
+            <span class="settings-row-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="settings-row" type="button" data-settings-action="about">
+            <span class="settings-row-icon about-icon" aria-hidden="true">ⓘ</span>
+            <span class="settings-row-copy"><strong>About Sahra</strong><small>Sahra Life Calendar · Version 1.0</small></span>
+            <span class="settings-row-chevron" aria-hidden="true">›</span>
+          </button>
+        </div>
+
+        <button class="settings-signout" type="button" data-menu-action="logout">↪ Sign Out</button>
+        <p class="settings-footer-note">Your day, organized with Sahra.</p>
       </div>
     </section>
   `;
@@ -424,10 +494,9 @@ function renderMoreMenu() {
         💰 Expense Tracker
       </button>
       
-      <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">
-        📈 Progress & Stats
-      </button>
-      <button class="menu-item" type="button" data-view="focus" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⏱️ Focus &amp; Study Timer</button>
+      <button class="menu-item" type="button" data-view="focus" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⏱️ Focus Timer</button>
+      <button class="menu-item" type="button" data-view="progress" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">📈 Progress &amp; Stats</button>
+      <button class="menu-item" type="button" data-view="settings" style="text-align: left; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text); border: none; cursor: pointer; display: flex; gap: 10px; font-size: 1rem;">⚙️ Settings</button>
       
     </div>
   `;
@@ -1394,8 +1463,6 @@ function renderHomePage() {
   const todaysIncome = incomeOf(todaysTransactions);
   const todaysExpense = expenseOf(todaysTransactions);
   const totalBalance = incomeOf(transactions) - expenseOf(transactions);
-  const deviceNotificationsEnabled = areDeviceNotificationsEnabled();
-  const isLightTheme = state.theme === 'light';
   const weather = state.weather || {};
   const liveCurrent = weather.data?.current;
   const liveDaily = weather.data?.daily;
@@ -1413,24 +1480,7 @@ function renderHomePage() {
             <div class="brand-mark">${renderSahraLogo(52)}</div>
             <div class="brand-text"><h1>Sahra</h1><p>LIFE CALENDAR</p></div>
           </div>
-          <div class="menu-wrap">
-            <button class="menu-button" type="button" aria-label="Open menu">⋮</button>
-            <div class="menu-panel ${state.menuOpen ? 'open' : 'hidden'}">
-              <button class="menu-item settings-toggle-item theme-menu-item" type="button" data-menu-action="toggle-theme" role="switch" aria-checked="${isLightTheme}" aria-label="${isLightTheme ? 'Switch to dark mode' : 'Switch to light mode'}">
-                <span class="settings-toggle-icon" aria-hidden="true">${isLightTheme ? '☀️' : '🌙'}</span>
-                <span class="settings-toggle-copy"><strong>Appearance</strong><small>${isLightTheme ? 'Light mode' : 'Dark mode'}</small></span>
-                <span class="settings-switch ${isLightTheme ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
-              </button>
-              <button class="menu-item" type="button" data-menu-action="profile"><span>👤</span> Profile</button>
-              <button class="menu-item settings-toggle-item notification-menu-item" type="button" data-menu-action="notifications" role="switch" aria-checked="${deviceNotificationsEnabled}" aria-label="Device notifications ${deviceNotificationsEnabled ? 'on' : 'off'}">
-                <span class="settings-toggle-icon" aria-hidden="true">🔔</span>
-                <span class="settings-toggle-copy"><strong>Notifications</strong><small>${deviceNotificationsEnabled ? 'Reminders are on' : 'Reminders are off'}</small></span>
-                <span class="notification-switch settings-switch ${deviceNotificationsEnabled ? 'is-on' : ''}" aria-hidden="true"><span></span></span>
-              </button>
-              <div class="menu-divider"></div>
-              <button class="menu-item danger" type="button" data-menu-action="logout"><span>🚪</span> Logout</button>
-            </div>
-          </div>
+
         </div>
       </section>
 
@@ -2547,6 +2597,8 @@ function renderLayout() {
 
 } else if (state.view === 'menu') {
   content = renderMenuPage();
+} else if (state.view === 'settings') {
+  content = renderSettingsPage();
 } else if (state.view === 'focus') {
   content = renderFocusPage();
 
@@ -2593,7 +2645,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus', 'weather'];
+  const menuSubPages = ['menu', 'settings', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus', 'weather'];
 
 
 
@@ -2621,12 +2673,58 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus', 'weather'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus', 'weather', 'settings'].includes(button.dataset.view)) {
         state.view = button.dataset.view;
         state.entryModalOpen = false;
         state.entryDraft = null;
         state.moreMenuOpen = false;
         renderLayout();
+      }
+    });
+  });
+
+  app.querySelectorAll('[data-settings-action]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const action = button.dataset.settingsAction;
+      if (action === 'back') {
+        state.view = 'menu';
+        state.profileModalOpen = false;
+        state.menuOpen = false;
+        renderLayout();
+        return;
+      }
+
+      if (action === 'privacy') {
+        showToast('Use a strong account password and sign out when using a shared device.');
+        return;
+      }
+      if (action === 'help') {
+        showToast('Tip: open Menu to access tasks, notes, expenses, Focus Timer, and progress.');
+        return;
+      }
+      if (action === 'about') {
+        showToast('Sahra Life Calendar · Version 1.0');
+        return;
+      }
+      if (action === 'sync-now') {
+        if (!navigator.onLine) {
+          showToast('You are offline. Saved changes will sync when you reconnect.');
+          return;
+        }
+        const copy = button.querySelector('.settings-row-copy small');
+        button.disabled = true;
+        if (copy) copy.textContent = 'Syncing your changes…';
+        try {
+          const token = await getAuthToken();
+          await offlineSync.flush(token);
+          await loadDashboardData();
+          await fetchFinanceData();
+          showToast('Sahra data sync completed.');
+        } catch (error) {
+          showToast(error?.message || 'Could not sync right now. Please try again.');
+        } finally {
+          renderLayout();
+        }
       }
     });
   });
@@ -3646,7 +3744,7 @@ document.addEventListener('input', (e) => {
 
       if (action === 'toggle-theme') {
         const nextTheme = state.theme === 'light' ? 'dark' : 'light';
-        state.menuOpen = true;
+        state.menuOpen = false;
         applyTheme(nextTheme);
         renderLayout();
         await updateThemeInDatabase(nextTheme);
@@ -3668,7 +3766,7 @@ document.addEventListener('input', (e) => {
       }
 
       if (action === 'notifications') {
-        state.menuOpen = true;
+        state.menuOpen = false;
         renderLayout();
         await toggleDeviceNotifications();
         renderLayout();
