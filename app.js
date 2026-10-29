@@ -113,6 +113,9 @@ const state = {
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'DaySync User' },
   theme: localStorage.getItem('theme') || 'dark',
+  goalAchievementItems: [],
+  goalAchievementFilter: 'All',
+  goalAchievementEditingId: null,
   focusSeconds: 25 * 60,
   focusInitialSeconds: 25 * 60,
   focusRunning: false,
@@ -162,6 +165,8 @@ noteSearchQuery: '',
   settingsInfoPanel: '',
   weather: { status: 'idle', data: null, locationLabel: '', error: '', updatedAt: null, requestId: 0 },
 };
+state.goalAchievementItems = loadGoalAchievements();
+
 let activeRecognition = null;
 let speechSilenceTimer = null;
 let notificationInterval = null;
@@ -176,6 +181,7 @@ function applyTheme(theme) {
   document.body.classList.toggle('theme-light', nextTheme === 'light');
   document.body.classList.toggle('theme-dark', nextTheme === 'dark');
   localStorage.setItem('theme', nextTheme);
+  window.dispatchEvent(new CustomEvent('daysync:theme-changed', { detail: { theme: nextTheme } }));
 }
 
 // ==========================================
@@ -405,6 +411,96 @@ window.addEventListener('online', async () => {
   catch (error) { console.warn('Reconnect sync failed:', error.message); }
 });
 
+function goalReminderId(goalId) {
+  let hash=2166136261; for (const ch of String(goalId||'')) { hash^=ch.charCodeAt(0); hash=Math.imul(hash,16777619); }
+  return 200000 + (hash >>> 0) % 500000;
+}
+async function syncGoalReminder(goal) {
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  const id=goalReminderId(goal.id);
+  try {
+    await LocalNotifications.cancel({ notifications:[{ id }] });
+    if (!goal.reminderTime || goal.status==='Completed') return;
+    let permission=await LocalNotifications.checkPermissions();
+    if (permission.display!=='granted') permission=await LocalNotifications.requestPermissions();
+    if (permission.display!=='granted') { showToast('Goal saved. Enable notifications to receive reminders.'); return; }
+    const [hour,minute]=String(goal.reminderTime).split(':').map(Number);
+    if (!Number.isInteger(hour)||!Number.isInteger(minute)) return;
+    const schedule={ on:{hour,minute}, every: goal.frequency==='Weekly'?'week':goal.frequency==='Monthly'?'month':'day', allowWhileIdle:true };
+    if (goal.frequency==='Weekly') schedule.on.weekday=(new Date(`${goal.targetDate}T12:00:00`).getDay()+1);
+    if (goal.frequency==='Monthly') schedule.on.day=Math.min(28,Number(String(goal.targetDate).slice(8,10))||1);
+    await LocalNotifications.schedule({ notifications:[{ id,title:`Goal reminder: ${goal.title}`,body:`Take one small step toward your ${goal.frequency.toLowerCase()} goal.`,schedule,extra:{type:'goal-reminder',goalId:goal.id} }] });
+  } catch (error) { console.warn('Could not schedule goal reminder:',error.message); }
+}
+
+function goalAchievementStorageKey() {
+  const user = state.user || {};
+  const identity = user.id || user._id || user.email || user.username || user.name || 'guest';
+  return `daysyncGoalAchievements:${String(identity).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`;
+}
+function loadGoalAchievements() {
+  try { const value = JSON.parse(localStorage.getItem(goalAchievementStorageKey()) || '[]'); return Array.isArray(value) ? value : []; }
+  catch (_) { return []; }
+}
+function saveGoalAchievements(items) {
+  state.goalAchievementItems = items;
+  try { localStorage.setItem(goalAchievementStorageKey(), JSON.stringify(items)); return true; }
+  catch (_) { showToast('Could not save goals on this device. Check available storage.'); return false; }
+}
+function goalPeriodKey(dateValue, frequency) {
+  const d = new Date(`${String(dateValue || formatDateKey(new Date())).slice(0,10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return formatDateKey(new Date());
+  if (frequency === 'Weekly') { const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return `W:${formatDateKey(d)}`; }
+  if (frequency === 'Monthly') return `M:${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  return `D:${formatDateKey(d)}`;
+}
+function goalPeriodOrdinal(key, frequency) {
+  const value=String(key||'').slice(2);
+  if (frequency==='Monthly') { const [year,month]=value.split('-').map(Number); return year*12+(month||1)-1; }
+  const date=new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return -1;
+  return Math.floor(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000);
+}
+function refreshGoalStreak(goal) {
+  const keys=[...new Set((goal.logs||[]).map(log=>goalPeriodKey(log.date,goal.frequency)))].sort((a,b)=>goalPeriodOrdinal(a,goal.frequency)-goalPeriodOrdinal(b,goal.frequency));
+  const ordinals=[...new Set(keys.map(key=>goalPeriodOrdinal(key,goal.frequency)))].sort((a,b)=>a-b);
+  let best=0,run=0,prior=null;
+  for (const ordinal of ordinals) { run=prior!==null && ordinal===prior+1 ? run+1 : 1; best=Math.max(best,run); prior=ordinal; }
+  const current=goalPeriodOrdinal(goalPeriodKey(formatDateKey(new Date()),goal.frequency),goal.frequency);
+  const previous=current-1;
+  let streak=0,expected=ordinals.includes(current)?current:previous;
+  if (ordinals.includes(expected)) { for(let i=ordinals.length-1;i>=0;i--) { if(ordinals[i]===expected){streak++;expected--;} else if(ordinals[i]<expected) break; } }
+  goal.currentStreak=streak; goal.bestStreak=Math.max(Number(goal.bestStreak)||0,best,streak);
+}
+function goalAchievementProgress(goal) { return Math.max(0, Math.min(100, Math.round((Number(goal.current)||0) / Math.max(1, Number(goal.target)||1) * 100))); }
+function renderGoalAchievementsPage() {
+  const goals = Array.isArray(state.goalAchievementItems) ? state.goalAchievementItems : [];
+  const filter = state.goalAchievementFilter || 'All';
+  const effectiveStatus = (g) => g.status === 'Completed' ? 'Completed' : (g.targetDate < formatDateKey(new Date()) ? 'Overdue' : 'Active');
+  const visible = goals.filter((g) => filter === 'All' || effectiveStatus(g) === filter);
+  const totalXp = goals.reduce((n,g)=>n+(Number(g.xp)||0),0);
+  const completed = goals.filter(g=>g.status==='Completed').length;
+  const bestStreak = goals.reduce((n,g)=>Math.max(n,Number(g.bestStreak)||0),0);
+  const editing = goals.find(g=>g.id===state.goalAchievementEditingId) || null;
+  const esc = escapeHtml;
+  return `<section class="screen ga-screen" aria-label="Goal and Achievements">
+    <header class="ga-header daysync-common-header"><button type="button" class="daysync-page-back-button" data-action="ga-back" aria-label="Back" title="Back">‹</button><div class="ga-heading"><p class="ga-eyebrow">PLAN · PROGRESS · ACHIEVE</p><h1>Goal &amp; Achievements</h1><p>Small steps, meaningful progress.</p></div><span class="ga-header-icon" aria-hidden="true">✦</span></header>
+    <div class="ga-summary-grid"><article class="ga-summary-card"><span>Goals completed</span><strong>${completed}</strong></article><article class="ga-summary-card"><span>Total XP</span><strong>${totalXp.toLocaleString()}</strong></article><article class="ga-summary-card"><span>Best streak</span><strong>🔥 ${bestStreak}</strong></article></div>
+    <section class="ga-panel ga-create-panel"><div class="ga-section-heading"><div><h2>${editing ? 'Edit goal' : 'Create a goal'}</h2><p>Choose a target and build a routine that works for you.</p></div><span class="ga-panel-symbol">＋</span></div>
+      <form class="ga-form" data-form="goal-achievement" data-edit-id="${editing ? esc(editing.id) : ''}">
+        <label class="ga-field ga-field-wide"><span>Goal name *</span><input name="title" maxlength="90" required value="${editing ? esc(editing.title) : ''}" placeholder="e.g. Learn Java programming" /></label>
+        <label class="ga-field ga-field-wide"><span>Description <small>Optional</small></span><textarea name="description" maxlength="240" rows="2" placeholder="Why does this goal matter?">${editing ? esc(editing.description || '') : ''}</textarea></label>
+        <div class="ga-field-row"><label class="ga-field"><span>Target amount *</span><input name="target" type="number" min="1" max="1000000" required value="${editing ? Number(editing.target) : 30}" /></label><label class="ga-field"><span>Unit</span><select name="unit"><option ${editing?.unit==='sessions'?'selected':''} value="sessions">Sessions</option><option ${editing?.unit==='minutes'?'selected':''} value="minutes">Minutes</option><option ${editing?.unit==='pages'?'selected':''} value="pages">Pages</option><option ${editing?.unit==='tasks'?'selected':''} value="tasks">Tasks</option><option ${editing?.unit==='items'?'selected':''} value="items">Items</option></select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Target date *</span><input name="targetDate" type="date" required min="${formatDateKey(new Date())}" value="${editing ? esc(editing.targetDate) : formatDateKey(new Date(Date.now()+30*86400000))}" /></label><label class="ga-field"><span>Frequency</span><select name="frequency"><option ${!editing||editing.frequency==='Daily'?'selected':''}>Daily</option><option ${editing?.frequency==='Weekly'?'selected':''}>Weekly</option><option ${editing?.frequency==='Monthly'?'selected':''}>Monthly</option></select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Reminder time <small>Optional</small></span><input name="reminderTime" type="time" value="${editing ? esc(editing.reminderTime || '') : ''}" /></label><label class="ga-field"><span>Category</span><select name="category"><option ${!editing||editing.category==='Learning'?'selected':''}>Learning</option><option ${editing?.category==='Health'?'selected':''}>Health</option><option ${editing?.category==='Career'?'selected':''}>Career</option><option ${editing?.category==='Personal'?'selected':''}>Personal</option><option ${editing?.category==='Finance'?'selected':''}>Finance</option></select></label></div>
+        <div class="ga-form-actions"><button type="button" class="ga-button ga-button-quiet" data-action="ga-cancel-edit" ${editing?'':'hidden'}>Cancel edit</button><button type="submit" class="ga-button ga-button-primary">${editing ? 'Save changes' : '＋ Save goal'}</button></div>
+      </form><p class="ga-helper">Progress logs earn 10 XP each. Repeated logs in the same period earn XP, but only one period counts toward a streak.</p>
+    </section>
+    <section class="ga-goals-section"><div class="ga-section-heading"><div><h2>Your goals</h2><p>${goals.length} saved ${goals.length===1?'goal':'goals'}</p></div></div><div class="ga-filters" role="group" aria-label="Filter goals">${['All','Active','Completed','Overdue'].map(f=>`<button type="button" data-action="ga-filter" data-filter="${f}" class="ga-filter ${filter===f?'active':''}" aria-pressed="${filter===f}">${f}</button>`).join('')}</div>
+      ${visible.length ? `<div class="ga-goal-list">${visible.map(goal=>{ const progress=goalAchievementProgress(goal); const overdue=goal.status!=='Completed'&&goal.targetDate<formatDateKey(new Date()); const status=goal.status==='Completed'?'Completed':overdue?'Overdue':'Active'; const days=Math.ceil((new Date(`${goal.targetDate}T23:59:59`).getTime()-Date.now())/86400000); const logs=Array.isArray(goal.logs)?goal.logs:[]; return `<article class="ga-goal-card ${status==='Completed'?'is-complete':''}"><div class="ga-goal-top"><span class="ga-category-chip">${esc(goal.category||'Personal')}</span><span class="ga-status-chip ${status.toLowerCase()}">${status}</span></div><h3>${esc(goal.title)}</h3>${goal.description?`<p class="ga-goal-description">${esc(goal.description)}</p>`:''}<div class="ga-progress-row"><div class="ga-progress-ring" style="--ga-progress:${progress}%" role="img" aria-label="${progress}% complete"><div><strong>${progress}%</strong></div></div><div class="ga-progress-copy"><strong>${Number(goal.current)||0} / ${Number(goal.target)||1} ${esc(goal.unit||'items')}</strong><span>${status==='Completed'?'Goal achieved!':days<0?`${Math.abs(days)} days overdue`:days===0?'Due today':`${days} days left`}</span><div class="ga-progress-track"><span style="width:${progress}%"></span></div></div></div><div class="ga-goal-stats"><span>🔥 <strong>${Number(goal.currentStreak)||0}</strong> streak</span><span>🏆 <strong>${Number(goal.bestStreak)||0}</strong> best</span><span>✨ <strong>${Number(goal.xp)||0}</strong> XP</span><span>📅 ${esc(goal.frequency)}</span></div>${status!=='Completed'?`<form class="ga-log-form" data-form="goal-progress" data-goal-id="${esc(goal.id)}"><label><span class="sr-only">Progress to add</span><input type="number" name="amount" min="1" max="1000000" value="1" required aria-label="Progress amount" /></label><button class="ga-button ga-button-primary" type="submit">＋ Add progress</button></form>`:'<p class="ga-complete-note">✓ Completed — keep this achievement as a reminder of what you can do.</p>'}<div class="ga-card-actions"><button type="button" data-action="ga-edit" data-goal-id="${esc(goal.id)}">Edit</button><button type="button" data-action="ga-delete" data-goal-id="${esc(goal.id)}">Delete</button></div></article>`;}).join('')}</div>` : `<div class="ga-empty-state"><span>✦</span><h3>${goals.length?'No goals in this filter yet':'Your next achievement starts here'}</h3><p>${goals.length?'Choose another filter to see your goals.':'Create a goal above, then record small steps to watch your progress ring grow.'}</p></div>`}
+    </section></section>`;
+}
+
 function renderMenuPage() {
   return `
     <section class="screen menu-screen" aria-label="Menu">
@@ -413,6 +509,7 @@ function renderMenuPage() {
         <p>Choose a feature</p>
       </header>
       <div class="more-menu-panel menu-page-options" role="navigation" aria-label="Menu options">
+        <button class="menu-item" type="button" data-view="goal-achievements">🎯 Goal &amp; Achievements</button>
         <button class="menu-item" type="button" data-view="tasks">✅ To Do List</button>
         <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
         <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
@@ -438,7 +535,7 @@ function renderSettingsPage() {
   const focusCount = Array.isArray(state.focusSessions) ? state.focusSessions.length : 0;
   return `
     <section class="screen daysync-settings-screen" aria-label="DaySync settings">
-      <header class="daysync-settings-header">
+      <header class="daysync-settings-header daysync-common-header">
         <button class="daysync-settings-back daysync-page-back-button" type="button" data-action="settings-back" aria-label="Back">‹</button>
         <div class="daysync-settings-mark" aria-hidden="true">☷</div>
         <div class="daysync-settings-title"><h1>Settings</h1><p>Personalize your DaySync experience</p></div>
@@ -474,7 +571,7 @@ function renderSettingsPage() {
         </div>
       </section>
       <p class="daysync-settings-section-label">ABOUT DAYSYNC</p>
-      <section class="daysync-about-card"><div class="daysync-about-top"><span class="daysync-about-logo">DS</span><div><strong>DaySync</strong><p>Your personal planner for tasks, calendar, expenses, goals, and focus sessions.</p></div></div><span class="daysync-about-version">DaySync · Version 1.0 · AI assistant: Sahra</span></section>
+      <section class="daysync-about-card"><div class="daysync-about-top"><img class="daysync-about-logo" src="/images/DaySync.png" alt="DaySync logo" width="42" height="42" /><div><strong>DaySync</strong><p>Your personal planner for tasks, calendar, expenses, goals, and focus sessions.</p></div></div><span class="daysync-about-version">DaySync · Version 1.0 · AI assistant: Sahra</span></section>
       <button class="daysync-signout-row" type="button" data-menu-action="logout"><span>↪</span> Sign out</button>
     </section>`;
 }
@@ -508,35 +605,6 @@ function getResetCategoryRecords(category) {
   return [];
 }
 
-function resetRecordDate(record) {
-  const candidate = record?.date || record?.createdAt || record?.updatedAt || record?.startedAt || record?.completedAt || record?.endedAt || record?.timestamp || record?.startDate;
-  if (!candidate) return 'Undated';
-  const raw = String(candidate);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(candidate);
-  return Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function resetRecordTitle(record) {
-  const value = record?.title || record?.name || record?.label || record?.note || record?.content || record?.description || record?.category || record?._resetKind || 'Saved record';
-  return String(value).replace(/\s+/g, ' ').trim().slice(0, 88) || 'Saved record';
-}
-
-function renderResetRecordGroups(category) {
-  const records = getResetCategoryRecords(category);
-  if (!records.length) return '<p class="daysync-reset-empty">No saved records found in this section.</p>';
-  const groups = new Map();
-  for (const record of records) {
-    const date = resetRecordDate(record);
-    if (!groups.has(date)) groups.set(date, []);
-    groups.get(date).push(record);
-  }
-  return [...groups.entries()].sort((a, b) => {
-    if (a[0] === 'Undated') return 1;
-    if (b[0] === 'Undated') return -1;
-    return new Date(b[0]) - new Date(a[0]);
-  }).map(([date, rows]) => `<section class="daysync-reset-date-group"><header><strong>${escapeHtml(date)}</strong><span>${rows.length} ${rows.length === 1 ? 'item' : 'items'}</span></header><div>${rows.map((record) => `<article class="daysync-reset-record"><span>${escapeHtml(record._resetKind || 'Saved item')}</span><strong>${escapeHtml(resetRecordTitle(record))}</strong>${record.amount != null ? `<small>${escapeHtml(formatINR(record.amount))}</small>` : ''}</article>`).join('')}</div></section>`).join('');
-}
-
 function renderResetOptionsPage() {
   const selected = state.resetOptionsSelected || {};
   const selectedCategories = Object.keys(RESET_CATEGORY_META).filter((key) => selected[key]);
@@ -544,13 +612,13 @@ function renderResetOptionsPage() {
   const summary = selectedCategories.map((key) => `<li>${escapeHtml(RESET_CATEGORY_META[key].title)} <strong>${getResetCategoryRecords(key).length}</strong></li>`).join('');
   return `
     <section class="screen daysync-reset-screen" aria-label="Reset options">
-      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which saved information to review and remove.</p></div></header>
-      <div class="daysync-reset-warning"><span>⚠</span><div><strong>Permanent deletion</strong><p>Review each section and its saved dates. Reset only the categories you select. This action cannot be undone.</p></div></div>
+      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which sections of saved information to remove.</p></div></header>
+      <div class="daysync-reset-warning"><span>⚠</span><div><strong>Permanent deletion</strong><p>Select only the sections you want to permanently delete. This action cannot be undone.</p></div></div>
       <div class="daysync-reset-category-list">
         ${Object.entries(RESET_CATEGORY_META).map(([key, meta]) => {
           const records = getResetCategoryRecords(key);
           const isSelected = Boolean(selected[key]);
-          return `<button type="button" class="daysync-reset-category ${isSelected ? 'is-selected' : ''}" data-action="reset-toggle-category" data-category="${key}" aria-pressed="${isSelected}"><span class="daysync-reset-category-check">${isSelected ? '✓' : ''}</span><span class="daysync-reset-category-icon">${meta.icon}</span><span class="daysync-reset-category-copy"><strong>${meta.title}</strong><small>${meta.description}</small><small>${records.length} saved ${records.length === 1 ? 'item' : 'items'} · ${isSelected ? 'Included in reset' : 'Tap to select and preview'}</small></span><span class="daysync-setting-trail">${isSelected ? '⌄' : '›'}</span></button>${isSelected ? `<div class="daysync-reset-preview">${renderResetRecordGroups(key)}</div>` : ''}`;
+          return `<button type="button" class="daysync-reset-category ${isSelected ? 'is-selected' : ''}" data-action="reset-toggle-category" data-category="${key}" aria-pressed="${isSelected}"><span class="daysync-reset-category-check">${isSelected ? '✓' : ''}</span><span class="daysync-reset-category-icon">${meta.icon}</span><span class="daysync-reset-category-copy"><strong>${meta.title}</strong><small>${meta.description}</small><small>${records.length} saved ${records.length === 1 ? 'item' : 'items'} · ${isSelected ? 'Included in reset' : 'Tap to select'}</small></span><span class="daysync-setting-trail">${isSelected ? '✓' : '›'}</span></button>`;
         }).join('')}
       </div>
       <div class="daysync-reset-select-actions"><button type="button" data-action="reset-select-all">${selectedCategories.length === Object.keys(RESET_CATEGORY_META).length ? 'Deselect all sections' : 'Select all sections'}</button><span>${selectedCategories.length} sections · ${selectedCount} records selected</span></div>
@@ -714,6 +782,7 @@ async function loadDashboardData() {
     }
 
     state.user = payload.user || state.user;
+    state.goalAchievementItems = loadGoalAchievements();
 
     localStorage.setItem(
       'sahraUser',
@@ -1053,8 +1122,8 @@ function renderSahraLogo(size = 52) {
   return `
     <img
       class="sahra-logo"
-      src="/images/sahra.png"
-      alt="Sahra logo"
+      src="/images/DaySync.png"
+      alt="DaySync logo"
       width="${size}"
       height="${size}"
     />
@@ -1136,6 +1205,8 @@ function closeEntryModal() {
   state.entryDraft = null;
   renderLayout();
 }
+
+window.sahraIsHome = () => state.view === 'home' && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen;
 
 window.sahraHandleNativeBack = () => {
   if (state.entryModalOpen) {
@@ -1910,6 +1981,8 @@ function renderFocusPage() {
         <div class="focus-label-row"><label for="focus-label">Session</label><input id="focus-label" maxlength="60" value="${escapeAttribute(state.focusLabel || 'Study session')}" placeholder="Study session" /></div>
         <div class="focus-ring-wrap">
           <svg class="focus-ring" viewBox="0 0 240 240" role="img" aria-label="Timer progress">
+            <defs><linearGradient id="focusGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38bdf8"/><stop offset="52%" stop-color="#22d3a6"/><stop offset="100%" stop-color="#4ade80"/></linearGradient></defs>
+            <g class="focus-ring-ticks">${Array.from({length:60},(_,i)=>`<line x1="120" y1="7" x2="120" y2="${i%5===0?16:11}" transform="rotate(${i*6} 120 120)" />`).join('')}</g>
             <circle class="focus-ring-track" cx="120" cy="120" r="101"></circle>
             <circle class="focus-ring-progress" cx="120" cy="120" r="101" style="stroke-dasharray: ${2*Math.PI*101}; stroke-dashoffset: ${(2*Math.PI*101)*(1-progress/100)}"></circle>
           </svg>
@@ -1917,8 +1990,8 @@ function renderFocusPage() {
         </div>
         <div class="focus-controls">
           <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">↺</button>
-          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? 'Pause timer' : 'Start timer'}">${state.focusRunning ? 'Ⅱ' : '▶'}</button>
-          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">■</button>
+          <button type="button" class="focus-control primary" data-action="focus-start" aria-label="Start timer" title="Start">▶</button>
+          <button type="button" class="focus-control secondary" data-action="focus-pause" aria-label="Pause timer" title="Pause">Ⅱ</button>
         </div>
         <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round((state.focusSeconds > 0 ? state.focusSeconds : total)/60))}" ${state.focusRunning ? 'disabled' : ''}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? 'disabled' : ''}>Set time</button></div></div>
         <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? 'disabled' : ''}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? 'disabled' : ''}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? 'disabled' : ''}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? 'disabled' : ''}>60 min</button></div>
@@ -2213,17 +2286,13 @@ function bindFocusTimer() {
   app.querySelectorAll('[data-action^="focus-"]').forEach((button) => button.addEventListener('click', () => {
     const action = button.dataset.action;
     if (action === 'focus-back') { goBackFromView(); }
-    if (action === 'focus-toggle') {
-      if (state.focusRunning) focusPause();
-      else {
-        const labelInput = document.getElementById('focus-label');
-        state.focusLabel = labelInput?.value?.trim() || state.focusLabel || 'Study session';
-        if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
-        if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
-        focusStopAudio();
-        focusPrimeAudio();
-        focusStartTicker();
-      }
+    if (action === 'focus-start') {
+      if (state.focusRunning) return;
+      const labelInput = document.getElementById('focus-label');
+      state.focusLabel = labelInput?.value?.trim() || state.focusLabel || 'Study session';
+      if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
+      if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
+      focusStopAudio(); focusPrimeAudio(); focusStartTicker();
     }
     if (action === 'focus-reset') {
       state.focusRunning = false; state.focusEndsAt = null; clearInterval(focusTicker); focusTicker = null;
@@ -2231,12 +2300,7 @@ function bindFocusTimer() {
       state.focusAlarmActive = false; state.focusAlarmStartedAt = null; state.focusSeconds = state.focusInitialSeconds; state.focusSessionId = null;
       persistFocusTimerState(); renderLayout();
     }
-    if (action === 'focus-stop') {
-      state.focusRunning = false; state.focusEndsAt = null; clearInterval(focusTicker); focusTicker = null;
-      focusStopAudio(); void focusCancelNotification({ removeDelivered: true });
-      state.focusAlarmActive = false; state.focusAlarmStartedAt = null; state.focusSeconds = state.focusInitialSeconds = 25*60; state.focusSessionId = null;
-      persistFocusTimerState(); renderLayout();
-    }
+    if (action === 'focus-pause') { if (state.focusRunning) focusPause(); }
     if (action === 'focus-set') {
       const input = document.getElementById('focus-minutes');
       const minutes = Math.max(1, Math.min(180, Number(input?.value) || 25));
@@ -2966,7 +3030,7 @@ function applySharedPageBackButton() {
     tasks: '.todo-header', vault: '.notepad-page-header',
     finance: '.finance-dashboard-header, .finance-transactions-header', calendar: '.page-header', mood: '.page-header',
     habits: '.page-header', goals: '.page-header', progress: '.dashboard-topbar',
-    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header',
+    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header',
     'reset-options': '.daysync-reset-header',
   };
   let header = app.querySelector(selectors[state.view] || '.screen > header, .screen > .page-header');
@@ -3003,6 +3067,8 @@ function renderLayout() {
   isRendering = true;
   const app = document.getElementById('app');
   const viewChanged = state.view !== lastRenderedView;
+  const oldChat = document.querySelector('.assistant-chat');
+  const assistantWasNearBottom = oldChat ? oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 100 : true;
   lastRenderedView = state.view;
 
   if (state.view === 'calendar' && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
@@ -3031,6 +3097,9 @@ function renderLayout() {
 
 } else if (state.view === 'goals') {
   content = renderGoalsPage(state);
+
+} else if (state.view === 'goal-achievements') {
+  content = renderGoalAchievementsPage();
 
 } else if (state.view === 'assistant') {
   content = renderAssistantPage(state);
@@ -3071,10 +3140,8 @@ function renderLayout() {
       if (state.view !== 'assistant') return;
       const currentApp = document.getElementById('app');
       if (!currentApp) return;
-      currentApp.scrollTo({
-        top: Math.max(0, currentApp.scrollHeight - currentApp.clientHeight),
-        behavior: 'smooth'
-      });
+      const chat = currentApp.querySelector('.assistant-chat');
+      if (chat && assistantWasNearBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
     });
   }
 
@@ -3089,7 +3156,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'focus', 'weather', 'settings', 'reset-options'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'focus', 'weather', 'settings', 'reset-options'];
 
 
 
@@ -3117,7 +3184,7 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'mood', 'finance', 'vault', 'focus', 'weather', 'settings', 'reset-options'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'goal-achievements', 'mood', 'finance', 'vault', 'focus', 'weather', 'settings', 'reset-options'].includes(button.dataset.view)) {
         if (state.view !== button.dataset.view && state.view !== 'home' && state.view !== 'assistant') state.navigationHistory.push(state.view);
         state.view = button.dataset.view;
         state.entryModalOpen = false;
@@ -3343,6 +3410,7 @@ async function stopListening() {
         });
 
         state.user = response.user || state.user;
+        state.goalAchievementItems = loadGoalAchievements();
         localStorage.setItem('sahraUser', JSON.stringify(state.user));
         state.profileEditing = false;
         state.profileSuccessMessage = 'Profile updated successfully!';
@@ -4209,6 +4277,7 @@ document.addEventListener('input', (e) => {
         localStorage.removeItem('sahraUser');
         state.authenticated = false;
         state.user = { name: 'DaySync User' };
+        state.goalAchievementItems = loadGoalAchievements();
         state.view = 'home';
         window.location.href = getLoginPath();
       }
@@ -4410,8 +4479,10 @@ document.addEventListener('click', (e) => {
       state.entryModalOpen = false;
       state.entryDraft = null;
 
-      const previousView = state.navigationHistory.length > 0 ? state.navigationHistory.pop() : 'home';
-      state.view = previousView;
+      state.view = 'home';
+      state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== 'calendar' && view !== 'menu');
+      state.moreMenuOpen = false;
+      state.menuOpen = false;
       renderLayout();
     });
   });
@@ -4824,7 +4895,55 @@ function bindGlobalListeners() {
   globalListenersBound = true;
   bindSmartNavigationAndKeyboard();
 
+  document.addEventListener('submit', (event) => {
+    const form = event.target.closest('form[data-form="goal-achievement"], form[data-form="goal-progress"]');
+    if (!form) return;
+    event.preventDefault();
+    const items = [...(state.goalAchievementItems || [])];
+    if (form.dataset.form === 'goal-achievement') {
+      const fd = new FormData(form);
+      const title = String(fd.get('title') || '').trim();
+      const target = Number(fd.get('target'));
+      const targetDate = String(fd.get('targetDate') || '');
+      if (!title || !Number.isFinite(target) || target <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) { showToast('Enter a goal name, positive target, and valid target date.'); return; }
+      const id = form.dataset.editId || (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const previous = items.find(g => g.id === id);
+      const goal = { ...(previous || { id, current:0, xp:0, logs:[], currentStreak:0, bestStreak:0, status:'Active', createdAt:new Date().toISOString() }), title, description:String(fd.get('description')||'').trim(), target, targetDate, unit:String(fd.get('unit')||'items'), frequency:String(fd.get('frequency')||'Daily'), reminderTime:String(fd.get('reminderTime')||''), category:String(fd.get('category')||'Personal') };
+      goal.status = Number(goal.current) >= goal.target ? 'Completed' : 'Active';
+      const index = items.findIndex(g=>g.id===id); if(index>=0) items[index]=goal; else items.unshift(goal);
+      saveGoalAchievements(items); state.goalAchievementEditingId=null; state.goalAchievementFilter='All'; void syncGoalReminder(goal); showToast(previous?'Goal updated':'Goal saved'); renderLayout(); return;
+    }
+    const goal = items.find(g=>g.id===form.dataset.goalId); if (!goal || goal.status==='Completed') return;
+    const amount = Number(new FormData(form).get('amount'));
+    if (!Number.isFinite(amount) || amount <= 0) { showToast('Enter a positive progress amount.'); return; }
+    const today = formatDateKey(new Date()); goal.logs = Array.isArray(goal.logs) ? goal.logs : [];
+    const logId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const lastLog=goal.logs[goal.logs.length-1];
+    if (lastLog && lastLog.date===today && Number(lastLog.amount)===amount && Date.now()-new Date(lastLog.createdAt||0).getTime()<8000) { showToast('That progress entry was just saved. Wait before submitting it again.'); return; }
+    goal.logs.push({ id:logId, date:today, amount, xp:10, createdAt:new Date().toISOString() });
+    goal.current = Math.min(Number(goal.target)||1, (Number(goal.current)||0) + amount); goal.xp = (Number(goal.xp)||0) + 10;
+    refreshGoalStreak(goal);
+    goal.status = goal.current >= goal.target ? 'Completed' : (goal.targetDate < today ? 'Overdue' : 'Active');
+    saveGoalAchievements(items); showToast(goal.status==='Completed'?'Goal completed! Achievement unlocked.':'+10 XP · Progress saved'); renderLayout();
+  });
+
   document.addEventListener('click', async (event) => {
+    const gaAction = event.target.closest('[data-action^="ga-"]');
+    if (gaAction) {
+      const action = gaAction.dataset.action;
+      if (action === 'ga-back') { state.goalAchievementEditingId = null; goBackFromView(); return; }
+      if (action === 'ga-filter') { state.goalAchievementFilter = gaAction.dataset.filter || 'All'; renderLayout(); return; }
+      if (action === 'ga-cancel-edit') { state.goalAchievementEditingId = null; renderLayout(); return; }
+      if (action === 'ga-edit') { state.goalAchievementEditingId = gaAction.dataset.goalId; renderLayout(); return; }
+      if (action === 'ga-delete') {
+        const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
+        if (!goal) return;
+        if (!window.confirm(`Delete the goal “${goal.title}” and its progress history?`)) return;
+        saveGoalAchievements((state.goalAchievementItems || []).filter(g => g.id !== goal.id));
+        if (window.Capacitor?.isNativePlatform?.()) void LocalNotifications.cancel({ notifications:[{id:goalReminderId(goal.id)}] }).catch(()=>{});
+        state.goalAchievementEditingId = null; showToast('Goal deleted'); renderLayout(); return;
+      }
+    }
     const sharedBack = event.target.closest('[data-action="shared-page-back"]');
     if (sharedBack) { goBackFromView(); return; }
     const openReset = event.target.closest('[data-action="open-reset-options"]');

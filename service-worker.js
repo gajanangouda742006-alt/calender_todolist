@@ -9,6 +9,9 @@ const APP_SHELL = [
   '/web-app.js',
   '/manifest.webmanifest',
   '/image-192.png',
+  '/images/DaySync-192.png',
+  '/images/DaySync-512.png',
+  '/images/DaySync.png',
   '/image-512.png'
 ];
 

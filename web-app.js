@@ -6181,7 +6181,7 @@ function renderSettingsPage() {
         </div>
       </section>
       <p class="daysync-settings-section-label">ABOUT DAYSYNC</p>
-      <section class="daysync-about-card"><div class="daysync-about-top"><span class="daysync-about-logo">DS</span><div><strong>DaySync</strong><p>Your personal planner for tasks, calendar, expenses, goals, and focus sessions.</p></div></div><span class="daysync-about-version">DaySync \xB7 Version 1.0 \xB7 AI assistant: Sahra</span></section>
+      <section class="daysync-about-card"><div class="daysync-about-top"><img class="daysync-about-logo" src="/images/DaySync.png" alt="DaySync logo" width="42" height="42" /><div><strong>DaySync</strong><p>Your personal planner for tasks, calendar, expenses, goals, and focus sessions.</p></div></div><span class="daysync-about-version">DaySync \xB7 Version 1.0 \xB7 AI assistant: Sahra</span></section>
       <button class="daysync-signout-row" type="button" data-menu-action="logout"><span>\u21AA</span> Sign out</button>
     </section>`;
 }
@@ -6215,32 +6215,6 @@ function getResetCategoryRecords(category) {
   if (category === "focus") return tag(state.focusSessions, "Focus session");
   return [];
 }
-function resetRecordDate(record) {
-  const candidate = record?.date || record?.createdAt || record?.updatedAt || record?.startedAt || record?.completedAt || record?.endedAt || record?.timestamp || record?.startDate;
-  if (!candidate) return "Undated";
-  const raw = String(candidate);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? /* @__PURE__ */ new Date(`${raw}T00:00:00`) : new Date(candidate);
-  return Number.isNaN(date.getTime()) ? "Undated" : date.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-}
-function resetRecordTitle(record) {
-  const value = record?.title || record?.name || record?.label || record?.note || record?.content || record?.description || record?.category || record?._resetKind || "Saved record";
-  return String(value).replace(/\s+/g, " ").trim().slice(0, 88) || "Saved record";
-}
-function renderResetRecordGroups(category) {
-  const records = getResetCategoryRecords(category);
-  if (!records.length) return '<p class="daysync-reset-empty">No saved records found in this section.</p>';
-  const groups = /* @__PURE__ */ new Map();
-  for (const record of records) {
-    const date = resetRecordDate(record);
-    if (!groups.has(date)) groups.set(date, []);
-    groups.get(date).push(record);
-  }
-  return [...groups.entries()].sort((a, b) => {
-    if (a[0] === "Undated") return 1;
-    if (b[0] === "Undated") return -1;
-    return new Date(b[0]) - new Date(a[0]);
-  }).map(([date, rows]) => `<section class="daysync-reset-date-group"><header><strong>${escapeHtml5(date)}</strong><span>${rows.length} ${rows.length === 1 ? "item" : "items"}</span></header><div>${rows.map((record) => `<article class="daysync-reset-record"><span>${escapeHtml5(record._resetKind || "Saved item")}</span><strong>${escapeHtml5(resetRecordTitle(record))}</strong>${record.amount != null ? `<small>${escapeHtml5(formatINR(record.amount))}</small>` : ""}</article>`).join("")}</div></section>`).join("");
-}
 function renderResetOptionsPage() {
   const selected = state.resetOptionsSelected || {};
   const selectedCategories = Object.keys(RESET_CATEGORY_META).filter((key) => selected[key]);
@@ -6248,13 +6222,13 @@ function renderResetOptionsPage() {
   const summary = selectedCategories.map((key) => `<li>${escapeHtml5(RESET_CATEGORY_META[key].title)} <strong>${getResetCategoryRecords(key).length}</strong></li>`).join("");
   return `
     <section class="screen daysync-reset-screen" aria-label="Reset options">
-      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which saved information to review and remove.</p></div></header>
-      <div class="daysync-reset-warning"><span>\u26A0</span><div><strong>Permanent deletion</strong><p>Review each section and its saved dates. Reset only the categories you select. This action cannot be undone.</p></div></div>
+      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which sections of saved information to remove.</p></div></header>
+      <div class="daysync-reset-warning"><span>\u26A0</span><div><strong>Permanent deletion</strong><p>Select only the sections you want to permanently delete. This action cannot be undone.</p></div></div>
       <div class="daysync-reset-category-list">
         ${Object.entries(RESET_CATEGORY_META).map(([key, meta]) => {
     const records = getResetCategoryRecords(key);
     const isSelected = Boolean(selected[key]);
-    return `<button type="button" class="daysync-reset-category ${isSelected ? "is-selected" : ""}" data-action="reset-toggle-category" data-category="${key}" aria-pressed="${isSelected}"><span class="daysync-reset-category-check">${isSelected ? "\u2713" : ""}</span><span class="daysync-reset-category-icon">${meta.icon}</span><span class="daysync-reset-category-copy"><strong>${meta.title}</strong><small>${meta.description}</small><small>${records.length} saved ${records.length === 1 ? "item" : "items"} \xB7 ${isSelected ? "Included in reset" : "Tap to select and preview"}</small></span><span class="daysync-setting-trail">${isSelected ? "\u2304" : "\u203A"}</span></button>${isSelected ? `<div class="daysync-reset-preview">${renderResetRecordGroups(key)}</div>` : ""}`;
+    return `<button type="button" class="daysync-reset-category ${isSelected ? "is-selected" : ""}" data-action="reset-toggle-category" data-category="${key}" aria-pressed="${isSelected}"><span class="daysync-reset-category-check">${isSelected ? "\u2713" : ""}</span><span class="daysync-reset-category-icon">${meta.icon}</span><span class="daysync-reset-category-copy"><strong>${meta.title}</strong><small>${meta.description}</small><small>${records.length} saved ${records.length === 1 ? "item" : "items"} \xB7 ${isSelected ? "Included in reset" : "Tap to select"}</small></span><span class="daysync-setting-trail">${isSelected ? "\u2713" : "\u203A"}</span></button>`;
   }).join("")}
       </div>
       <div class="daysync-reset-select-actions"><button type="button" data-action="reset-select-all">${selectedCategories.length === Object.keys(RESET_CATEGORY_META).length ? "Deselect all sections" : "Select all sections"}</button><span>${selectedCategories.length} sections \xB7 ${selectedCount} records selected</span></div>
@@ -6647,8 +6621,8 @@ function renderSahraLogo(size = 52) {
   return `
     <img
       class="sahra-logo"
-      src="/images/sahra.png"
-      alt="Sahra logo"
+      src="/images/DaySync.png"
+      alt="DaySync logo"
       width="${size}"
       height="${size}"
     />
@@ -6720,6 +6694,7 @@ function closeEntryModal() {
   state.entryDraft = null;
   renderLayout();
 }
+window.sahraIsHome = () => state.view === "home" && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen;
 window.sahraHandleNativeBack = () => {
   if (state.entryModalOpen) {
     closeEntryModal();
@@ -7411,8 +7386,8 @@ function renderFocusPage() {
         </div>
         <div class="focus-controls">
           <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">\u21BA</button>
-          <button type="button" class="focus-control primary" data-action="focus-toggle" aria-label="${state.focusRunning ? "Pause timer" : "Start timer"}">${state.focusRunning ? "\u2161" : "\u25B6"}</button>
-          <button type="button" class="focus-control secondary" data-action="focus-stop" aria-label="Stop timer" title="Stop">\u25A0</button>
+          <button type="button" class="focus-control primary" data-action="focus-start" aria-label="Start timer" title="Start">\u25B6</button>
+          <button type="button" class="focus-control secondary" data-action="focus-pause" aria-label="Pause timer" title="Pause">\u2161</button>
         </div>
         <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round((state.focusSeconds > 0 ? state.focusSeconds : total) / 60))}" ${state.focusRunning ? "disabled" : ""}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? "disabled" : ""}>Set time</button></div></div>
         <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? "disabled" : ""}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? "disabled" : ""}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? "disabled" : ""}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? "disabled" : ""}>60 min</button></div>
@@ -7749,17 +7724,15 @@ function bindFocusTimer() {
     if (action === "focus-back") {
       goBackFromView();
     }
-    if (action === "focus-toggle") {
-      if (state.focusRunning) focusPause();
-      else {
-        const labelInput = document.getElementById("focus-label");
-        state.focusLabel = labelInput?.value?.trim() || state.focusLabel || "Study session";
-        if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
-        if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
-        focusStopAudio();
-        focusPrimeAudio();
-        focusStartTicker();
-      }
+    if (action === "focus-start") {
+      if (state.focusRunning) return;
+      const labelInput = document.getElementById("focus-label");
+      state.focusLabel = labelInput?.value?.trim() || state.focusLabel || "Study session";
+      if (state.focusSeconds <= 0) state.focusSeconds = state.focusInitialSeconds;
+      if (!state.focusSessionId || state.focusLastCompletedId === state.focusSessionId) state.focusSessionId = focusCreateSessionId();
+      focusStopAudio();
+      focusPrimeAudio();
+      focusStartTicker();
     }
     if (action === "focus-reset") {
       state.focusRunning = false;
@@ -7775,19 +7748,8 @@ function bindFocusTimer() {
       persistFocusTimerState();
       renderLayout();
     }
-    if (action === "focus-stop") {
-      state.focusRunning = false;
-      state.focusEndsAt = null;
-      clearInterval(focusTicker);
-      focusTicker = null;
-      focusStopAudio();
-      void focusCancelNotification({ removeDelivered: true });
-      state.focusAlarmActive = false;
-      state.focusAlarmStartedAt = null;
-      state.focusSeconds = state.focusInitialSeconds = 25 * 60;
-      state.focusSessionId = null;
-      persistFocusTimerState();
-      renderLayout();
+    if (action === "focus-pause") {
+      if (state.focusRunning) focusPause();
     }
     if (action === "focus-set") {
       const input = document.getElementById("focus-minutes");
@@ -9406,8 +9368,10 @@ function renderLayout() {
       state.profileDraft = null;
       state.entryModalOpen = false;
       state.entryDraft = null;
-      const previousView = state.navigationHistory.length > 0 ? state.navigationHistory.pop() : "home";
-      state.view = previousView;
+      state.view = "home";
+      state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== "calendar" && view !== "menu");
+      state.moreMenuOpen = false;
+      state.menuOpen = false;
       renderLayout();
     });
   });

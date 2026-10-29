@@ -9,21 +9,15 @@
       content="DaySync — your personal planner for tasks, calendar, expenses, goals, and focus."
     />
     <link rel="stylesheet" href="./style.css?v=daysync-settings-reset-20261028-2225" />
-    <link rel="icon" type="image/png" sizes="192x192" href="./image-192.png" />
-    <link rel="apple-touch-icon" href="./image-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./images/DaySync-192.png" />
+    <link rel="apple-touch-icon" href="./images/DaySync-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
 <meta name="theme-color" content="#111a35" />
 <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body>
     <div id="app-startup-intro" class="startup-intro" aria-hidden="true" hidden>
-      <img
-        class="startup-intro-poster"
-        src="./image-512.png"
-        alt=""
-        aria-hidden="true"
-      />
-      <video muted playsinline preload="auto" poster="./image-512.png">
+      <video muted playsinline preload="auto">
         <source src="./assets/app-intro.mp4" type="video/mp4" />
       </video>
     </div>
@@ -67,7 +61,7 @@
   // The animation is opt-in: only a successful login/signup sets this flag.
   // Consume it immediately so refreshes and normal navigation do not replay it.
   try {
-    shouldPlay = window.sessionStorage.getItem(INTRO_FLAG) === '1';
+    shouldPlay = !window.Capacitor?.isNativePlatform?.() || window.sessionStorage.getItem(INTRO_FLAG) === '1';
     window.sessionStorage.removeItem(INTRO_FLAG);
   } catch (_error) {
     // Storage can be unavailable in restricted browsing modes; the app still works.

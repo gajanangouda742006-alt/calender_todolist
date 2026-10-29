@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$sourcePath = Join-Path $projectRoot 'image-512.png'
+$sourcePath = Join-Path $projectRoot 'images\DaySync-512.png'
 if (-not (Test-Path -LiteralPath $sourcePath)) {
-  throw "Required logo not found: $sourcePath. Place image-512.png in the project root first."
+  throw "Required DaySync logo not found: $sourcePath."
 }
 Add-Type -AssemblyName System.Drawing
 $source = [System.Drawing.Image]::FromFile($sourcePath)

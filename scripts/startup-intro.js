@@ -7,7 +7,7 @@ function startStartupIntro() {
   const intro = document.getElementById('app-startup-intro');
   const video = intro?.querySelector('video');
   const appFrame = document.querySelector('.mobile-frame');
-  if (!window.Capacitor?.isNativePlatform() || !intro || !video) {
+  if (!intro || !video) {
     intro?.remove();
     return;
   }
