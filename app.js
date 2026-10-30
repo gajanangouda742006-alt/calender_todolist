@@ -1991,7 +1991,7 @@ function renderFocusPage() {
         <div class="focus-controls">
           <button type="button" class="focus-control secondary" data-action="focus-reset" aria-label="Reset timer" title="Reset">↺</button>
           <button type="button" class="focus-control primary" data-action="focus-start" aria-label="Start timer" title="Start">▶</button>
-          <button type="button" class="focus-control secondary" data-action="focus-pause" aria-label="Pause timer" title="Pause">Ⅱ</button>
+          <button type="button" class="focus-control secondary" data-action="focus-pause" aria-label="Pause timer" title="Pause">⬜</button>
         </div>
         <div class="focus-custom"><label for="focus-minutes">Session length</label><div class="focus-custom-row"><input id="focus-minutes" type="number" min="1" max="180" value="${Math.max(1, Math.round((state.focusSeconds > 0 ? state.focusSeconds : total)/60))}" ${state.focusRunning ? 'disabled' : ''}/><span>minutes</span><button type="button" data-action="focus-set" ${state.focusRunning ? 'disabled' : ''}>Set time</button></div></div>
         <div class="focus-presets"><button type="button" data-focus-minutes="15" ${state.focusRunning ? 'disabled' : ''}>15 min</button><button type="button" data-focus-minutes="25" ${state.focusRunning ? 'disabled' : ''}>25 min</button><button type="button" data-focus-minutes="45" ${state.focusRunning ? 'disabled' : ''}>45 min</button><button type="button" data-focus-minutes="60" ${state.focusRunning ? 'disabled' : ''}>60 min</button></div>
