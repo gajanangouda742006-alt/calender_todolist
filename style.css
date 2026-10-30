@@ -10803,3 +10803,274 @@ html[data-theme="light"] .ga-panel,body.theme-light .ga-panel,html[data-theme="l
 #app-startup-intro .startup-intro-poster { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 @media(max-width:380px) { .focus-header { grid-template-columns:minmax(36px,1fr) minmax(0,auto) minmax(64px,1fr); gap:7px !important; } .focus-title-copy { max-width:calc(100vw - 140px); }.focus-back { width:36px; height:36px; }.focus-mode-pill { font-size:9px; padding:5px 6px; } }
 @media(prefers-reduced-motion:reduce) { .focus-ring-progress,.ga-progress-track span { transition:none !important; } }
+
+
+/* =========================================================
+   DAYSync ASSISTANT — COMBINED MOBILE LAYOUT FIX
+   Header     : Top, centered and responsive
+   Chat       : Independently scrollable
+   Composer   : Always above bottom navigation
+   Navigation : Fixed at bottom
+   Keyboard   : Composer remains accessible
+========================================================= */
+
+@media (max-width: 760px) {
+
+  :root {
+    --assistant-nav-height: 76px;
+    --assistant-composer-height: 60px;
+    --assistant-nav-gap: 12px;
+
+    --assistant-safe-bottom:
+      env(safe-area-inset-bottom, 0px);
+
+    --assistant-nav-clearance:
+      calc(
+        var(--assistant-nav-height) +
+        var(--assistant-nav-gap) +
+        var(--assistant-safe-bottom)
+      );
+  }
+
+  /* APP CONTAINER */
+  .mobile-frame:has(.assistant-screen) {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #app:has(> .assistant-screen) {
+    display: flex !important;
+    flex-direction: column !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    height: 100% !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ASSISTANT PAGE */
+  #app > .assistant-screen {
+    position: relative !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    flex: 1 1 auto !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    height: 100% !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+
+    padding:
+      calc(10px + env(safe-area-inset-top, 0px))
+      14px
+      var(--assistant-nav-clearance) !important;
+
+    gap: 10px !important;
+
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* HEADER — TOP AND CENTERED */
+  .assistant-screen .assistant-header.page-fixed-header {
+    position: relative !important;
+
+    inset: auto !important;
+    transform: none !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    max-width: none !important;
+
+    flex: 0 0 auto !important;
+
+    margin: 0 !important;
+    padding: 12px 14px !important;
+
+    box-sizing: border-box !important;
+    z-index: 5 !important;
+  }
+
+  .assistant-screen .assistant-header-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+  }
+
+  .assistant-screen .assistant-brand {
+    display: flex !important;
+    align-items: center !important;
+
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .assistant-screen .assistant-title {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  .assistant-screen .assistant-title h1 {
+    font-size: clamp(23px, 6vw, 32px) !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .assistant-screen .assistant-clear-btn {
+    flex: 0 0 auto !important;
+  }
+
+  /* CHAT — SCROLLABLE MIDDLE AREA */
+  .assistant-screen .assistant-chat {
+    position: relative !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    flex: 1 1 0 !important;
+
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 8px 2px 20px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+
+    scrollbar-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .assistant-screen .assistant-chat::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .assistant-screen .assistant-chat .chat-row {
+    max-width: 100% !important;
+    flex-shrink: 0 !important;
+  }
+
+  .assistant-screen .assistant-chat .message-bubble {
+    max-width: min(82%, 320px) !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  /* COMPOSER — FIXED ABOVE THREE-BUTTON NAVIGATION */
+  .assistant-screen .assistant-fixed-composer {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+
+    bottom:
+      var(--assistant-nav-clearance) !important;
+
+    transform: translateX(-50%) !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      42px minmax(0, 1fr) 42px !important;
+
+    align-items: center !important;
+
+    width: calc(100vw - 28px) !important;
+    max-width: 430px !important;
+
+    min-height: var(--assistant-composer-height) !important;
+
+    margin: 0 !important;
+    padding: 7px 9px !important;
+    gap: 8px !important;
+
+    flex: 0 0 auto !important;
+
+    box-sizing: border-box !important;
+    z-index: 200 !important;
+  }
+
+  .assistant-screen .assistant-fixed-composer
+  [data-action="toggle-mic"] {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  .assistant-screen .assistant-fixed-composer .mic-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .assistant-screen .assistant-fixed-composer .assistant-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+
+    margin: 0 !important;
+    font-size: 14px !important;
+
+    box-sizing: border-box !important;
+  }
+
+  .assistant-screen .assistant-fixed-composer .composer-send {
+    width: 42px !important;
+    height: 42px !important;
+    margin: 0 !important;
+  }
+
+  /* BOTTOM NAVIGATION — FIXED AT SCREEN BOTTOM */
+  .mobile-frame:has(.assistant-screen) .bottom-nav {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+
+    bottom:
+      calc(8px + var(--assistant-safe-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: calc(100vw - 24px) !important;
+    max-width: 430px !important;
+
+    z-index: 150 !important;
+  }
+
+  /* KEYBOARD OPEN */
+  body.keyboard-open .assistant-screen {
+    padding-bottom: 8px !important;
+  }
+
+  body.keyboard-open .assistant-screen .assistant-fixed-composer {
+    bottom:
+      calc(12px + var(--assistant-safe-bottom)) !important;
+  }
+
+  body.keyboard-open .mobile-frame:has(.assistant-screen) .bottom-nav {
+    display: none !important;
+  }
+
+}
