@@ -1,0 +1,56 @@
+DAYSYNC — MOBILE STARTUP, BACK NAVIGATION AND HEADER UI PATCH
+
+ZIP LAYOUT
+This archive has no wrapper folder. Extract it directly into:
+P:\MyProjects\calender_todolist
+
+Files included at project-relative paths:
+  app.js
+  style.css
+  index.html
+  scripts\mobile-entry.js
+  scripts\stage-mobile.js
+
+WHAT THIS PATCH CHANGES
+1. Home paints immediately after authentication instead of waiting for the dashboard API and the offline queue to finish. Server data then refreshes the Home view.
+2. The render lock is released in a finally block, so an isolated render exception cannot leave the app permanently blocking later navigation renders.
+3. Android Back is registered independently of StatusBar and Keyboard setup. If either UI plugin setup fails, native Back still registers.
+4. Android Back closes the month picker, reset confirmation and focus completion alarm before navigating back. Existing modal and page-navigation handling is retained.
+5. Month-picker dismiss layer no longer blurs the whole screen or obscures the current-month button. The current month remains crisp and visible above the backdrop.
+6. DaySync Home brand title/subtitle remain white in light mode against the dark gradient logo header.
+7. Page headers share a centered width (max 402px), 72px height, common side gutters and safe-area-aware sticky top position.
+8. Mobile staging copies the optional Goal & Achievements stylesheet and can reuse the existing generated www image/menu/video assets when they are not duplicated at the project root.
+
+INSTALL — WEB BROWSER
+Open PowerShell:
+  cd P:\MyProjects\calender_todolist
+  node --check .\app.js
+  node --check .\scripts\mobile-entry.js
+  node --check .\scripts\stage-mobile.js
+  node .\scripts\build-web.js
+  npm start
+
+Open the web app and use Ctrl+Shift+R to clear the old cached bundle/style.
+
+INSTALL — ANDROID APK (IMPORTANT)
+The Capacitor config uses webDir "www". Running only "npx cap sync android" copies the existing www folder and does not compile the changed root app.js. Stage the new native bundle first:
+
+  cd P:\MyProjects\calender_todolist
+  $env:SAHRA_API_BASE_URL = "https://calender-todolist.onrender.com"
+  npm run mobile:stage
+  npx cap sync android
+  cd .\android
+  $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
+  $env:Path = "$env:JAVA_HOME\bin;$env:Path"
+  .\gradlew.bat assembleDebug
+
+The API origin above is the one already configured in the supplied www\app-config.js. If your deployed API origin has changed, set SAHRA_API_BASE_URL to that HTTPS origin instead.
+
+APK OUTPUT
+android\app\build\outputs\apk\debug\app-debug.apk
+
+NOTES
+- Do not copy the supplied www folder manually; npm run mobile:stage regenerates www from the latest source and bundles scripts/mobile-entry.js.
+- Do not run git commands as part of installation. This patch does not push or commit anything.
+- node_modules, credentials, .env, databases and build output are not included.
+- Source syntax checks were run for app.js, scripts/mobile-entry.js and scripts/stage-mobile.js. The full esbuild bundle and Android APK were not built in this environment because esbuild is not installed here; run the commands above in the project where dependencies are installed.

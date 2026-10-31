@@ -38,6 +38,7 @@ const EMPTY_DATA = {
 
 let notepadEventsBound = false;
 let lastRenderedView = null;
+window.SAHRA_APP_READY = false;
 
 function formatDateKey(date) {
   const normalized = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
@@ -1467,9 +1468,24 @@ function closeEntryModal() {
   renderLayout();
 }
 
-window.sahraIsHome = () => state.view === 'home' && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen;
+window.sahraIsHome = () => state.view === 'home' && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen && !state.moodPickerOpen && !state.progressPickerOpen && !state.resetConfirmOpen;
 
 window.sahraHandleNativeBack = () => {
+  // Close the top-most transient UI before navigating away from its page.
+  if (state.progressPickerOpen) {
+    state.progressPickerOpen = false;
+    renderLayout();
+    return true;
+  }
+  if (state.resetConfirmOpen) {
+    state.resetConfirmOpen = false;
+    renderLayout();
+    return true;
+  }
+  if (state.focusAlarmActive) {
+    focusDismissAlarm();
+    return true;
+  }
   if (state.entryModalOpen) {
     closeEntryModal();
     return true;
@@ -3621,6 +3637,7 @@ function applySharedPageBackButton() {
 function renderLayout() {
   if (isRendering) return; // Prevent overlapping render cycles
   isRendering = true;
+  try {
   const app = document.getElementById('app');
   const viewChanged = state.view !== lastRenderedView;
   const oldChat = document.querySelector('.assistant-chat');
@@ -5255,7 +5272,11 @@ document.addEventListener('click', (e) => {
   });
 
   bindFocusTimer();
-  isRendering = false;
+  } finally {
+    // Always release the render lock. A one-off rendering exception must not
+    // leave Home and subsequent navigation permanently frozen.
+    isRendering = false;
+  }
 }
 
 
@@ -6114,7 +6135,13 @@ async function initializeApp() {
     return;
   }
 
-  if (globalThis.navigator?.onLine) await offlineSync.flush(token);
+  // Render Home immediately after authentication. Dashboard loading performs
+  // its own offline-queue flush; waiting for it before the first render made
+  // the native app appear stuck on its initial Home screen on slow networks.
+  state.authenticated = true;
+  window.SAHRA_APP_READY = true;
+  renderLayout();
+
   await loadDashboardData();
   await fetchFinanceData();
   restorePersistedFocusTimer();

@@ -5797,6 +5797,7 @@ var EMPTY_DATA = {
 };
 var notepadEventsBound = false;
 var lastRenderedView = null;
+window.SAHRA_APP_READY = false;
 function formatDateKey2(date) {
   const normalized = new Date(date.getTime() - date.getTimezoneOffset() * 6e4);
   return normalized.toISOString().slice(0, 10);
@@ -7067,8 +7068,22 @@ function closeEntryModal() {
   state.entryDraft = null;
   renderLayout();
 }
-window.sahraIsHome = () => state.view === "home" && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen;
+window.sahraIsHome = () => state.view === "home" && !state.entryModalOpen && !state.profileModalOpen && !state.moreMenuOpen && !state.menuOpen && !state.moodPickerOpen && !state.progressPickerOpen && !state.resetConfirmOpen;
 window.sahraHandleNativeBack = () => {
+  if (state.progressPickerOpen) {
+    state.progressPickerOpen = false;
+    renderLayout();
+    return true;
+  }
+  if (state.resetConfirmOpen) {
+    state.resetConfirmOpen = false;
+    renderLayout();
+    return true;
+  }
+  if (state.focusAlarmActive) {
+    focusDismissAlarm();
+    return true;
+  }
   if (state.entryModalOpen) {
     closeEntryModal();
     return true;
@@ -8978,1234 +8993,1237 @@ function applySharedPageBackButton() {
 function renderLayout() {
   if (isRendering) return;
   isRendering = true;
-  const app = document.getElementById("app");
-  const viewChanged = state.view !== lastRenderedView;
-  const oldChat = document.querySelector(".assistant-chat");
-  const assistantWasNearBottom = oldChat ? oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 100 : true;
-  lastRenderedView = state.view;
-  if (state.view === "calendar" && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
-    loadSelectedDateData(state.selectedDate);
-  }
-  let content = renderHomePage();
-  if (state.view === "calendar") {
-    content = renderCalendarPage(state);
-  } else if (state.view === "finance") {
-    content = renderFinancePage(state);
-  } else if (state.view === "vault") {
-    content = renderVaultPage(state);
-  } else if (state.view === "mood") {
-    content = renderMoodPage(state);
-  } else if (state.view === "tasks") {
-    content = renderTasksPage(state);
-  } else if (state.view === "habits") {
-    content = renderHabitsPage(state);
-  } else if (state.view === "goals") {
-    content = renderGoalsPage(state);
-  } else if (state.view === "goal-achievements") {
-    content = renderGoalAchievementsPage();
-  } else if (state.view === "goal-create") {
-    content = renderGoalCreatePage();
-  } else if (state.view === "goal-edit") {
-    const editingGoalExists = (state.goalAchievementItems || []).some((goal) => String(goal.id) === String(state.goalAchievementEditingId));
-    if (!editingGoalExists) {
-      state.goalAchievementEditingId = null;
-      const history2 = state.navigationHistory || [];
-      if (history2[history2.length - 1] === "goal-achievements") history2.pop();
-      state.view = "goal-achievements";
-      content = renderGoalAchievementsPage();
-      showToast("This goal is no longer available.");
-    } else {
-      content = renderGoalEditPage();
-    }
-  } else if (state.view === "assistant") {
-    content = renderAssistantPage(state);
-  } else if (state.view === "menu") {
-    content = renderMenuPage();
-  } else if (state.view === "settings") {
-    content = renderSettingsPage();
-  } else if (state.view === "reset-options") {
-    content = renderResetOptionsPage();
-  } else if (state.view === "focus") {
-    content = renderFocusPage();
-  } else if (state.view === "weather") {
-    content = renderWeatherPage();
-  } else if (state.view === "progress" || state.view === "more") {
-    content = renderProgressPage();
-  }
-  app.innerHTML = content + renderEntryModal() + renderProfileModal();
-  renderFocusAlarmOverlay();
-  applySharedPageBackButton();
-  const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
-  const assistantLoadingNow = Boolean(state.assistantLoading);
-  const assistantConversationChanged = state.view === "assistant" && !viewChanged && (assistantMessageCount !== lastAssistantMessageCount || assistantLoadingNow !== lastAssistantLoadingState);
-  lastAssistantMessageCount = assistantMessageCount;
-  lastAssistantLoadingState = assistantLoadingNow;
-  if (assistantConversationChanged) {
-    requestAnimationFrame(() => {
-      if (state.view !== "assistant") return;
-      const currentApp = document.getElementById("app");
-      if (!currentApp) return;
-      const chat = currentApp.querySelector(".assistant-chat");
-      if (chat && assistantWasNearBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" });
-    });
-  }
-  if (viewChanged) {
-    app.scrollTop = 0;
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    const nav = document.querySelector(".bottom-nav");
-    nav?.classList.remove("scroll-hidden");
-  }
-  syncKeyboardViewport();
-  const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals", "goal-achievements", "goal-create", "goal-edit", "focus", "weather", "settings", "reset-options"];
-  document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
-    const isMenuButton = button.dataset.action === "toggle-more-menu";
-    if (isMenuButton) {
-      button.classList.toggle("active", state.moreMenuOpen || menuSubPages.includes(state.view));
-    } else {
-      button.classList.toggle("active", button.dataset.view === state.view && !state.moreMenuOpen);
-    }
-  });
-  requestAnimationFrame(() => {
-    const indicator = document.querySelector(".nav-indicator");
-    const activeBtn = document.querySelector(".bottom-nav .nav-item.active");
-    if (indicator && activeBtn) {
-      indicator.style.width = `${activeBtn.offsetWidth}px`;
-      indicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
-    }
-  });
-  app.querySelectorAll("[data-view]").forEach((button) => {
-    if (!button.dataset.view) return;
-    button.addEventListener("click", () => {
-      if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "goal-achievements", "mood", "finance", "vault", "focus", "weather", "settings", "reset-options"].includes(button.dataset.view)) {
-        if (state.view !== button.dataset.view && state.view !== "home" && state.view !== "assistant") state.navigationHistory.push(state.view);
-        state.view = button.dataset.view;
-        state.entryModalOpen = false;
-        state.entryDraft = null;
-        state.moreMenuOpen = false;
-        renderLayout();
-      }
-    });
-  });
-  let webRecognition;
-  let idleTimer;
-  let pauseTimer;
-  const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
-  const getNativeSpeechRecognition = () => window.SAHRA_SPEECH_RECOGNITION || window.Capacitor?.Plugins?.SpeechRecognition || null;
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SpeechRecognition && !isNativeApp) {
-    webRecognition = new SpeechRecognition();
-    webRecognition.continuous = true;
-    webRecognition.interimResults = true;
-  }
-  document.querySelectorAll('[data-action="toggle-mic"]').forEach((button) => {
-    button.addEventListener("click", async () => {
-      const micImg = document.getElementById("chat-mic-img");
-      const chatInput = document.querySelector('input[placeholder*="speak"]');
-      if (!micImg) return;
-      if (!isNativeApp && !webRecognition) {
-        showToast("Voice recognition isn't supported on this browser.");
-        return;
-      }
-      const isListening = micImg.classList.contains("listening");
-      if (isListening) {
+  try {
+    let handleSpeechResult = function(transcript, chatInput) {
+      clearTimeout(idleTimer);
+      clearTimeout(pauseTimer);
+      if (chatInput) chatInput.value = transcript;
+      pauseTimer = setTimeout(() => {
         stopListening();
+      }, 3e3);
+    };
+    const app = document.getElementById("app");
+    const viewChanged = state.view !== lastRenderedView;
+    const oldChat = document.querySelector(".assistant-chat");
+    const assistantWasNearBottom = oldChat ? oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 100 : true;
+    lastRenderedView = state.view;
+    if (state.view === "calendar" && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
+      loadSelectedDateData(state.selectedDate);
+    }
+    let content = renderHomePage();
+    if (state.view === "calendar") {
+      content = renderCalendarPage(state);
+    } else if (state.view === "finance") {
+      content = renderFinancePage(state);
+    } else if (state.view === "vault") {
+      content = renderVaultPage(state);
+    } else if (state.view === "mood") {
+      content = renderMoodPage(state);
+    } else if (state.view === "tasks") {
+      content = renderTasksPage(state);
+    } else if (state.view === "habits") {
+      content = renderHabitsPage(state);
+    } else if (state.view === "goals") {
+      content = renderGoalsPage(state);
+    } else if (state.view === "goal-achievements") {
+      content = renderGoalAchievementsPage();
+    } else if (state.view === "goal-create") {
+      content = renderGoalCreatePage();
+    } else if (state.view === "goal-edit") {
+      const editingGoalExists = (state.goalAchievementItems || []).some((goal) => String(goal.id) === String(state.goalAchievementEditingId));
+      if (!editingGoalExists) {
+        state.goalAchievementEditingId = null;
+        const history2 = state.navigationHistory || [];
+        if (history2[history2.length - 1] === "goal-achievements") history2.pop();
+        state.view = "goal-achievements";
+        content = renderGoalAchievementsPage();
+        showToast("This goal is no longer available.");
       } else {
-        try {
-          if (isNativeApp) {
-            const nativeSpeech = getNativeSpeechRecognition();
-            if (!nativeSpeech) {
-              showToast("Voice input is unavailable in this mobile build. Please update the app.");
-              return;
-            }
-            let permissions = await nativeSpeech.checkPermissions();
-            if (permissions.speechRecognition !== "granted") {
-              permissions = await nativeSpeech.requestPermissions();
-            }
-            if (permissions.speechRecognition !== "granted") {
-              showToast("Microphone permission is required for voice input.");
-              return;
-            }
-          }
-          await startListening(micImg, chatInput);
-        } catch (error) {
-          console.error("Unable to start voice input:", error);
-          showToast("Voice input could not be started.");
-        }
+        content = renderGoalEditPage();
+      }
+    } else if (state.view === "assistant") {
+      content = renderAssistantPage(state);
+    } else if (state.view === "menu") {
+      content = renderMenuPage();
+    } else if (state.view === "settings") {
+      content = renderSettingsPage();
+    } else if (state.view === "reset-options") {
+      content = renderResetOptionsPage();
+    } else if (state.view === "focus") {
+      content = renderFocusPage();
+    } else if (state.view === "weather") {
+      content = renderWeatherPage();
+    } else if (state.view === "progress" || state.view === "more") {
+      content = renderProgressPage();
+    }
+    app.innerHTML = content + renderEntryModal() + renderProfileModal();
+    renderFocusAlarmOverlay();
+    applySharedPageBackButton();
+    const assistantMessageCount = Array.isArray(state.assistantMessages) ? state.assistantMessages.length : 0;
+    const assistantLoadingNow = Boolean(state.assistantLoading);
+    const assistantConversationChanged = state.view === "assistant" && !viewChanged && (assistantMessageCount !== lastAssistantMessageCount || assistantLoadingNow !== lastAssistantLoadingState);
+    lastAssistantMessageCount = assistantMessageCount;
+    lastAssistantLoadingState = assistantLoadingNow;
+    if (assistantConversationChanged) {
+      requestAnimationFrame(() => {
+        if (state.view !== "assistant") return;
+        const currentApp = document.getElementById("app");
+        if (!currentApp) return;
+        const chat = currentApp.querySelector(".assistant-chat");
+        if (chat && assistantWasNearBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" });
+      });
+    }
+    if (viewChanged) {
+      app.scrollTop = 0;
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      const nav = document.querySelector(".bottom-nav");
+      nav?.classList.remove("scroll-hidden");
+    }
+    syncKeyboardViewport();
+    const menuSubPages = ["menu", "tasks", "vault", "finance", "progress", "habits", "goals", "goal-achievements", "goal-create", "goal-edit", "focus", "weather", "settings", "reset-options"];
+    document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
+      const isMenuButton = button.dataset.action === "toggle-more-menu";
+      if (isMenuButton) {
+        button.classList.toggle("active", state.moreMenuOpen || menuSubPages.includes(state.view));
+      } else {
+        button.classList.toggle("active", button.dataset.view === state.view && !state.moreMenuOpen);
       }
     });
-  });
-  async function startListening(micImg, chatInput) {
-    if (!micImg) return;
-    micImg.classList.add("listening");
-    if (chatInput) chatInput.value = "";
-    idleTimer = setTimeout(() => {
-      stopListening();
-      showToast("Microphone turned off (no speech detected)");
-    }, 5e3);
-    if (isNativeApp) {
-      const nativeSpeech = getNativeSpeechRecognition();
-      if (!nativeSpeech) throw new Error("Native speech recognition plugin is unavailable.");
-      await nativeSpeech.start({
-        language: "en-US",
-        partialResults: true,
-        popup: false
-      });
-      await nativeSpeech.addListener("partialResults", (data) => {
-        if (data.matches?.[0]) handleSpeechResult(data.matches[0], chatInput);
-      });
-    } else {
-      if (webRecognition && webRecognition.state === "listening") {
-        return;
+    requestAnimationFrame(() => {
+      const indicator = document.querySelector(".nav-indicator");
+      const activeBtn = document.querySelector(".bottom-nav .nav-item.active");
+      if (indicator && activeBtn) {
+        indicator.style.width = `${activeBtn.offsetWidth}px`;
+        indicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
       }
-      try {
-        webRecognition.start();
-        webRecognition.onresult = (event) => {
-          let transcript = "";
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
-          }
-          handleSpeechResult(transcript, chatInput);
-        };
-        webRecognition.onend = () => {
-          const micImgEl = document.getElementById("chat-mic-img");
-          if (micImgEl) micImgEl.classList.remove("listening");
-        };
-      } catch (error) {
-        if (error && error.name !== "InvalidStateError") {
-          throw error;
+    });
+    app.querySelectorAll("[data-view]").forEach((button) => {
+      if (!button.dataset.view) return;
+      button.addEventListener("click", () => {
+        if (["home", "calendar", "assistant", "more", "progress", "tasks", "habits", "goals", "goal-achievements", "mood", "finance", "vault", "focus", "weather", "settings", "reset-options"].includes(button.dataset.view)) {
+          if (state.view !== button.dataset.view && state.view !== "home" && state.view !== "assistant") state.navigationHistory.push(state.view);
+          state.view = button.dataset.view;
+          state.entryModalOpen = false;
+          state.entryDraft = null;
+          state.moreMenuOpen = false;
+          renderLayout();
         }
+      });
+    });
+    let webRecognition;
+    let idleTimer;
+    let pauseTimer;
+    const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
+    const getNativeSpeechRecognition = () => window.SAHRA_SPEECH_RECOGNITION || window.Capacitor?.Plugins?.SpeechRecognition || null;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition && !isNativeApp) {
+      webRecognition = new SpeechRecognition();
+      webRecognition.continuous = true;
+      webRecognition.interimResults = true;
+    }
+    document.querySelectorAll('[data-action="toggle-mic"]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        const micImg = document.getElementById("chat-mic-img");
+        const chatInput = document.querySelector('input[placeholder*="speak"]');
+        if (!micImg) return;
+        if (!isNativeApp && !webRecognition) {
+          showToast("Voice recognition isn't supported on this browser.");
+          return;
+        }
+        const isListening = micImg.classList.contains("listening");
+        if (isListening) {
+          stopListening();
+        } else {
+          try {
+            if (isNativeApp) {
+              const nativeSpeech = getNativeSpeechRecognition();
+              if (!nativeSpeech) {
+                showToast("Voice input is unavailable in this mobile build. Please update the app.");
+                return;
+              }
+              let permissions = await nativeSpeech.checkPermissions();
+              if (permissions.speechRecognition !== "granted") {
+                permissions = await nativeSpeech.requestPermissions();
+              }
+              if (permissions.speechRecognition !== "granted") {
+                showToast("Microphone permission is required for voice input.");
+                return;
+              }
+            }
+            await startListening(micImg, chatInput);
+          } catch (error) {
+            console.error("Unable to start voice input:", error);
+            showToast("Voice input could not be started.");
+          }
+        }
+      });
+    });
+    async function startListening(micImg, chatInput) {
+      if (!micImg) return;
+      micImg.classList.add("listening");
+      if (chatInput) chatInput.value = "";
+      idleTimer = setTimeout(() => {
+        stopListening();
+        showToast("Microphone turned off (no speech detected)");
+      }, 5e3);
+      if (isNativeApp) {
+        const nativeSpeech = getNativeSpeechRecognition();
+        if (!nativeSpeech) throw new Error("Native speech recognition plugin is unavailable.");
+        await nativeSpeech.start({
+          language: "en-US",
+          partialResults: true,
+          popup: false
+        });
+        await nativeSpeech.addListener("partialResults", (data) => {
+          if (data.matches?.[0]) handleSpeechResult(data.matches[0], chatInput);
+        });
+      } else {
         if (webRecognition && webRecognition.state === "listening") {
           return;
         }
-        console.warn("Speech recognition already active; ignoring duplicate start request.");
-      }
-    }
-  }
-  function handleSpeechResult(transcript, chatInput) {
-    clearTimeout(idleTimer);
-    clearTimeout(pauseTimer);
-    if (chatInput) chatInput.value = transcript;
-    pauseTimer = setTimeout(() => {
-      stopListening();
-    }, 3e3);
-  }
-  async function stopListening() {
-    clearTimeout(idleTimer);
-    clearTimeout(pauseTimer);
-    const micImg = document.getElementById("chat-mic-img");
-    if (micImg) micImg.classList.remove("listening");
-    if (isNativeApp) {
-      const nativeSpeech = getNativeSpeechRecognition();
-      if (nativeSpeech) {
-        await nativeSpeech.stop();
-        await nativeSpeech.removeAllListeners();
-      }
-    } else if (webRecognition) {
-      if (webRecognition.state === "listening") {
-        webRecognition.stop();
-      }
-    }
-    const chatInput = document.querySelector('input[placeholder*="speak"]');
-    if (chatInput && chatInput.value.trim() !== "") {
-      const sendBtn = chatInput.nextElementSibling;
-      if (sendBtn) sendBtn.click();
-    }
-  }
-  document.querySelectorAll('[data-action="toggle-progress-picker"]').forEach((button) => {
-    button.addEventListener("click", (e) => {
-      e.stopPropagation();
-      state.progressPickerOpen = !state.progressPickerOpen;
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="close-profile-modal"]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.profileModalOpen = false;
-      state.profileEditing = false;
-      state.profileDraft = null;
-      state.profileSuccessMessage = "";
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="profile-start-edit"]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.profileEditing = true;
-      state.profileSuccessMessage = "";
-      const profile = state.user?.profile || {};
-      state.profileDraft = {
-        name: state.user?.name || "",
-        dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : ""
-      };
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="profile-cancel-edit"]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.profileEditing = false;
-      state.profileSuccessMessage = "";
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="profile-save"]').forEach((button) => {
-    button.addEventListener("click", async () => {
-      const draft = state.profileDraft || {};
-      const payload = {
-        name: draft.name,
-        dateOfBirth: draft.dateOfBirth || null
-      };
-      try {
-        const response = await apiRequest("/api/profile", {
-          method: "PUT",
-          body: JSON.stringify(payload)
-        });
-        state.user = response.user || state.user;
-        state.goalAchievementItems = loadGoalAchievements();
-        localStorage.setItem("sahraUser", JSON.stringify(state.user));
-        state.profileEditing = false;
-        state.profileSuccessMessage = "Profile updated successfully!";
-        renderLayout();
-        setTimeout(() => {
-          if (state.profileSuccessMessage) {
-            state.profileSuccessMessage = "";
-            renderLayout();
-          }
-        }, 3e3);
-      } catch (error) {
-        window.alert(error.message || "Unable to save profile");
-      }
-    });
-  });
-  document.querySelectorAll(".profile-input").forEach((input) => {
-    input.addEventListener("input", (event) => {
-      const field = event.target.dataset.field;
-      const value = event.target.value;
-      state.profileDraft = state.profileDraft || {};
-      state.profileDraft[field] = value;
-    });
-  });
-  document.querySelectorAll('[data-action="prev-month"]').forEach((button) => {
-    button.addEventListener("click", () => shiftMonth(-1));
-  });
-  document.querySelectorAll('[data-action="next-month"]').forEach((button) => {
-    button.addEventListener("click", () => shiftMonth(1));
-  });
-  document.querySelectorAll('[data-action="today"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      const today = /* @__PURE__ */ new Date();
-      state.currentMonth = today.getMonth();
-      state.currentYear = today.getFullYear();
-      state.selectedDate = formatDateKey2(today);
-      renderLayout();
-    });
-  });
-  document.querySelectorAll("[data-date]").forEach((button) => {
-    const dateValue = button.dataset.date;
-    if (!dateValue) return;
-    button.addEventListener("click", () => setSelectedDate(dateValue));
-  });
-  document.querySelectorAll('[data-action="show-calendar-event"]').forEach((row) => {
-    row.addEventListener("click", (event) => {
-      if (event.target.closest('[data-action="delete-calendar-event"]')) {
-        return;
-      }
-      const eventId = row.dataset.eventId;
-      const calendarEvent = state.data.events.find(
-        (item) => String(item.id || item._id) === String(eventId)
-      );
-      if (!calendarEvent) return;
-      state.calendarDetail = {
-        type: "event",
-        item: calendarEvent
-      };
-      renderLayout();
-    });
-    row.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      event.preventDefault();
-      const eventId = row.dataset.eventId;
-      const calendarEvent = state.data.events.find(
-        (item) => String(item.id || item._id) === String(eventId)
-      );
-      if (!calendarEvent) return;
-      state.calendarDetail = {
-        type: "event",
-        item: calendarEvent
-      };
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="show-calendar-task"]').forEach((row) => {
-    row.addEventListener("click", (event) => {
-      if (event.target.closest('[data-action="delete-calendar-task"]')) {
-        return;
-      }
-      const taskId = row.dataset.taskId;
-      const task = state.data.tasks.find(
-        (item) => String(item.id || item._id) === String(taskId)
-      );
-      if (!task) return;
-      state.calendarDetail = {
-        type: "task",
-        item: task
-      };
-      renderLayout();
-    });
-    row.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      event.preventDefault();
-      const taskId = row.dataset.taskId;
-      const task = state.data.tasks.find(
-        (item) => String(item.id || item._id) === String(taskId)
-      );
-      if (!task) return;
-      state.calendarDetail = {
-        type: "task",
-        item: task
-      };
-      renderLayout();
-    });
-  });
-  document.querySelectorAll(
-    '[data-action="delete-calendar-task"]'
-  ).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const taskId = button.dataset.taskId;
-      if (!taskId) return;
-      showAppConfirm(
-        "Are you sure you want to delete this task?",
-        async () => {
-          try {
-            await apiRequest(
-              `/api/tasks/${taskId}`,
-              {
-                method: "DELETE"
-              }
-            );
-            state.data.tasks = state.data.tasks.filter(
-              (task) => String(task.id || task._id) !== String(taskId)
-            );
-            state.calendarCache.delete(
-              state.selectedDate
-            );
-            state.calendarDetail = null;
-            showToast(
-              "Task deleted successfully"
-            );
-            renderLayout();
-          } catch (error) {
-            showToast(
-              error.message || "Unable to delete task"
-            );
-          }
-        }
-      );
-    });
-  });
-  document.querySelectorAll(
-    '[data-action="delete-calendar-event"]'
-  ).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const eventId = button.dataset.eventId;
-      if (!eventId) return;
-      showAppConfirm(
-        "Are you sure you want to delete this event?",
-        async () => {
-          try {
-            await apiRequest(
-              `/api/events/${eventId}`,
-              {
-                method: "DELETE"
-              }
-            );
-            state.data.events = state.data.events.filter(
-              (calendarEvent) => String(
-                calendarEvent.id || calendarEvent._id
-              ) !== String(eventId)
-            );
-            state.calendarCache.delete(
-              state.selectedDate
-            );
-            state.calendarDetail = null;
-            showToast(
-              "Event deleted successfully"
-            );
-            renderLayout();
-          } catch (error) {
-            showToast(
-              error.message || "Unable to delete event"
-            );
-          }
-        }
-      );
-    });
-  });
-  document.querySelectorAll(
-    '[data-action="close-calendar-detail"]'
-  ).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      if (event.target.closest(
-        "[data-calendar-detail-content]"
-      ) && !event.target.closest(
-        '[data-action="close-calendar-detail"]'
-      )) {
-        return;
-      }
-      state.calendarDetail = null;
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="open-add-entry"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      openEntryModal(button.dataset.type || "event");
-    });
-  });
-  document.querySelectorAll(".task-input").forEach((input) => {
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        addQuickTaskFromInput(input);
-      }
-    });
-  });
-  document.querySelectorAll('[data-action="quick-task-add"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      const input = document.querySelector(".task-input");
-      addQuickTaskFromInput(input);
-    });
-  });
-  document.querySelectorAll('[data-action="show-selected-day"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      setView("calendar");
-    });
-  });
-  document.querySelectorAll("[data-task-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.todoFilter = button.dataset.taskFilter || "All";
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="toggle-mood-picker"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      state.moodPickerOpen = !state.moodPickerOpen;
-      renderLayout();
-    });
-  });
-  document.querySelectorAll("[data-mood-value]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const mood = button.dataset.moodValue;
-      if (!mood) return;
-      state.moodPickerOpen = false;
-      renderLayout();
-      const existingMood = state.data.moods.find((m) => m.date === state.selectedDate);
-      try {
-        if (existingMood) {
-          await apiRequest(`/api/moods/${existingMood.id || existingMood._id}`, {
-            method: "PUT",
-            body: JSON.stringify({ mood, energy: 80, note: existingMood.note || "" })
-          });
-          await loadDashboardData();
-        } else {
-          await createResource("mood", {
-            date: state.selectedDate,
-            mood,
-            energy: 80,
-            note: ""
-          });
-        }
-      } catch (error) {
-        window.alert(error.message || "Unable to save mood");
-      }
-    });
-  });
-  document.addEventListener("change", (e) => {
-    const target = e.target;
-    if (target.getAttribute("data-action") === "finance-filter") {
-      state.financeTypeFilter = target.value;
-      triggerAppRender();
-    }
-  });
-  document.addEventListener("input", (e) => {
-    const searchInput = e.target.closest('[data-action="finance-search"]');
-    if (searchInput) {
-      const cursorPosition = searchInput.selectionStart ?? searchInput.value.length;
-      state.financeSearchQuery = searchInput.value;
-      triggerAppRender();
-      setTimeout(() => {
-        const newInput = document.querySelector('[data-action="finance-search"]');
-        if (newInput) {
-          newInput.focus();
-          const position = Math.min(cursorPosition, newInput.value.length);
-          newInput.setSelectionRange(position, position);
-        }
-      }, 0);
-    }
-  });
-  document.querySelectorAll('[data-action="edit-task"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      const task = state.data.tasks.find((item) => String(item.id || item._id) === String(button.dataset.taskId));
-      if (!task) return;
-      state.entryModalOpen = true;
-      state.entryDraft = {
-        type: "task",
-        id: task.id || task._id,
-        title: task.title || "",
-        description: task.description || "",
-        date: task.date || state.selectedDate,
-        time: task.time || "19:00",
-        priority: task.priority || "Normal",
-        status: task.status || "Pending",
-        reminder: task.reminder || "",
-        category: task.category || "General"
-      };
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="delete-task"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      const taskId = button.dataset.taskId;
-      if (!taskId) return;
-      showAppConfirm("Are you sure you want to delete this task?", async () => {
         try {
-          await apiRequest(`/api/tasks/${taskId}`, { method: "DELETE" });
-          await loadDashboardData();
-          showToast("Task deleted successfully");
-        } catch (error) {
-          showToast(error.message || "Unable to delete task");
-        }
-      });
-    });
-  });
-  document.querySelectorAll('[data-action="toggle-task"]').forEach((button) => {
-    button.addEventListener("click", async () => {
-      const taskId = button.dataset.taskId;
-      const task = state.data.tasks.find((item) => String(item.id || item._id) === String(taskId));
-      if (!task) return;
-      const nextCompleted = !(task.completed || task.status === "Completed");
-      try {
-        await apiRequest(`/api/tasks/${taskId}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            title: task.title,
-            description: task.description || "",
-            date: task.date || state.selectedDate,
-            time: task.time || null,
-            priority: task.priority || "Normal",
-            status: nextCompleted ? "Completed" : "Pending",
-            completed: nextCompleted,
-            reminder: task.reminder || "",
-            category: task.category || "General"
-          })
-        });
-        await loadDashboardData();
-      } catch (error) {
-        window.alert(error.message || "Unable to update task");
-      }
-    });
-  });
-  document.querySelectorAll('[data-action="copy-asset"]').forEach((button) => {
-    button.addEventListener("click", (e) => {
-      const content2 = button.dataset.content || "";
-      navigator.clipboard.writeText(content2);
-      button.textContent = "Copied!";
-      setTimeout(() => {
-        button.textContent = "Copy";
-      }, 2e3);
-    });
-  });
-  document.querySelectorAll('[data-action="close-entry-modal"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      closeEntryModal();
-    });
-  });
-  document.querySelectorAll('[data-action="save-entry"]').forEach((button) => {
-    button.addEventListener("click", async () => {
-      document.querySelectorAll("[data-entry-field]").forEach((field) => {
-        const fieldName = field.dataset.entryField;
-        if (fieldName) {
-          state.entryDraft = state.entryDraft || {};
-          state.entryDraft[fieldName] = field.type === "checkbox" ? field.checked : field.value;
-        }
-      });
-      const draft = state.entryDraft || {};
-      const type = draft.type || "event";
-      const date = draft.date || state.selectedDate;
-      if (type === "task" && isJunkTask({ title: draft.title || draft.name || "" })) {
-        showToast("That test task name has been removed. Please enter a meaningful task title.");
-        button.dataset.submitting = "false";
-        button.textContent = "Add Task";
-        return;
-      }
-      if ((type === "event" || type === "task") && isPastDate(date)) {
-        window.alert(
-          "Tasks and events can only be added for today or future dates."
-        );
-        return;
-      }
-      try {
-        if (type === "event") {
-          const title = (draft.title || "").trim();
-          if (!title) {
-            window.alert("Please enter an event title.");
-            return;
-          }
-          await createResource("event", {
-            title,
-            description: draft.description || "",
-            date,
-            startTime: draft.startTime || "09:00",
-            endTime: draft.endTime || "10:00",
-            category: draft.category || "General",
-            reminder: draft.reminder || ""
-          });
-        } else if (type === "task") {
-          const title = (draft.title || "").trim();
-          if (!title) {
-            window.alert("Please enter a task title.");
-            return;
-          }
-          const taskPayload = {
-            title,
-            description: draft.description || "",
-            date,
-            time: draft.time || null,
-            priority: draft.priority || "Normal",
-            status: draft.status || "Pending",
-            completed: draft.completed || false,
-            reminder: draft.reminder || "",
-            category: draft.category || "General"
+          webRecognition.start();
+          webRecognition.onresult = (event) => {
+            let transcript = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              transcript += event.results[i][0].transcript;
+            }
+            handleSpeechResult(transcript, chatInput);
           };
-          if (draft.id) {
-            await apiRequest(`/api/tasks/${draft.id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(taskPayload)
-            });
-            await loadDashboardData();
-          } else {
-            await createResource("task", taskPayload);
+          webRecognition.onend = () => {
+            const micImgEl = document.getElementById("chat-mic-img");
+            if (micImgEl) micImgEl.classList.remove("listening");
+          };
+        } catch (error) {
+          if (error && error.name !== "InvalidStateError") {
+            throw error;
           }
-        } else if (type === "habit") {
-          const name = (draft.title || "").trim();
-          if (!name) {
-            window.alert("Please enter a habit name.");
+          if (webRecognition && webRecognition.state === "listening") {
             return;
           }
-          await createResource("habit", {
-            name,
-            description: draft.description || "",
-            goal: Number(draft.goal || 1),
-            progress: 0,
-            frequency: draft.frequency || "Daily"
-          });
-        } else if (type === "goal") {
-          const title = (draft.title || "").trim();
-          if (!title) {
-            window.alert("Please enter a goal title.");
-            return;
-          }
-          const current = Number(draft.current || 0);
-          const target = Math.max(Number(draft.target || 30), 1);
-          await createResource("goal", {
-            title,
-            description: draft.description || "",
-            duration: draft.duration || "30 days",
-            current,
-            target,
-            progress: Math.min(100, Math.round(current / target * 100)),
-            status: "Active"
-          });
-        } else if (type === "mood") {
-          const mood = draft.mood || "\u{1F60A}";
-          await createResource("mood", {
-            date,
-            mood,
-            energy: 80,
-            note: draft.note || ""
-          });
-        } else if (type === "asset" || type === "note") {
-          const title = (draft.title || "").trim();
-          const description = (draft.description || draft.content || "").trim();
-          if (!title || !description) {
-            window.alert("Please enter a title and description.");
-            return;
-          }
-          const payload = { title, content: description, tags: draft.tags || "Note" };
-          if (draft.id) {
-            await apiRequest(`/api/assets/${draft.id}`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify(payload)
-            });
-            await loadDashboardData();
-            renderLayout();
-          } else {
-            await createResource("asset", payload);
-          }
-        } else if (type === "expense" || type === "subscription") {
-          const title = (draft.title || "").trim();
-          const amount = Number(draft.amount);
-          if (!title) {
-            window.alert("Please enter a title.");
-            return;
-          }
-          if (!Number.isFinite(amount) || amount <= 0) {
-            window.alert("Please enter a valid amount.");
-            return;
-          }
-          await createResource(type, {
-            title,
-            amount,
-            date: draft.date || state.selectedDate,
-            renewalDate: draft.renewalDate || state.selectedDate,
-            category: draft.category || "General"
-          });
-        }
-        closeEntryModal();
-        if (typeof showToast === "function") {
-          showToast("Saved successfully!");
-        } else {
-          window.alert("Saved successfully!");
-        }
-      } catch (error) {
-        console.error("Save entry failed:", error);
-        if (typeof showToast === "function") {
-          showToast(error.message || "Unable to save item");
-        } else {
-          window.alert(error.message || "Unable to save item");
+          console.warn("Speech recognition already active; ignoring duplicate start request.");
         }
       }
-    });
-  });
-  document.querySelectorAll("[data-entry-field]").forEach((field) => {
-    const fieldName = field.dataset.entryField;
-    if (!fieldName) return;
-    const updateDraft = (element) => {
-      const value = element.type === "checkbox" ? element.checked : element.value;
-      state.entryDraft = {
-        ...state.entryDraft || {},
-        [fieldName]: value
-      };
-      if (fieldName === "type") {
+    }
+    async function stopListening() {
+      clearTimeout(idleTimer);
+      clearTimeout(pauseTimer);
+      const micImg = document.getElementById("chat-mic-img");
+      if (micImg) micImg.classList.remove("listening");
+      if (isNativeApp) {
+        const nativeSpeech = getNativeSpeechRecognition();
+        if (nativeSpeech) {
+          await nativeSpeech.stop();
+          await nativeSpeech.removeAllListeners();
+        }
+      } else if (webRecognition) {
+        if (webRecognition.state === "listening") {
+          webRecognition.stop();
+        }
+      }
+      const chatInput = document.querySelector('input[placeholder*="speak"]');
+      if (chatInput && chatInput.value.trim() !== "") {
+        const sendBtn = chatInput.nextElementSibling;
+        if (sendBtn) sendBtn.click();
+      }
+    }
+    document.querySelectorAll('[data-action="toggle-progress-picker"]').forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.progressPickerOpen = !state.progressPickerOpen;
         renderLayout();
-      }
-    };
-    field.addEventListener("input", () => updateDraft(field));
-    field.addEventListener("change", () => updateDraft(field));
-  });
-  const menuButton = document.querySelector(".menu-button");
-  const menuPanel = document.querySelector(".menu-panel");
-  if (menuButton && menuPanel) {
-    menuButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      state.menuOpen = !state.menuOpen;
-      menuPanel.classList.toggle("hidden", !state.menuOpen);
-      menuPanel.classList.toggle("open", state.menuOpen);
+      });
     });
-  }
-  document.querySelectorAll("[data-menu-action]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const action = button.dataset.menuAction;
-      if (action === "toggle-theme") {
-        const nextTheme = state.theme === "light" ? "dark" : "light";
-        state.menuOpen = false;
-        applyTheme(nextTheme);
-        renderLayout();
-        await updateThemeInDatabase(nextTheme);
-        return;
-      }
-      state.menuOpen = false;
-      if (action === "profile") {
-        state.profileModalOpen = true;
+    document.querySelectorAll('[data-action="close-profile-modal"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.profileModalOpen = false;
         state.profileEditing = false;
+        state.profileDraft = null;
         state.profileSuccessMessage = "";
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="profile-start-edit"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.profileEditing = true;
+        state.profileSuccessMessage = "";
+        const profile = state.user?.profile || {};
         state.profileDraft = {
           name: state.user?.name || "",
-          dateOfBirth: state.user?.profile?.dateOfBirth ? new Date(state.user.profile.dateOfBirth).toISOString().slice(0, 10) : ""
+          dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : ""
         };
         renderLayout();
-        return;
-      }
-      if (action === "notifications") {
-        state.menuOpen = false;
-        renderLayout();
-        await toggleDeviceNotifications();
-        renderLayout();
-        return;
-      }
-      if (action === "privacy-security") {
-        state.settingsInfoPanel = state.settingsInfoPanel === "privacy" ? "" : "privacy";
-        renderLayout();
-        return;
-      }
-      if (action === "sync-now") {
-        try {
-          const token = await getAuthToken();
-          if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
-          await loadDashboardData();
-          if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
-          await fetchFinanceData();
-          showToast("DaySync data sync finished.");
-        } catch (error) {
-          showToast(error.message || "Unable to sync DaySync data.");
-        }
-        return;
-      }
-      if (action === "exact-alarms") {
-        try {
-          if (!window.Capacitor?.isNativePlatform?.()) {
-            showToast("Timer alarm settings are available in the installed mobile app.");
-            return;
-          }
-          const permission = await LocalNotifications.checkExactNotificationSetting();
-          if (permission.exact_alarm !== "granted") {
-            await LocalNotifications.changeExactNotificationSetting();
-            showToast("Check Android alarm access, then return to DaySync.");
-          } else showToast("Precise timer alarms are already allowed.");
-        } catch (error) {
-          showToast(error.message || "Unable to open Android alarm settings.");
-        }
-        return;
-      }
-      if (action === "logout") {
-        focusStopAudio();
-        state.focusRunning = false;
-        state.focusEndsAt = null;
-        clearInterval(focusTicker);
-        focusTicker = null;
-        persistFocusTimerState();
-        await removeAuthToken();
-        localStorage.removeItem("sahraUser");
-        state.authenticated = false;
-        state.user = { name: "DaySync User" };
-        state.goalAchievementItems = loadGoalAchievements();
-        state.view = "home";
-        window.location.href = getLoginPath();
-      }
+      });
     });
-  });
-  if (!notepadEventsBound) {
-    let showCustomNotepadConfirm = function(message, onConfirm) {
-      const overlay = document.createElement("div");
-      overlay.className = "notepad-confirm-overlay";
-      overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);";
-      const box = document.createElement("div");
-      box.className = "notepad-confirm-box";
-      box.style.cssText = "background: #1e293b; padding: 24px; border-radius: 16px; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid rgba(255,255,255,0.1);";
-      const text = document.createElement("p");
-      text.className = "notepad-confirm-message";
-      text.style.cssText = "margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5; color: #f8fafc; font-weight: 500;";
-      text.innerText = message;
-      const btnContainer = document.createElement("div");
-      btnContainer.style.cssText = "display: flex; gap: 12px; justify-content: center;";
-      const cancelBtn = document.createElement("button");
-      cancelBtn.innerText = "Cancel";
-      cancelBtn.type = "button";
-      cancelBtn.style.cssText = "padding: 12px; border-radius: 10px; border: none; background: #334155; color: white; font-weight: 600; cursor: pointer; flex: 1;";
-      const confirmBtn = document.createElement("button");
-      confirmBtn.innerText = "Delete";
-      confirmBtn.style.cssText = "padding: 12px; border-radius: 10px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer; flex: 1; box-shadow: 0 4px 10px rgba(239,68,68,0.3);";
-      cancelBtn.onclick = () => document.body.removeChild(overlay);
-      let confirmed = false;
-      confirmBtn.onclick = async () => {
-        if (confirmed) return;
-        confirmed = true;
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = "Deleting...";
-        confirmBtn.style.opacity = "0.6";
-        confirmBtn.style.pointerEvents = "none";
-        overlay.remove();
-        await onConfirm();
-      };
-      btnContainer.appendChild(cancelBtn);
-      btnContainer.appendChild(confirmBtn);
-      box.appendChild(text);
-      box.appendChild(btnContainer);
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-    };
-    notepadEventsBound = true;
-    document.addEventListener("click", (e) => {
-      const toggleBtn = e.target.closest('[data-action="toggle-notepad-search"]');
-      if (!toggleBtn) return;
-      const app2 = document.querySelector("#app");
-      const currentScroll = app2 ? app2.scrollTop : 0;
-      state.notepadSearchOpen = !state.notepadSearchOpen;
-      renderLayout();
-      requestAnimationFrame(() => {
-        const newApp = document.querySelector("#app");
-        if (newApp) {
-          newApp.scrollTop = currentScroll;
-        }
-        if (state.notepadSearchOpen) {
-          const searchInput = document.querySelector(
-            '[data-action="notepad-search-input"]'
-          );
-          if (searchInput) {
-            searchInput.focus();
-          }
+    document.querySelectorAll('[data-action="profile-cancel-edit"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.profileEditing = false;
+        state.profileSuccessMessage = "";
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="profile-save"]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        const draft = state.profileDraft || {};
+        const payload = {
+          name: draft.name,
+          dateOfBirth: draft.dateOfBirth || null
+        };
+        try {
+          const response = await apiRequest("/api/profile", {
+            method: "PUT",
+            body: JSON.stringify(payload)
+          });
+          state.user = response.user || state.user;
+          state.goalAchievementItems = loadGoalAchievements();
+          localStorage.setItem("sahraUser", JSON.stringify(state.user));
+          state.profileEditing = false;
+          state.profileSuccessMessage = "Profile updated successfully!";
+          renderLayout();
+          setTimeout(() => {
+            if (state.profileSuccessMessage) {
+              state.profileSuccessMessage = "";
+              renderLayout();
+            }
+          }, 3e3);
+        } catch (error) {
+          window.alert(error.message || "Unable to save profile");
         }
       });
+    });
+    document.querySelectorAll(".profile-input").forEach((input) => {
+      input.addEventListener("input", (event) => {
+        const field = event.target.dataset.field;
+        const value = event.target.value;
+        state.profileDraft = state.profileDraft || {};
+        state.profileDraft[field] = value;
+      });
+    });
+    document.querySelectorAll('[data-action="prev-month"]').forEach((button) => {
+      button.addEventListener("click", () => shiftMonth(-1));
+    });
+    document.querySelectorAll('[data-action="next-month"]').forEach((button) => {
+      button.addEventListener("click", () => shiftMonth(1));
+    });
+    document.querySelectorAll('[data-action="today"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        const today = /* @__PURE__ */ new Date();
+        state.currentMonth = today.getMonth();
+        state.currentYear = today.getFullYear();
+        state.selectedDate = formatDateKey2(today);
+        renderLayout();
+      });
+    });
+    document.querySelectorAll("[data-date]").forEach((button) => {
+      const dateValue = button.dataset.date;
+      if (!dateValue) return;
+      button.addEventListener("click", () => setSelectedDate(dateValue));
+    });
+    document.querySelectorAll('[data-action="show-calendar-event"]').forEach((row) => {
+      row.addEventListener("click", (event) => {
+        if (event.target.closest('[data-action="delete-calendar-event"]')) {
+          return;
+        }
+        const eventId = row.dataset.eventId;
+        const calendarEvent = state.data.events.find(
+          (item) => String(item.id || item._id) === String(eventId)
+        );
+        if (!calendarEvent) return;
+        state.calendarDetail = {
+          type: "event",
+          item: calendarEvent
+        };
+        renderLayout();
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        const eventId = row.dataset.eventId;
+        const calendarEvent = state.data.events.find(
+          (item) => String(item.id || item._id) === String(eventId)
+        );
+        if (!calendarEvent) return;
+        state.calendarDetail = {
+          type: "event",
+          item: calendarEvent
+        };
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="show-calendar-task"]').forEach((row) => {
+      row.addEventListener("click", (event) => {
+        if (event.target.closest('[data-action="delete-calendar-task"]')) {
+          return;
+        }
+        const taskId = row.dataset.taskId;
+        const task = state.data.tasks.find(
+          (item) => String(item.id || item._id) === String(taskId)
+        );
+        if (!task) return;
+        state.calendarDetail = {
+          type: "task",
+          item: task
+        };
+        renderLayout();
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        const taskId = row.dataset.taskId;
+        const task = state.data.tasks.find(
+          (item) => String(item.id || item._id) === String(taskId)
+        );
+        if (!task) return;
+        state.calendarDetail = {
+          type: "task",
+          item: task
+        };
+        renderLayout();
+      });
+    });
+    document.querySelectorAll(
+      '[data-action="delete-calendar-task"]'
+    ).forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const taskId = button.dataset.taskId;
+        if (!taskId) return;
+        showAppConfirm(
+          "Are you sure you want to delete this task?",
+          async () => {
+            try {
+              await apiRequest(
+                `/api/tasks/${taskId}`,
+                {
+                  method: "DELETE"
+                }
+              );
+              state.data.tasks = state.data.tasks.filter(
+                (task) => String(task.id || task._id) !== String(taskId)
+              );
+              state.calendarCache.delete(
+                state.selectedDate
+              );
+              state.calendarDetail = null;
+              showToast(
+                "Task deleted successfully"
+              );
+              renderLayout();
+            } catch (error) {
+              showToast(
+                error.message || "Unable to delete task"
+              );
+            }
+          }
+        );
+      });
+    });
+    document.querySelectorAll(
+      '[data-action="delete-calendar-event"]'
+    ).forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const eventId = button.dataset.eventId;
+        if (!eventId) return;
+        showAppConfirm(
+          "Are you sure you want to delete this event?",
+          async () => {
+            try {
+              await apiRequest(
+                `/api/events/${eventId}`,
+                {
+                  method: "DELETE"
+                }
+              );
+              state.data.events = state.data.events.filter(
+                (calendarEvent) => String(
+                  calendarEvent.id || calendarEvent._id
+                ) !== String(eventId)
+              );
+              state.calendarCache.delete(
+                state.selectedDate
+              );
+              state.calendarDetail = null;
+              showToast(
+                "Event deleted successfully"
+              );
+              renderLayout();
+            } catch (error) {
+              showToast(
+                error.message || "Unable to delete event"
+              );
+            }
+          }
+        );
+      });
+    });
+    document.querySelectorAll(
+      '[data-action="close-calendar-detail"]'
+    ).forEach((button) => {
+      button.addEventListener("click", (event) => {
+        if (event.target.closest(
+          "[data-calendar-detail-content]"
+        ) && !event.target.closest(
+          '[data-action="close-calendar-detail"]'
+        )) {
+          return;
+        }
+        state.calendarDetail = null;
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="open-add-entry"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        openEntryModal(button.dataset.type || "event");
+      });
+    });
+    document.querySelectorAll(".task-input").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addQuickTaskFromInput(input);
+        }
+      });
+    });
+    document.querySelectorAll('[data-action="quick-task-add"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        const input = document.querySelector(".task-input");
+        addQuickTaskFromInput(input);
+      });
+    });
+    document.querySelectorAll('[data-action="show-selected-day"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        setView("calendar");
+      });
+    });
+    document.querySelectorAll("[data-task-filter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.todoFilter = button.dataset.taskFilter || "All";
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="toggle-mood-picker"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        state.moodPickerOpen = !state.moodPickerOpen;
+        renderLayout();
+      });
+    });
+    document.querySelectorAll("[data-mood-value]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const mood = button.dataset.moodValue;
+        if (!mood) return;
+        state.moodPickerOpen = false;
+        renderLayout();
+        const existingMood = state.data.moods.find((m) => m.date === state.selectedDate);
+        try {
+          if (existingMood) {
+            await apiRequest(`/api/moods/${existingMood.id || existingMood._id}`, {
+              method: "PUT",
+              body: JSON.stringify({ mood, energy: 80, note: existingMood.note || "" })
+            });
+            await loadDashboardData();
+          } else {
+            await createResource("mood", {
+              date: state.selectedDate,
+              mood,
+              energy: 80,
+              note: ""
+            });
+          }
+        } catch (error) {
+          window.alert(error.message || "Unable to save mood");
+        }
+      });
+    });
+    document.addEventListener("change", (e) => {
+      const target = e.target;
+      if (target.getAttribute("data-action") === "finance-filter") {
+        state.financeTypeFilter = target.value;
+        triggerAppRender();
+      }
     });
     document.addEventListener("input", (e) => {
-      const input = e.target.closest(
-        '[data-action="notepad-search-input"]'
-      );
-      if (!input) return;
-      const cursorPosition = input.selectionStart ?? input.value.length;
-      const app2 = document.querySelector("#app");
-      const currentScroll = app2 ? app2.scrollTop : 0;
-      state.noteSearchQuery = input.value;
-      renderLayout();
-      requestAnimationFrame(() => {
-        const newApp = document.querySelector("#app");
-        if (newApp) {
-          newApp.scrollTop = currentScroll;
-        }
-        const newInput = document.querySelector(
-          '[data-action="notepad-search-input"]'
-        );
-        if (!newInput) return;
-        newInput.focus();
-        const position = Math.min(
-          cursorPosition,
-          newInput.value.length
-        );
-        newInput.setSelectionRange(position, position);
-      });
+      const searchInput = e.target.closest('[data-action="finance-search"]');
+      if (searchInput) {
+        const cursorPosition = searchInput.selectionStart ?? searchInput.value.length;
+        state.financeSearchQuery = searchInput.value;
+        triggerAppRender();
+        setTimeout(() => {
+          const newInput = document.querySelector('[data-action="finance-search"]');
+          if (newInput) {
+            newInput.focus();
+            const position = Math.min(cursorPosition, newInput.value.length);
+            newInput.setSelectionRange(position, position);
+          }
+        }, 0);
+      }
     });
-    document.addEventListener("click", (e) => {
-      const editBtn = e.target.closest('[data-action="edit-note"]');
-      if (editBtn) {
-        const noteId = editBtn.dataset.noteId;
-        const notes = state.data.assets || state.data.notes || [];
-        const note = notes.find((n) => String(n.id || n._id) === String(noteId));
-        if (!note) return;
+    document.querySelectorAll('[data-action="edit-task"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        const task = state.data.tasks.find((item) => String(item.id || item._id) === String(button.dataset.taskId));
+        if (!task) return;
         state.entryModalOpen = true;
         state.entryDraft = {
-          type: "asset",
-          id: note.id || note._id,
-          title: note.title || "",
-          content: note.content || note.description || "",
-          description: note.content || note.description || "",
-          tags: note.tags || "Note"
+          type: "task",
+          id: task.id || task._id,
+          title: task.title || "",
+          description: task.description || "",
+          date: task.date || state.selectedDate,
+          time: task.time || "19:00",
+          priority: task.priority || "Normal",
+          status: task.status || "Pending",
+          reminder: task.reminder || "",
+          category: task.category || "General"
         };
         renderLayout();
-      }
+      });
     });
-    document.addEventListener("click", (e) => {
-      const delBtn = e.target.closest('[data-action="delete-note"]');
-      if (delBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const noteId = delBtn.dataset.noteId;
-        showCustomNotepadConfirm("Are you sure you want to delete this note?", async () => {
+    document.querySelectorAll('[data-action="delete-task"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        const taskId = button.dataset.taskId;
+        if (!taskId) return;
+        showAppConfirm("Are you sure you want to delete this task?", async () => {
           try {
-            await apiRequest(`/api/assets/${noteId}`, {
-              method: "DELETE"
-            });
+            await apiRequest(`/api/tasks/${taskId}`, { method: "DELETE" });
             await loadDashboardData();
-            if (typeof showToast === "function") showToast("Note deleted");
+            showToast("Task deleted successfully");
           } catch (error) {
-            if (typeof showToast === "function") showToast(error.message || "Failed to delete note");
+            showToast(error.message || "Unable to delete task");
           }
         });
-      }
+      });
     });
-  }
-  document.querySelectorAll('[data-action="back-home"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      state.profileModalOpen = false;
-      state.profileDraft = null;
-      state.entryModalOpen = false;
-      state.entryDraft = null;
-      state.view = "home";
-      state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== "calendar" && view !== "menu");
-      state.moreMenuOpen = false;
-      state.menuOpen = false;
-      renderLayout();
-    });
-  });
-  const submitAssistantMessage = async (message, requestId, addUserMessage = true) => {
-    if (state.assistantLoading) return;
-    const generation = state.assistantGeneration;
-    if (addUserMessage) state.assistantMessages.push({ role: "user", text: message });
-    state.assistantLoading = true;
-    renderLayout();
-    try {
-      let response;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15e3);
+    document.querySelectorAll('[data-action="toggle-task"]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        const taskId = button.dataset.taskId;
+        const task = state.data.tasks.find((item) => String(item.id || item._id) === String(taskId));
+        if (!task) return;
+        const nextCompleted = !(task.completed || task.status === "Completed");
         try {
-          response = await apiRequest("/api/assistant/chat", {
-            method: "POST",
-            signal: controller.signal,
-            body: JSON.stringify({ message, requestId })
+          await apiRequest(`/api/tasks/${taskId}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              title: task.title,
+              description: task.description || "",
+              date: task.date || state.selectedDate,
+              time: task.time || null,
+              priority: task.priority || "Normal",
+              status: nextCompleted ? "Completed" : "Pending",
+              completed: nextCompleted,
+              reminder: task.reminder || "",
+              category: task.category || "General"
+            })
           });
-          break;
+          await loadDashboardData();
         } catch (error) {
-          const retryable = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
-          if (attempt === 0 && retryable) {
-            await new Promise((resolve) => setTimeout(resolve, 250));
-            continue;
-          }
-          throw error;
-        } finally {
-          clearTimeout(timeout);
+          window.alert(error.message || "Unable to update task");
         }
-      }
-      if (generation === state.assistantGeneration) {
-        state.assistantMessages.push({ role: "assistant", text: response.message || "Sahra is temporarily unavailable." });
-      }
-      if (generation === state.assistantGeneration && response.action === "requiresConfirmation" && response.confirmationToken) {
-        const label = /delete/i.test(response.message || "") ? "Delete task" : /complete/i.test(response.message || "") ? "Mark complete" : /event/i.test(response.message || "") ? "Add event" : "Add task";
-        showAppConfirm("Do you want Sahra to perform this change?", async () => {
-          state.assistantLoading = true;
-          renderLayout();
-          try {
-            const execution = await apiRequest("/api/assistant/execute", {
-              method: "POST",
-              body: JSON.stringify({ confirmationToken: response.confirmationToken })
-            });
-            state.assistantMessages.push({ role: "assistant", text: execution.message || "The change was completed." });
-            await loadDashboardData();
-          } catch (error) {
-            state.assistantMessages.push({ role: "assistant", text: error.message || "Sahra could not complete that change." });
-          } finally {
-            state.assistantLoading = false;
-            renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="copy-asset"]').forEach((button) => {
+      button.addEventListener("click", (e) => {
+        const content2 = button.dataset.content || "";
+        navigator.clipboard.writeText(content2);
+        button.textContent = "Copied!";
+        setTimeout(() => {
+          button.textContent = "Copy";
+        }, 2e3);
+      });
+    });
+    document.querySelectorAll('[data-action="close-entry-modal"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        closeEntryModal();
+      });
+    });
+    document.querySelectorAll('[data-action="save-entry"]').forEach((button) => {
+      button.addEventListener("click", async () => {
+        document.querySelectorAll("[data-entry-field]").forEach((field) => {
+          const fieldName = field.dataset.entryField;
+          if (fieldName) {
+            state.entryDraft = state.entryDraft || {};
+            state.entryDraft[fieldName] = field.type === "checkbox" ? field.checked : field.value;
           }
-        }, label);
-      } else if (["createdTask", "createdEvent", "createdNote", "createdTransaction"].includes(response.action)) {
-        await loadDashboardData();
-        if (response.action === "createdTransaction") await fetchFinanceData();
-      }
-    } catch (error) {
-      const messageText = error.message || "Sahra is temporarily unavailable.";
-      const canRetry = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
-      if (generation === state.assistantGeneration) {
-        state.assistantMessages.push({
-          role: "assistant",
-          text: canRetry ? `${messageText} You can retry safely.` : messageText,
-          ...canRetry ? { retryRequestId: requestId, retryMessage: message } : {}
         });
-      }
-    } finally {
-      state.assistantLoading = false;
-      renderLayout();
+        const draft = state.entryDraft || {};
+        const type = draft.type || "event";
+        const date = draft.date || state.selectedDate;
+        if (type === "task" && isJunkTask({ title: draft.title || draft.name || "" })) {
+          showToast("That test task name has been removed. Please enter a meaningful task title.");
+          button.dataset.submitting = "false";
+          button.textContent = "Add Task";
+          return;
+        }
+        if ((type === "event" || type === "task") && isPastDate(date)) {
+          window.alert(
+            "Tasks and events can only be added for today or future dates."
+          );
+          return;
+        }
+        try {
+          if (type === "event") {
+            const title = (draft.title || "").trim();
+            if (!title) {
+              window.alert("Please enter an event title.");
+              return;
+            }
+            await createResource("event", {
+              title,
+              description: draft.description || "",
+              date,
+              startTime: draft.startTime || "09:00",
+              endTime: draft.endTime || "10:00",
+              category: draft.category || "General",
+              reminder: draft.reminder || ""
+            });
+          } else if (type === "task") {
+            const title = (draft.title || "").trim();
+            if (!title) {
+              window.alert("Please enter a task title.");
+              return;
+            }
+            const taskPayload = {
+              title,
+              description: draft.description || "",
+              date,
+              time: draft.time || null,
+              priority: draft.priority || "Normal",
+              status: draft.status || "Pending",
+              completed: draft.completed || false,
+              reminder: draft.reminder || "",
+              category: draft.category || "General"
+            };
+            if (draft.id) {
+              await apiRequest(`/api/tasks/${draft.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(taskPayload)
+              });
+              await loadDashboardData();
+            } else {
+              await createResource("task", taskPayload);
+            }
+          } else if (type === "habit") {
+            const name = (draft.title || "").trim();
+            if (!name) {
+              window.alert("Please enter a habit name.");
+              return;
+            }
+            await createResource("habit", {
+              name,
+              description: draft.description || "",
+              goal: Number(draft.goal || 1),
+              progress: 0,
+              frequency: draft.frequency || "Daily"
+            });
+          } else if (type === "goal") {
+            const title = (draft.title || "").trim();
+            if (!title) {
+              window.alert("Please enter a goal title.");
+              return;
+            }
+            const current = Number(draft.current || 0);
+            const target = Math.max(Number(draft.target || 30), 1);
+            await createResource("goal", {
+              title,
+              description: draft.description || "",
+              duration: draft.duration || "30 days",
+              current,
+              target,
+              progress: Math.min(100, Math.round(current / target * 100)),
+              status: "Active"
+            });
+          } else if (type === "mood") {
+            const mood = draft.mood || "\u{1F60A}";
+            await createResource("mood", {
+              date,
+              mood,
+              energy: 80,
+              note: draft.note || ""
+            });
+          } else if (type === "asset" || type === "note") {
+            const title = (draft.title || "").trim();
+            const description = (draft.description || draft.content || "").trim();
+            if (!title || !description) {
+              window.alert("Please enter a title and description.");
+              return;
+            }
+            const payload = { title, content: description, tags: draft.tags || "Note" };
+            if (draft.id) {
+              await apiRequest(`/api/assets/${draft.id}`, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+              });
+              await loadDashboardData();
+              renderLayout();
+            } else {
+              await createResource("asset", payload);
+            }
+          } else if (type === "expense" || type === "subscription") {
+            const title = (draft.title || "").trim();
+            const amount = Number(draft.amount);
+            if (!title) {
+              window.alert("Please enter a title.");
+              return;
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+              window.alert("Please enter a valid amount.");
+              return;
+            }
+            await createResource(type, {
+              title,
+              amount,
+              date: draft.date || state.selectedDate,
+              renewalDate: draft.renewalDate || state.selectedDate,
+              category: draft.category || "General"
+            });
+          }
+          closeEntryModal();
+          if (typeof showToast === "function") {
+            showToast("Saved successfully!");
+          } else {
+            window.alert("Saved successfully!");
+          }
+        } catch (error) {
+          console.error("Save entry failed:", error);
+          if (typeof showToast === "function") {
+            showToast(error.message || "Unable to save item");
+          } else {
+            window.alert(error.message || "Unable to save item");
+          }
+        }
+      });
+    });
+    document.querySelectorAll("[data-entry-field]").forEach((field) => {
+      const fieldName = field.dataset.entryField;
+      if (!fieldName) return;
+      const updateDraft = (element) => {
+        const value = element.type === "checkbox" ? element.checked : element.value;
+        state.entryDraft = {
+          ...state.entryDraft || {},
+          [fieldName]: value
+        };
+        if (fieldName === "type") {
+          renderLayout();
+        }
+      };
+      field.addEventListener("input", () => updateDraft(field));
+      field.addEventListener("change", () => updateDraft(field));
+    });
+    const menuButton = document.querySelector(".menu-button");
+    const menuPanel = document.querySelector(".menu-panel");
+    if (menuButton && menuPanel) {
+      menuButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.menuOpen = !state.menuOpen;
+        menuPanel.classList.toggle("hidden", !state.menuOpen);
+        menuPanel.classList.toggle("open", state.menuOpen);
+      });
     }
-  };
-  document.querySelectorAll(".composer-send").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const input = document.querySelector(".assistant-input");
-      const message = input?.value?.trim();
-      if (!message || state.assistantLoading) return;
-      if (input) input.value = "";
-      const requestId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await submitAssistantMessage(message, requestId);
+    document.querySelectorAll("[data-menu-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.menuAction;
+        if (action === "toggle-theme") {
+          const nextTheme = state.theme === "light" ? "dark" : "light";
+          state.menuOpen = false;
+          applyTheme(nextTheme);
+          renderLayout();
+          await updateThemeInDatabase(nextTheme);
+          return;
+        }
+        state.menuOpen = false;
+        if (action === "profile") {
+          state.profileModalOpen = true;
+          state.profileEditing = false;
+          state.profileSuccessMessage = "";
+          state.profileDraft = {
+            name: state.user?.name || "",
+            dateOfBirth: state.user?.profile?.dateOfBirth ? new Date(state.user.profile.dateOfBirth).toISOString().slice(0, 10) : ""
+          };
+          renderLayout();
+          return;
+        }
+        if (action === "notifications") {
+          state.menuOpen = false;
+          renderLayout();
+          await toggleDeviceNotifications();
+          renderLayout();
+          return;
+        }
+        if (action === "privacy-security") {
+          state.settingsInfoPanel = state.settingsInfoPanel === "privacy" ? "" : "privacy";
+          renderLayout();
+          return;
+        }
+        if (action === "sync-now") {
+          try {
+            const token = await getAuthToken();
+            if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
+            await loadDashboardData();
+            if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
+            await fetchFinanceData();
+            showToast("DaySync data sync finished.");
+          } catch (error) {
+            showToast(error.message || "Unable to sync DaySync data.");
+          }
+          return;
+        }
+        if (action === "exact-alarms") {
+          try {
+            if (!window.Capacitor?.isNativePlatform?.()) {
+              showToast("Timer alarm settings are available in the installed mobile app.");
+              return;
+            }
+            const permission = await LocalNotifications.checkExactNotificationSetting();
+            if (permission.exact_alarm !== "granted") {
+              await LocalNotifications.changeExactNotificationSetting();
+              showToast("Check Android alarm access, then return to DaySync.");
+            } else showToast("Precise timer alarms are already allowed.");
+          } catch (error) {
+            showToast(error.message || "Unable to open Android alarm settings.");
+          }
+          return;
+        }
+        if (action === "logout") {
+          focusStopAudio();
+          state.focusRunning = false;
+          state.focusEndsAt = null;
+          clearInterval(focusTicker);
+          focusTicker = null;
+          persistFocusTimerState();
+          await removeAuthToken();
+          localStorage.removeItem("sahraUser");
+          state.authenticated = false;
+          state.user = { name: "DaySync User" };
+          state.goalAchievementItems = loadGoalAchievements();
+          state.view = "home";
+          window.location.href = getLoginPath();
+        }
+      });
     });
-  });
-  document.querySelectorAll("[data-assistant-retry]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const message = button.dataset.retryMessage || "";
-      const requestId = button.dataset.assistantRetry || "";
-      if (message && requestId) await submitAssistantMessage(message, requestId, false);
+    if (!notepadEventsBound) {
+      let showCustomNotepadConfirm = function(message, onConfirm) {
+        const overlay = document.createElement("div");
+        overlay.className = "notepad-confirm-overlay";
+        overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);";
+        const box = document.createElement("div");
+        box.className = "notepad-confirm-box";
+        box.style.cssText = "background: #1e293b; padding: 24px; border-radius: 16px; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid rgba(255,255,255,0.1);";
+        const text = document.createElement("p");
+        text.className = "notepad-confirm-message";
+        text.style.cssText = "margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5; color: #f8fafc; font-weight: 500;";
+        text.innerText = message;
+        const btnContainer = document.createElement("div");
+        btnContainer.style.cssText = "display: flex; gap: 12px; justify-content: center;";
+        const cancelBtn = document.createElement("button");
+        cancelBtn.innerText = "Cancel";
+        cancelBtn.type = "button";
+        cancelBtn.style.cssText = "padding: 12px; border-radius: 10px; border: none; background: #334155; color: white; font-weight: 600; cursor: pointer; flex: 1;";
+        const confirmBtn = document.createElement("button");
+        confirmBtn.innerText = "Delete";
+        confirmBtn.style.cssText = "padding: 12px; border-radius: 10px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer; flex: 1; box-shadow: 0 4px 10px rgba(239,68,68,0.3);";
+        cancelBtn.onclick = () => document.body.removeChild(overlay);
+        let confirmed = false;
+        confirmBtn.onclick = async () => {
+          if (confirmed) return;
+          confirmed = true;
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = "Deleting...";
+          confirmBtn.style.opacity = "0.6";
+          confirmBtn.style.pointerEvents = "none";
+          overlay.remove();
+          await onConfirm();
+        };
+        btnContainer.appendChild(cancelBtn);
+        btnContainer.appendChild(confirmBtn);
+        box.appendChild(text);
+        box.appendChild(btnContainer);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+      };
+      notepadEventsBound = true;
+      document.addEventListener("click", (e) => {
+        const toggleBtn = e.target.closest('[data-action="toggle-notepad-search"]');
+        if (!toggleBtn) return;
+        const app2 = document.querySelector("#app");
+        const currentScroll = app2 ? app2.scrollTop : 0;
+        state.notepadSearchOpen = !state.notepadSearchOpen;
+        renderLayout();
+        requestAnimationFrame(() => {
+          const newApp = document.querySelector("#app");
+          if (newApp) {
+            newApp.scrollTop = currentScroll;
+          }
+          if (state.notepadSearchOpen) {
+            const searchInput = document.querySelector(
+              '[data-action="notepad-search-input"]'
+            );
+            if (searchInput) {
+              searchInput.focus();
+            }
+          }
+        });
+      });
+      document.addEventListener("input", (e) => {
+        const input = e.target.closest(
+          '[data-action="notepad-search-input"]'
+        );
+        if (!input) return;
+        const cursorPosition = input.selectionStart ?? input.value.length;
+        const app2 = document.querySelector("#app");
+        const currentScroll = app2 ? app2.scrollTop : 0;
+        state.noteSearchQuery = input.value;
+        renderLayout();
+        requestAnimationFrame(() => {
+          const newApp = document.querySelector("#app");
+          if (newApp) {
+            newApp.scrollTop = currentScroll;
+          }
+          const newInput = document.querySelector(
+            '[data-action="notepad-search-input"]'
+          );
+          if (!newInput) return;
+          newInput.focus();
+          const position = Math.min(
+            cursorPosition,
+            newInput.value.length
+          );
+          newInput.setSelectionRange(position, position);
+        });
+      });
+      document.addEventListener("click", (e) => {
+        const editBtn = e.target.closest('[data-action="edit-note"]');
+        if (editBtn) {
+          const noteId = editBtn.dataset.noteId;
+          const notes = state.data.assets || state.data.notes || [];
+          const note = notes.find((n) => String(n.id || n._id) === String(noteId));
+          if (!note) return;
+          state.entryModalOpen = true;
+          state.entryDraft = {
+            type: "asset",
+            id: note.id || note._id,
+            title: note.title || "",
+            content: note.content || note.description || "",
+            description: note.content || note.description || "",
+            tags: note.tags || "Note"
+          };
+          renderLayout();
+        }
+      });
+      document.addEventListener("click", (e) => {
+        const delBtn = e.target.closest('[data-action="delete-note"]');
+        if (delBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const noteId = delBtn.dataset.noteId;
+          showCustomNotepadConfirm("Are you sure you want to delete this note?", async () => {
+            try {
+              await apiRequest(`/api/assets/${noteId}`, {
+                method: "DELETE"
+              });
+              await loadDashboardData();
+              if (typeof showToast === "function") showToast("Note deleted");
+            } catch (error) {
+              if (typeof showToast === "function") showToast(error.message || "Failed to delete note");
+            }
+          });
+        }
+      });
+    }
+    document.querySelectorAll('[data-action="back-home"]').forEach((button) => {
+      button.addEventListener("click", () => {
+        state.profileModalOpen = false;
+        state.profileDraft = null;
+        state.entryModalOpen = false;
+        state.entryDraft = null;
+        state.view = "home";
+        state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== "calendar" && view !== "menu");
+        state.moreMenuOpen = false;
+        state.menuOpen = false;
+        renderLayout();
+      });
     });
-  });
-  document.querySelectorAll("[data-progress-month]").forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      const month = Number(button.dataset.progressMonth);
-      if (!Number.isInteger(month) || month < 0 || month > 11) return;
-      state.currentMonth = month;
-      state.progressPickerOpen = false;
-      state.progressLoading = true;
+    const submitAssistantMessage = async (message, requestId, addUserMessage = true) => {
+      if (state.assistantLoading) return;
+      const generation = state.assistantGeneration;
+      if (addUserMessage) state.assistantMessages.push({ role: "user", text: message });
+      state.assistantLoading = true;
       renderLayout();
-      await loadProgressData(true);
-    });
-  });
-  document.querySelectorAll('[data-action="close-progress-picker"]').forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      state.progressPickerOpen = false;
-      renderLayout();
-    });
-  });
-  document.querySelectorAll('[data-action="progress-year-change"]').forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      const direction = Number(button.dataset.direction || 0);
-      if (!direction) return;
-      state.currentYear += direction;
-      state.progressData = null;
-      renderLayout();
-      await loadProgressData(true);
-    });
-  });
-  document.querySelectorAll('[data-action="progress-year-set"]').forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      const targetYear = Number(button.dataset.year);
-      if (!Number.isInteger(targetYear) || targetYear < 1900 || targetYear > 2200) return;
-      state.currentYear = targetYear;
-      state.progressData = null;
-      renderLayout();
-      await loadProgressData(true);
-    });
-  });
-  document.querySelectorAll(".assistant-input").forEach((input) => {
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        const sendButton = document.querySelector(".composer-send");
-        sendButton?.click();
+      try {
+        let response;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15e3);
+          try {
+            response = await apiRequest("/api/assistant/chat", {
+              method: "POST",
+              signal: controller.signal,
+              body: JSON.stringify({ message, requestId })
+            });
+            break;
+          } catch (error) {
+            const retryable = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
+            if (attempt === 0 && retryable) {
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              continue;
+            }
+            throw error;
+          } finally {
+            clearTimeout(timeout);
+          }
+        }
+        if (generation === state.assistantGeneration) {
+          state.assistantMessages.push({ role: "assistant", text: response.message || "Sahra is temporarily unavailable." });
+        }
+        if (generation === state.assistantGeneration && response.action === "requiresConfirmation" && response.confirmationToken) {
+          const label = /delete/i.test(response.message || "") ? "Delete task" : /complete/i.test(response.message || "") ? "Mark complete" : /event/i.test(response.message || "") ? "Add event" : "Add task";
+          showAppConfirm("Do you want Sahra to perform this change?", async () => {
+            state.assistantLoading = true;
+            renderLayout();
+            try {
+              const execution = await apiRequest("/api/assistant/execute", {
+                method: "POST",
+                body: JSON.stringify({ confirmationToken: response.confirmationToken })
+              });
+              state.assistantMessages.push({ role: "assistant", text: execution.message || "The change was completed." });
+              await loadDashboardData();
+            } catch (error) {
+              state.assistantMessages.push({ role: "assistant", text: error.message || "Sahra could not complete that change." });
+            } finally {
+              state.assistantLoading = false;
+              renderLayout();
+            }
+          }, label);
+        } else if (["createdTask", "createdEvent", "createdNote", "createdTransaction"].includes(response.action)) {
+          await loadDashboardData();
+          if (response.action === "createdTransaction") await fetchFinanceData();
+        }
+      } catch (error) {
+        const messageText = error.message || "Sahra is temporarily unavailable.";
+        const canRetry = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
+        if (generation === state.assistantGeneration) {
+          state.assistantMessages.push({
+            role: "assistant",
+            text: canRetry ? `${messageText} You can retry safely.` : messageText,
+            ...canRetry ? { retryRequestId: requestId, retryMessage: message } : {}
+          });
+        }
+      } finally {
+        state.assistantLoading = false;
+        renderLayout();
       }
-    });
-  });
-  document.querySelectorAll(".composer-mic").forEach((button) => {
-    button.addEventListener("click", () => {
-      const SpeechRecognition2 = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition2) {
-        window.alert("Voice input is not supported in this browser.");
-        return;
-      }
-      button.style.color = "#ff4757";
-      const recognition = new SpeechRecognition2();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
+    };
+    document.querySelectorAll(".composer-send").forEach((button) => {
+      button.addEventListener("click", async () => {
         const input = document.querySelector(".assistant-input");
-        const sendButton = document.querySelector(".composer-send");
-        if (input) {
-          input.value = transcript;
-        }
-        if (sendButton) {
-          sendButton.click();
-        }
-      };
-      recognition.onend = () => {
-        button.style.color = "";
-      };
-      recognition.start();
+        const message = input?.value?.trim();
+        if (!message || state.assistantLoading) return;
+        if (input) input.value = "";
+        const requestId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await submitAssistantMessage(message, requestId);
+      });
     });
-  });
-  app.querySelectorAll('[data-action="close-more-menu"]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.moreMenuOpen = false;
-      renderLayout();
+    document.querySelectorAll("[data-assistant-retry]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const message = button.dataset.retryMessage || "";
+        const requestId = button.dataset.assistantRetry || "";
+        if (message && requestId) await submitAssistantMessage(message, requestId, false);
+      });
     });
-  });
-  bindFocusTimer();
-  isRendering = false;
+    document.querySelectorAll("[data-progress-month]").forEach((button) => {
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const month = Number(button.dataset.progressMonth);
+        if (!Number.isInteger(month) || month < 0 || month > 11) return;
+        state.currentMonth = month;
+        state.progressPickerOpen = false;
+        state.progressLoading = true;
+        renderLayout();
+        await loadProgressData(true);
+      });
+    });
+    document.querySelectorAll('[data-action="close-progress-picker"]').forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.progressPickerOpen = false;
+        renderLayout();
+      });
+    });
+    document.querySelectorAll('[data-action="progress-year-change"]').forEach((button) => {
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const direction = Number(button.dataset.direction || 0);
+        if (!direction) return;
+        state.currentYear += direction;
+        state.progressData = null;
+        renderLayout();
+        await loadProgressData(true);
+      });
+    });
+    document.querySelectorAll('[data-action="progress-year-set"]').forEach((button) => {
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const targetYear = Number(button.dataset.year);
+        if (!Number.isInteger(targetYear) || targetYear < 1900 || targetYear > 2200) return;
+        state.currentYear = targetYear;
+        state.progressData = null;
+        renderLayout();
+        await loadProgressData(true);
+      });
+    });
+    document.querySelectorAll(".assistant-input").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          const sendButton = document.querySelector(".composer-send");
+          sendButton?.click();
+        }
+      });
+    });
+    document.querySelectorAll(".composer-mic").forEach((button) => {
+      button.addEventListener("click", () => {
+        const SpeechRecognition2 = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition2) {
+          window.alert("Voice input is not supported in this browser.");
+          return;
+        }
+        button.style.color = "#ff4757";
+        const recognition = new SpeechRecognition2();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          const input = document.querySelector(".assistant-input");
+          const sendButton = document.querySelector(".composer-send");
+          if (input) {
+            input.value = transcript;
+          }
+          if (sendButton) {
+            sendButton.click();
+          }
+        };
+        recognition.onend = () => {
+          button.style.color = "";
+        };
+        recognition.start();
+      });
+    });
+    app.querySelectorAll('[data-action="close-more-menu"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.moreMenuOpen = false;
+        renderLayout();
+      });
+    });
+    bindFocusTimer();
+  } finally {
+    isRendering = false;
+  }
 }
 function bindBottomNav() {
   document.querySelectorAll(".bottom-nav .nav-item").forEach((button) => {
@@ -11045,7 +11063,9 @@ async function initializeApp() {
     window.location.href = getLoginPath();
     return;
   }
-  if (globalThis.navigator?.onLine) await offlineSync.flush(token);
+  state.authenticated = true;
+  window.SAHRA_APP_READY = true;
+  renderLayout();
   await loadDashboardData();
   await fetchFinanceData();
   restorePersistedFocusTimer();
