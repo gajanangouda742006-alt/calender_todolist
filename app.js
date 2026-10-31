@@ -2896,6 +2896,166 @@ function renderProgressPage() {
   const pendingPercent = totalTasks ? Math.round((pendingTasks / totalTasks) * 100) : 0;
   const overduePercent = totalTasks ? Math.max(0, 100 - completedPercent - pendingPercent) : 0;
 
+  // ---------------------------------------------------------
+  // DETAILED MONTHLY PERFORMANCE ANALYSIS
+  // Every insight below is calculated from the selected month's
+  // existing records. No synthetic activity or combined score.
+  // ---------------------------------------------------------
+  const monthDayCount = new Date(Number(state.currentYear), Number(state.currentMonth) + 1, 0).getDate();
+  const monthFirstDay = new Date(Number(state.currentYear), Number(state.currentMonth), 1);
+  const previousMonthDate = new Date(Number(state.currentYear), Number(state.currentMonth) - 1, 1);
+  const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const previousMonthTasks = tasks.filter((task) => {
+    const key = getRecordDateKey(task.date);
+    return Boolean(key && key.slice(0, 7) === previousMonthKey);
+  });
+  const previousCompletedTasks = previousMonthTasks.filter((task) => task.completed || task.status === 'Completed').length;
+  const previousCompletionPercent = previousMonthTasks.length
+    ? Math.round((previousCompletedTasks / previousMonthTasks.length) * 100)
+    : null;
+  const completionRateChange = previousCompletionPercent === null ? null : completionPercent - previousCompletionPercent;
+
+  const taskPriorityStats = ['High', 'Normal', 'Low'].map((priority) => {
+    const matching = monthTasks.filter((task) => String(task.priority || 'Normal').toLowerCase() === priority.toLowerCase());
+    const done = matching.filter((task) => task.completed || task.status === 'Completed').length;
+    return { priority, total: matching.length, completed: done, open: matching.length - done, percent: matching.length ? Math.round(done / matching.length * 100) : 0 };
+  }).filter((entry) => entry.total > 0);
+  const highPriorityOpen = taskPriorityStats.find((entry) => entry.priority === 'High')?.open || 0;
+
+  const taskCategoryMap = new Map();
+  monthTasks.forEach((task) => {
+    const category = String(task.category || 'General').trim() || 'General';
+    const row = taskCategoryMap.get(category) || { category, total: 0, completed: 0 };
+    row.total += 1;
+    if (task.completed || task.status === 'Completed') row.completed += 1;
+    taskCategoryMap.set(category, row);
+  });
+  const taskCategoryStats = [...taskCategoryMap.values()]
+    .map((row) => ({ ...row, percent: row.total ? Math.round(row.completed / row.total * 100) : 0 }))
+    .sort((a, b) => b.total - a.total || a.category.localeCompare(b.category))
+    .slice(0, 4);
+
+  const weeklyTaskStats = [
+    { label: 'Week 1', start: 1, end: 7 },
+    { label: 'Week 2', start: 8, end: 14 },
+    { label: 'Week 3', start: 15, end: 21 },
+    { label: 'Week 4', start: 22, end: Math.min(28, monthDayCount) },
+    { label: 'Week 5', start: 29, end: monthDayCount },
+  ].filter((week) => week.start <= monthDayCount).map((week) => {
+    const rows = monthTasks.filter((task) => {
+      const key = getRecordDateKey(task.date);
+      if (!key) return false;
+      const day = Number(key.slice(8, 10));
+      return day >= week.start && day <= week.end;
+    });
+    const completed = rows.filter((task) => task.completed || task.status === 'Completed').length;
+    return { ...week, total: rows.length, completed, open: rows.length - completed, percent: rows.length ? Math.round(completed / rows.length * 100) : 0 };
+  });
+
+  const focusDayMap = new Map();
+  monthlyFocusSessions.forEach((session) => {
+    const dateValue = session.sessionDate || session.date || session.endedAt || session.completedAt || session.startedAt || session.createdAt;
+    const dateKey = getRecordDateKey(dateValue);
+    if (!dateKey) return;
+    const minutes = Math.max(0, Number(session.minutes ?? session.plannedMinutes) || 0);
+    focusDayMap.set(dateKey, (focusDayMap.get(dateKey) || 0) + minutes);
+  });
+  const focusDays = [...focusDayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const focusActiveDays = focusDays.length;
+  const averageFocusMinutes = monthlyFocusSessions.length ? Math.round(monthlyFocusMinutes / monthlyFocusSessions.length) : 0;
+  const averageFocusPerActiveDay = focusActiveDays ? Math.round(monthlyFocusMinutes / focusActiveDays) : 0;
+  const bestFocusDay = [...focusDays].sort((a, b) => b[1] - a[1])[0] || null;
+  const focusWeeklyStats = [
+    { label: 'W1', start: 1, end: 7 }, { label: 'W2', start: 8, end: 14 },
+    { label: 'W3', start: 15, end: 21 }, { label: 'W4', start: 22, end: 28 },
+    { label: 'W5', start: 29, end: monthDayCount },
+  ].filter((week) => week.start <= monthDayCount).map((week) => {
+    const minutes = focusDays.filter(([dateKey]) => {
+      const day = Number(dateKey.slice(8, 10));
+      return day >= week.start && day <= week.end;
+    }).reduce((sum, row) => sum + row[1], 0);
+    return { ...week, minutes };
+  });
+  const maxWeeklyFocusMinutes = Math.max(1, ...focusWeeklyStats.map((week) => week.minutes));
+
+  const goalProgressRows = goalAchievementRows.map((goal) => {
+    const target = Math.max(0, Number(goal.target) || 0);
+    const current = Math.max(0, Number(goal.current) || 0);
+    const completed = goal.status === 'Completed' || (target > 0 && current >= target);
+    return { ...goal, _target: target, _current: current, _completed: completed, _percent: target > 0 ? Math.max(0, Math.min(100, Math.round(current / target * 100))) : null };
+  });
+  const activeGoalRows = goalProgressRows.filter((goal) => !goal._completed);
+  const validGoalProgressRows = goalProgressRows.filter((goal) => goal._percent !== null);
+  const averageGoalProgress = validGoalProgressRows.length
+    ? Math.round(validGoalProgressRows.reduce((sum, goal) => sum + goal._percent, 0) / validGoalProgressRows.length)
+    : null;
+  const monthlyGoalAddCount = monthlyGoalsAdded.length;
+  const monthlyGoalCompleteCount = monthlyGoalsCompleted.length;
+
+  const moodDays = new Set(monthMoods.map((mood) => getRecordDateKey(mood.date || mood.createdAt)).filter(Boolean));
+  const moodCoveragePercent = Math.round(moodDays.size / Math.max(1, monthDayCount) * 100);
+  const energyRows = monthMoods.map((mood) => Number(mood.energy)).filter((value) => Number.isFinite(value) && value > 0);
+  const averageMoodEnergy = energyRows.length ? (energyRows.reduce((sum, value) => sum + value, 0) / energyRows.length) : null;
+
+  const expenseByCategory = new Map();
+  monthlyTransactions.filter((transaction) => String(transaction.type || '').toLowerCase() === 'expense').forEach((transaction) => {
+    const category = String(transaction.category || 'General').trim() || 'General';
+    expenseByCategory.set(category, (expenseByCategory.get(category) || 0) + Math.max(0, Number(transaction.amount) || 0));
+  });
+  const topExpenseCategory = [...expenseByCategory.entries()].sort((a, b) => b[1] - a[1])[0] || null;
+  const expenseTransactionCount = monthlyTransactions.filter((transaction) => String(transaction.type || '').toLowerCase() === 'expense').length;
+  const incomeTransactionCount = monthlyTransactions.filter((transaction) => String(transaction.type || '').toLowerCase() === 'income').length;
+  const savingsRate = monthlyIncome > 0 ? Math.round((monthlyBalance / monthlyIncome) * 100) : null;
+
+  const eventCategoryMap = new Map();
+  monthEvents.forEach((event) => {
+    const category = String(event.category || 'General').trim() || 'General';
+    eventCategoryMap.set(category, (eventCategoryMap.get(category) || 0) + 1);
+  });
+  const topEventCategory = [...eventCategoryMap.entries()].sort((a, b) => b[1] - a[1])[0] || null;
+  const monthlyHabitLogs = (Array.isArray(state.data.habitLogs) ? state.data.habitLogs : [])
+    .filter((log) => isSelectedMonth(log.date || log.createdAt));
+  const completedHabitLogs = monthlyHabitLogs.filter((log) => log.completed);
+  const habitLogDays = new Set(monthlyHabitLogs.map((log) => getRecordDateKey(log.date || log.createdAt)).filter(Boolean));
+  const activeHabitIds = new Set(monthlyHabitLogs.map((log) => String(log.habitId || log.habit || '')).filter(Boolean));
+
+  const analysisInsights = [];
+  if (totalTasks > 0) {
+    if (completionPercent >= 80) analysisInsights.push({ icon: '🏆', title: 'Strong task follow-through', text: `You completed ${completedTasks} of ${totalTasks} scheduled tasks (${completionPercent}%). Keep using the same planning rhythm.` });
+    else if (completionPercent >= 50) analysisInsights.push({ icon: '📈', title: 'Good progress with room to improve', text: `${completedTasks} tasks are complete. ${pendingTasks + overdueTasks} remain open; choose a small number to finish first.` });
+    else analysisInsights.push({ icon: '🎯', title: 'Make the task list more manageable', text: `${completedTasks} of ${totalTasks} tasks are complete. Consider splitting larger tasks into smaller steps and reviewing due dates.` });
+    if (overdueTasks > 0) analysisInsights.push({ icon: '⏰', title: 'Overdue tasks need attention', text: `${overdueTasks} task${overdueTasks === 1 ? '' : 's'} are overdue. Review whether to complete, reschedule or remove each one.` });
+    else if (highPriorityOpen > 0) analysisInsights.push({ icon: '⚡', title: 'High-priority work is still open', text: `${highPriorityOpen} high-priority task${highPriorityOpen === 1 ? '' : 's'} remain open. Consider addressing these before lower-priority work.` });
+  } else {
+    analysisInsights.push({ icon: '📝', title: 'No tasks scheduled in this month', text: 'Add a few realistic tasks to create a useful completion trend for this month.' });
+  }
+  if (completionRateChange !== null) {
+    const direction = completionRateChange > 0 ? 'higher' : completionRateChange < 0 ? 'lower' : 'the same';
+    analysisInsights.push({ icon: completionRateChange > 0 ? '↗️' : completionRateChange < 0 ? '↘️' : '↔️', title: 'Compared with last month', text: `Your task completion rate is ${Math.abs(completionRateChange)} percentage point${Math.abs(completionRateChange) === 1 ? '' : 's'} ${direction} than last month (${previousCompletionPercent}% previously).` });
+  }
+  if (monthlyFocusSessions.length) {
+    analysisInsights.push({ icon: '⏱️', title: 'Focus time recorded', text: `${monthlyFocusMinutes} minutes across ${monthlyFocusSessions.length} completed sessions and ${focusActiveDays} active focus day${focusActiveDays === 1 ? '' : 's'}. Your average session was ${averageFocusMinutes} minutes.` });
+  } else {
+    analysisInsights.push({ icon: '⏱️', title: 'No completed focus sessions yet', text: 'Completed Focus Timer sessions will appear here. Paused or unfinished sessions are not counted as completed focus time.' });
+  }
+  if (monthlyGoalAddCount || monthlyGoalCompleteCount) {
+    analysisInsights.push({ icon: '🏅', title: 'Goal activity', text: `${monthlyGoalAddCount} goal${monthlyGoalAddCount === 1 ? '' : 's'} added and ${monthlyGoalCompleteCount} completed during this month.` });
+  }
+  if (monthMoods.length) {
+    analysisInsights.push({ icon: '💛', title: 'Mood check-ins', text: `You recorded ${monthMoods.length} mood check-in${monthMoods.length === 1 ? '' : 's'} across ${moodDays.size} day${moodDays.size === 1 ? '' : 's'}. Your most selected mood was ${topMood ? `${topMood.emoji} ${topMood.label}` : 'not available'}.` });
+  }
+  if (monthlyTransactions.length) {
+    analysisInsights.push({ icon: '💰', title: 'Monthly money overview', text: monthlyBalance >= 0 ? `Recorded income exceeded expenses by ₹${monthlyBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}. This is based only on transactions entered in DaySync.` : `Recorded expenses exceeded income by ₹${Math.abs(monthlyBalance).toLocaleString('en-IN', { maximumFractionDigits: 2 })}. This is based only on transactions entered in DaySync.` });
+  }
+  const visibleInsights = analysisInsights.slice(0, 6);
+
+  const analysisFormatPercent = (value) => `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
+  const analysisMoney = (value) => `₹${Math.max(0, Number(value) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  const analysisShortDate = (dateKey) => {
+    const parts = String(dateKey || '').split('-');
+    return parts.length === 3 ? `${parts[2]} ${months[Math.max(0, Number(parts[1]) - 1)].slice(0, 3)}` : '—';
+  };
+
   const activityItems = (
     selectedProgress?.activity || fallbackActivity
   )
@@ -3175,6 +3335,93 @@ function renderProgressPage() {
             </div>
           </article>
         </div>
+      </section>
+
+      <!-- DETAILED MONTHLY PERFORMANCE ANALYSIS -->
+      <section class="performance-analysis-section" aria-label="Detailed monthly performance analysis">
+        <div class="performance-analysis-heading">
+          <div><p class="dashboard-section-kicker">UNDERSTAND YOUR PROGRESS</p><h3>Detailed performance analysis</h3><p>What your activity says about this month</p></div>
+          <span class="analysis-period-chip">${currentMonthName.slice(0, 3)} ${state.currentYear}</span>
+        </div>
+
+        <div class="analysis-scorecards">
+          <article class="analysis-score-card analysis-score-task"><span class="analysis-score-icon">✓</span><small>Task completion</small><strong>${completionPercent}%</strong><span>${completedTasks} of ${totalTasks} tasks</span></article>
+          <article class="analysis-score-card analysis-score-focus"><span class="analysis-score-icon">⏱</span><small>Focus time</small><strong>${focusDurationLabel}</strong><span>${monthlyFocusSessions.length} completed sessions</span></article>
+          <article class="analysis-score-card analysis-score-goal"><span class="analysis-score-icon">🏆</span><small>Goals completed</small><strong>${monthlyGoalCompleteCount}</strong><span>${monthlyGoalAddCount} added this month</span></article>
+          <article class="analysis-score-card analysis-score-mood"><span class="analysis-score-icon">${topMood ? escapeHtml(topMood.emoji) : '💛'}</span><small>Top mood</small><strong>${topMood ? escapeHtml(topMood.label) : 'No data'}</strong><span>${monthMoods.length} mood check-ins</span></article>
+        </div>
+
+        <div class="performance-analysis-grid">
+          <article class="analysis-detail-card analysis-task-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">📋</span><div><h4>Task performance</h4><p>How well you followed through on planned work</p></div></div>
+            <div class="analysis-comparison-row">
+              <div><small>This month</small><strong>${completionPercent}%</strong></div>
+              <div class="analysis-comparison-divider"></div>
+              <div><small>Previous month</small><strong>${previousCompletionPercent === null ? '—' : `${previousCompletionPercent}%`}</strong></div>
+              <span class="analysis-change-pill ${completionRateChange === null ? 'is-neutral' : completionRateChange > 0 ? 'is-up' : completionRateChange < 0 ? 'is-down' : 'is-neutral'}">${completionRateChange === null ? 'No baseline' : `${completionRateChange > 0 ? '+' : ''}${completionRateChange} pts`}</span>
+            </div>
+            <div class="analysis-subheading">Completion by priority</div>
+            ${taskPriorityStats.length ? taskPriorityStats.map((row) => `<div class="analysis-bar-row"><div class="analysis-bar-label"><span>${escapeHtml(row.priority)} priority</span><strong>${row.completed}/${row.total}</strong></div><div class="analysis-bar-track"><i class="${row.priority.toLowerCase()}" style="width:${row.percent}%"></i></div><small>${row.open} still open · ${row.percent}% completed</small></div>`).join('') : '<p class="analysis-no-data">No priority information recorded for this month.</p>'}
+            ${taskCategoryStats.length ? `<div class="analysis-subheading">Task categories</div><div class="analysis-chip-list">${taskCategoryStats.map((row) => `<span>${escapeHtml(row.category)} <b>${row.completed}/${row.total}</b></span>`).join('')}</div>` : ''}
+            <p class="analysis-explainer">Completion rate = completed tasks ÷ tasks scheduled for the selected month. Overdue tasks are counted separately from pending tasks.</p>
+          </article>
+
+          <article class="analysis-detail-card analysis-weekly-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">📅</span><div><h4>Weekly task rhythm</h4><p>When your tasks were scheduled, and how many you finished</p></div></div>
+            <div class="analysis-week-list">${weeklyTaskStats.map((week) => `<div class="analysis-week-row"><div class="analysis-week-meta"><span>${week.label}</span><b>${week.completed}/${week.total} done</b></div><div class="analysis-bar-track"><i class="weekly" style="width:${week.percent}%"></i></div><small>${week.total ? `${week.percent}% complete · ${week.open} open` : 'No tasks scheduled'}</small></div>`).join('')}</div>
+            <p class="analysis-explainer">Weeks are grouped by calendar date (1–7, 8–14, and so on), not by the day a task was edited.</p>
+          </article>
+
+          <article class="analysis-detail-card analysis-planning-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">🗓️</span><div><h4>Planning &amp; app activity</h4><p>How you used DaySync to organise the month</p></div></div>
+            <div class="analysis-mini-stats"><div><strong>${monthEvents.length}</strong><small>Events scheduled</small></div><div><strong>${monthlyNotes.length}</strong><small>Notes created</small></div><div><strong>${completedHabitLogs.length}</strong><small>Habit check-ins done</small></div></div>
+            <div class="analysis-planning-lines">
+              <div><span>Habit-tracking days</span><strong>${habitLogDays.size}</strong></div>
+              <div><span>Different habits tracked</span><strong>${activeHabitIds.size}</strong></div>
+              <div><span>Notes saved overall</span><strong>${noteRows.length}</strong></div>
+              ${topEventCategory ? `<div><span>Most common event category</span><strong>${escapeHtml(topEventCategory[0])} · ${topEventCategory[1]}</strong></div>` : ''}
+            </div>
+            <p class="analysis-explainer">Events are counted by their scheduled date. Notes are counted by creation date. Habit check-ins use their recorded date and completed flag.</p>
+          </article>
+
+          <article class="analysis-detail-card analysis-focus-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">🎧</span><div><h4>Focus &amp; concentration</h4><p>Your completed Focus Timer sessions</p></div></div>
+            <div class="analysis-mini-stats"><div><strong>${monthlyFocusSessions.length}</strong><small>Sessions</small></div><div><strong>${focusActiveDays}</strong><small>Focus days</small></div><div><strong>${averageFocusMinutes}m</strong><small>Avg. session</small></div></div>
+            <div class="analysis-subheading">Focus time by week</div>
+            <div class="analysis-focus-weeks">${focusWeeklyStats.map((week) => `<div class="analysis-focus-week"><div class="analysis-focus-column"><i style="height:${Math.max(week.minutes ? 6 : 0, Math.round(week.minutes / maxWeeklyFocusMinutes * 100))}%"></i></div><span>${week.label}</span><small>${week.minutes}m</small></div>`).join('')}</div>
+            <p class="analysis-focus-note">${monthlyFocusSessions.length ? `You averaged ${averageFocusPerActiveDay} minutes on days when you completed at least one focus session${bestFocusDay ? `. Your highest focus day was ${analysisShortDate(bestFocusDay[0])} (${bestFocusDay[1]} minutes)` : ''}.` : 'Complete a Focus Timer session to start building your focus history.'}</p>
+            <p class="analysis-explainer">Only completed sessions are counted. A session synced to the server and saved locally is counted once by its session ID.</p>
+          </article>
+
+          <article class="analysis-detail-card analysis-goal-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">🎯</span><div><h4>Goal follow-through</h4><p>Monthly goal activity and your current goal snapshot</p></div></div>
+            <div class="analysis-mini-stats"><div><strong>${monthlyGoalAddCount}</strong><small>Added this month</small></div><div><strong>${monthlyGoalCompleteCount}</strong><small>Completed this month</small></div><div><strong>${activeGoalRows.length}</strong><small>Currently active</small></div></div>
+            ${averageGoalProgress === null ? '<p class="analysis-no-data">Add a target to your goals to see a measurable progress average.</p>' : `<div class="analysis-goal-average"><div><span>Average progress across saved goals</span><strong>${averageGoalProgress}%</strong></div><div class="analysis-bar-track"><i class="goal" style="width:${averageGoalProgress}%"></i></div></div>`}
+            <p class="analysis-explainer">The monthly added/completed counts use goal creation and completion dates. The average progress is a current snapshot of saved goals, not a month-only change.</p>
+          </article>
+
+          <article class="analysis-detail-card analysis-mood-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">💛</span><div><h4>Mood &amp; check-in pattern</h4><p>Your mood entries during the selected month</p></div></div>
+            ${topMood ? `<div class="analysis-top-mood"><span>${escapeHtml(topMood.emoji)}</span><div><strong>${escapeHtml(topMood.label)}</strong><small>Most selected · ${topMood.count} check-ins</small></div></div>` : '<p class="analysis-no-data">No mood check-ins are recorded for this month yet.</p>'}
+            <div class="analysis-mood-bars">${rankedMoods.length ? rankedMoods.map((mood) => `<div class="analysis-mood-row"><span>${escapeHtml(mood.emoji)} ${escapeHtml(mood.label)}</span><div class="analysis-bar-track"><i class="mood" style="width:${Math.round(mood.count / Math.max(1, monthMoods.length) * 100)}%"></i></div><b>${mood.count}</b></div>`).join('') : ''}</div>
+            <div class="analysis-mood-footer"><span>${moodDays.size} of ${monthDayCount} days with check-ins</span><strong>${moodCoveragePercent}% coverage</strong></div>
+            ${averageMoodEnergy === null ? '' : `<p class="analysis-explainer">Average recorded energy level: ${averageMoodEnergy.toFixed(1)}. This is based only on check-ins where an energy value was saved.</p>`}
+          </article>
+
+          <article class="analysis-detail-card analysis-finance-detail">
+            <div class="analysis-card-heading"><span class="analysis-card-icon">💳</span><div><h4>Money activity</h4><p>Recorded income and spending pattern</p></div></div>
+            <div class="analysis-money-result ${monthlyBalance >= 0 ? 'is-positive' : 'is-negative'}"><small>Net balance</small><strong>${monthlyBalance < 0 ? '−' : '+'}${analysisMoney(Math.abs(monthlyBalance))}</strong><span>${monthlyBalance >= 0 ? 'Income is higher than recorded expenses' : 'Expenses are higher than recorded income'}</span></div>
+            <div class="analysis-money-counts"><span>${incomeTransactionCount} income entries</span><span>${expenseTransactionCount} expense entries</span></div>
+            ${topExpenseCategory ? `<div class="analysis-top-category"><small>Largest expense category</small><strong>${escapeHtml(topExpenseCategory[0])}</strong><span>${analysisMoney(topExpenseCategory[1])} · ${monthlyExpense ? Math.round(topExpenseCategory[1] / monthlyExpense * 100) : 0}% of expenses</span></div>` : '<p class="analysis-no-data">No expense category data recorded this month.</p>'}
+            ${savingsRate === null ? '<p class="analysis-explainer">Savings percentage is unavailable because no income has been recorded for this month.</p>' : `<p class="analysis-explainer">Net balance is ${savingsRate}% of recorded income. This is a summary of entries in DaySync, not a bank balance.</p>`}
+          </article>
+        </div>
+
+        <section class="analysis-insights-card" aria-label="Personalized monthly insights">
+          <div class="analysis-insights-heading"><span>🧭</span><div><h4>What this means for you</h4><p>Simple takeaways based on your recorded activity</p></div></div>
+          <div class="analysis-insights-list">${visibleInsights.map((insight, index) => `<article class="analysis-insight-item"><span>${insight.icon}</span><div><strong>${escapeHtml(insight.title)}</strong><p>${escapeHtml(insight.text)}</p></div></article>`).join('')}</div>
+          <div class="analysis-insights-footnote">This analysis uses records available in DaySync for ${currentMonthName} ${state.currentYear}. Missing or unsynced records may change the totals. It describes recorded activity and does not judge your personal worth or health.</div>
+        </section>
       </section>
 
             <!-- MONTHLY FINANCE -->

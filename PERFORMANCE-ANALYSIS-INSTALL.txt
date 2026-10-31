@@ -1,0 +1,67 @@
+DaySync — Detailed Monthly Performance Analysis Patch
+
+DIRECT EXTRACTION
+This ZIP has no parent/wrapper folder. Extract directly into:
+P:\MyProjects\calender_todolist
+Choose Replace the files in the destination when prompted.
+
+FILES INCLUDED
+- app.js     Adds the detailed monthly performance analysis to Progress & Stats.
+- style.css  Adds responsive 3D analysis cards, visual breakdowns and explicit light-theme contrast.
+
+WHAT THE DETAILED ANALYSIS SHOWS
+1. At-a-glance indicators: task completion, completed focus time, goals completed and most-selected mood.
+2. Task performance: completion rate, previous-month comparison, priority breakdown, task-category mix and separate pending/overdue handling.
+3. Weekly task rhythm: task load and completion by calendar week.
+4. Focus & concentration: completed sessions, active focus days, average session length, focus time by week and highest-focus day.
+5. Goal follow-through: goals added/completed this month, active goals and average current progress across saved goals.
+6. Mood pattern: mood check-in distribution, most-selected mood, days with check-ins and average saved energy when available.
+7. Money activity: net balance, income/expense entry counts and largest expense category.
+8. Planning & app activity: events, notes, habit check-ins, tracked habits and event category.
+9. Plain-language insights are generated from the available records. No artificial overall score is created.
+
+INSTALLATION
+1. Stop the DaySync server (Ctrl+C in the npm start terminal).
+2. Extract this ZIP directly into P:\MyProjects\calender_todolist.
+3. Replace app.js and style.css.
+4. Run from the project root:
+
+   node --check .\app.js
+   node .\scripts\build-web.js
+
+5. Restart the backend:
+
+   npm start
+
+6. Refresh the browser with Ctrl+Shift+R.
+7. For Android, after the web build succeeds:
+
+   npx cap sync android
+   cd .\android
+   .\gradlew.bat assembleDebug
+
+APK output:
+android\app\build\outputs\apk\debug\app-debug.apk
+
+DATA INTERPRETATION
+- Task completion is based on tasks scheduled in the selected month; completed, pending and overdue are separate categories.
+- Previous-month comparison is shown only when previous-month task records exist.
+- Focus totals use completed focus sessions, deduplicated by session ID across server and device copies.
+- Goal month counts use the existing creation/completion date fields. Average goal progress is labelled as a current snapshot across saved goals, not as month-only progress.
+- Mood and energy analysis uses only check-ins and energy values actually saved for the selected month.
+- Finance figures reflect transactions entered in DaySync, not external bank balances.
+- If source data is absent, the UI says that no data is recorded rather than inventing values.
+
+VERIFICATION PERFORMED IN THIS WORKSPACE
+- node --check app.js: passed
+- Existing progress-page render fixture with the detailed-analysis sections and sample records: passed
+- Verified expected detailed-analysis headings and representative calculated values in the render fixture.
+- ZIP integrity and direct-extraction file paths: checked.
+
+NOT PERFORMED
+- Full browser or Android runtime testing.
+- Live MongoDB/API testing.
+- APK build. The uploaded source bundle did not include the installed esbuild dependency, so web-app.js must be rebuilt on your project machine using scripts/build-web.js.
+
+SCOPE
+Only app.js and style.css are changed. No backend API, database schema, authentication, offline sync, other pages or server.js changes are required.
