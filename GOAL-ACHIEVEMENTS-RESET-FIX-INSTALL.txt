@@ -1,0 +1,28 @@
+DaySync – Goal & Achievements reset-category fix
+
+IMPORTANT: This ZIP has NO enclosing patch folder. Its paths are relative to your DaySync project root.
+
+Extract directly into:
+P:\MyProjects\calender_todolist
+
+Select “Extract All”, set the destination to the folder above, and allow Windows to replace the existing files. The archive entries are:
+  app.js
+  backend\models\index.js
+  backend\routes\dashboard.js
+  scripts\local-database.js
+  scripts\offline-sync.js
+
+The backend reset route accepts Goal & Achievements category aliases and maps them to the account-scoped GoalAchievement model. The browser app requests the canonical `goal-achievements` slug. Local cache and offline queue support are included.
+
+After extraction, run in PowerShell:
+  cd P:\MyProjects\calender_todolist
+  node --check .\app.js
+  node --check .\backend\models\index.js
+  node --check .\backend\routes\dashboard.js
+  node --check .\scripts\local-database.js
+  node --check .\scripts\offline-sync.js
+  node .\scripts\build-web.js
+
+Then stop the running server with Ctrl+C and restart it using `npm start`. Rebuild/sync Android only if you need the Android app updated.
+
+No server.js, database configuration, authentication, or unrelated files are changed by this patch. This package was not live-tested against your MongoDB instance.

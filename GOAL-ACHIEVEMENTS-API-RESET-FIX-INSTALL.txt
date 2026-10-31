@@ -1,0 +1,66 @@
+DAYSYNC - GOAL & ACHIEVEMENTS API + RESET FIX
+================================================
+
+WHY THIS PATCH IS REQUIRED
+Your browser log shows:
+- PUT /api/goal-achievements/:id -> HTTP 404
+- DELETE /api/reset-data/goal-achievements -> HTTP 400 Unknown reset category
+
+The frontend is already calling these endpoints, but the backend dashboard router in
+backend/routes/dashboard.js did not implement them, and the Mongoose model was not
+exported from backend/models/index.js.
+
+ZIP LAYOUT
+This ZIP is meant to be extracted DIRECTLY into:
+P:\MyProjects\calender_todolist
+
+It has no wrapper folder. Entries are project-relative:
+- app.js
+- server.js
+- backend\models\index.js
+- backend\routes\dashboard.js
+- scripts\local-database.js
+- scripts\offline-sync.js
+
+INSTALLATION
+1. Stop the running DaySync server first. In the PowerShell window running npm start,
+   press Ctrl+C. Do not leave the old Node process running on port 9090.
+2. Extract this ZIP directly into P:\MyProjects\calender_todolist.
+3. When Windows asks, choose Replace the files in the destination.
+4. Open PowerShell and run:
+
+   cd P:\MyProjects\calender_todolist
+   node --check .\app.js
+   node --check .\server.js
+   node --check .\backend\models\index.js
+   node --check .\backend\routes\dashboard.js
+   node .\scripts\build-web.js
+
+5. Start the backend again from the project root:
+
+   npm start
+
+6. Hard refresh the web app (Ctrl+Shift+R). The service worker may otherwise keep an
+   older web-app.js bundle. If needed, clear the site's cached data/service worker.
+
+7. Test from the signed-in account:
+   - Goal & Achievements records should save through PUT /api/goal-achievements/:id.
+   - Dashboard loads goalAchievements in /api/dashboard.
+   - Reset Options -> Goal & Achievements should call DELETE
+     /api/reset-data/goal-achievements and remove only that account's records.
+
+IMPORTANT
+- backend/routes/dashboard.js is mounted by server.js using app.use('/api', dashboardRoutes).
+- Keep server.js in the project root. Do not put backend or scripts inside a separate patch folder.
+- This patch does not change other reset categories or the separate Progress Tracker Goal model.
+- It does not alter MongoDB connection credentials, authentication, server port, or APIs for
+  unrelated collections.
+- No web-app.js is included because it must be rebuilt locally with your project's esbuild.
+
+If the browser still shows a 404 after restarting, verify the exact live file paths with:
+
+   Select-String -Path .\backend\routes\dashboard.js -Pattern "router.put\('/goal-achievements/:goalId'"
+   Select-String -Path .\backend\routes\dashboard.js -Pattern "'goal-achievements': \[GoalAchievement\]"
+   Select-String -Path .\backend\models\index.js -Pattern 'GoalAchievement'
+
+All three searches should return matching lines.

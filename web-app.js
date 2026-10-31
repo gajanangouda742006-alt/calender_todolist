@@ -5867,6 +5867,7 @@ var state = {
   focusSessionId: null,
   focusLastCompletedId: null,
   focusSessions: JSON.parse(localStorage.getItem("sahraFocusSessions") || "[]"),
+  focusStatsData: null,
   focusLabel: "Study session",
   menuOpen: false,
   profileEditing: false,
@@ -6718,16 +6719,24 @@ async function loadProgressData(renderWhenDone = true) {
   const month = Number(state.currentMonth) + 1;
   if (!Number.isInteger(year) || !Number.isInteger(month)) return;
   state.progressLoading = true;
-  try {
-    const payload = await apiRequest(`/api/progress?year=${year}&month=${month}`);
-    state.progressData = payload;
-  } catch (error) {
-    console.warn("Progress load failed:", error.message);
+  const [progressResult, focusResult] = await Promise.allSettled([
+    apiRequest(`/api/progress?year=${year}&month=${month}`),
+    apiRequest(`/api/focus/stats?year=${year}&month=${month}`)
+  ]);
+  if (progressResult.status === "fulfilled") {
+    state.progressData = progressResult.value;
+  } else {
+    console.warn("Progress load failed:", progressResult.reason?.message || progressResult.reason);
     state.progressData = null;
-  } finally {
-    state.progressLoading = false;
-    if (renderWhenDone && state.view === "progress") renderLayout();
   }
+  if (focusResult.status === "fulfilled") {
+    state.focusStatsData = focusResult.value;
+  } else {
+    console.warn("Monthly focus history could not be loaded from the server:", focusResult.reason?.message || focusResult.reason);
+    state.focusStatsData = null;
+  }
+  state.progressLoading = false;
+  if (renderWhenDone && state.view === "progress") renderLayout();
 }
 async function createResource(type, body) {
   const endpoints = {
@@ -7928,13 +7937,42 @@ function focusFinish() {
   if (!state.focusSessionId) state.focusSessionId = focusCreateSessionId();
   if (state.focusLastCompletedId !== state.focusSessionId) {
     const minutes = Math.max(1, Math.round((state.focusInitialSeconds || 1500) / 60));
+    const endedAt = /* @__PURE__ */ new Date();
+    const startedAt = new Date(endedAt.getTime() - minutes * 60 * 1e3);
+    const session = {
+      date: formatDateKey2(endedAt),
+      sessionDate: formatDateKey2(endedAt),
+      minutes,
+      plannedMinutes: minutes,
+      label: state.focusLabel || "Study session",
+      completed: true,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      completedAt: endedAt.toISOString(),
+      sessionId: state.focusSessionId
+    };
     const sessions = Array.isArray(state.focusSessions) ? state.focusSessions : [];
-    sessions.unshift({ date: formatDateKey2(/* @__PURE__ */ new Date()), minutes, label: state.focusLabel || "Study session", completed: true, completedAt: (/* @__PURE__ */ new Date()).toISOString(), sessionId: state.focusSessionId });
+    sessions.unshift(session);
     state.focusSessions = sessions.slice(0, 500);
     state.focusLastCompletedId = state.focusSessionId;
     try {
       localStorage.setItem("sahraFocusSessions", JSON.stringify(state.focusSessions));
     } catch (_) {
+    }
+    if (state.authenticated) {
+      void apiRequest("/api/focus/sessions", {
+        method: "POST",
+        headers: { "Idempotency-Key": `focus-${state.focusSessionId}` },
+        body: JSON.stringify({
+          sessionId: state.focusSessionId,
+          sessionDate: session.sessionDate,
+          plannedMinutes: minutes,
+          startedAt: session.startedAt,
+          endedAt: session.endedAt,
+          completed: true,
+          label: session.label
+        })
+      }).catch((error) => console.warn("Focus session will remain in local history until it can sync:", error.message));
     }
   }
   state.focusAlarmActive = true;
@@ -8193,13 +8231,15 @@ function renderProgressPage() {
   const fallbackCompletedTasks = monthTasks.filter(
     (task) => task.completed || task.status === "Completed"
   ).length;
-  const fallbackPendingTasks = monthTasks.filter(
-    (task) => !task.completed && task.status !== "Completed"
-  ).length;
   const fallbackOverdueTasks = monthTasks.filter((task) => {
     const completed = task.completed || task.status === "Completed";
     if (completed) return false;
     return task.status === "Overdue" || task.date && String(task.date).slice(0, 10) < todayIso;
+  }).length;
+  const fallbackPendingTasks = monthTasks.filter((task) => {
+    const completed = task.completed || task.status === "Completed";
+    const overdue = task.status === "Overdue" || task.date && String(task.date).slice(0, 10) < todayIso;
+    return !completed && !overdue;
   }).length;
   const fallbackTotalTasks = monthTasks.length;
   const monthEvents = events.filter((event) => {
@@ -8242,17 +8282,56 @@ function renderProgressPage() {
       fallbackCompletedTasks / fallbackTotalTasks * 100
     ) : 0
   };
-  const totalTasks = Number(stats.totalTasks || 0);
-  const completedTasks = Number(stats.completedTasks || 0);
-  const pendingTasks = Number(stats.pendingTasks || 0);
-  const overdueTasks = Number(stats.overdueTasks || 0);
-  const completionPercent = Math.max(
-    0,
-    Math.min(
-      100,
-      Number(stats.completionPercent || 0)
-    )
+  const totalTasks = Math.max(0, Number(stats.totalTasks ?? monthTasks.length) || 0);
+  const completedTasks = Math.min(totalTasks, Math.max(0, Number(stats.completedTasks) || 0));
+  const overdueTasks = Math.min(Math.max(0, totalTasks - completedTasks), Math.max(0, Number(stats.overdueTasks) || 0));
+  const pendingTasks = Math.max(0, totalTasks - completedTasks - overdueTasks);
+  const completionPercent = totalTasks ? Math.max(0, Math.min(100, Math.round(completedTasks / totalTasks * 100))) : 0;
+  const selectedMonthKey = `${Number(state.currentYear)}-${String(Number(state.currentMonth) + 1).padStart(2, "0")}`;
+  const isSelectedMonth = (value) => {
+    const key = getRecordDateKey(value);
+    return Boolean(key && key.slice(0, 7) === selectedMonthKey);
+  };
+  const noteRows = Array.isArray(state.data.assets) && state.data.assets.length ? state.data.assets : Array.isArray(state.data.notes) ? state.data.notes : [];
+  const monthlyNotes = noteRows.filter((note) => isSelectedMonth(note.createdAt || note.date));
+  const goalAchievementRows = mergeGoalAchievementRecords(
+    [...Array.isArray(state.goalAchievementItems) ? state.goalAchievementItems : [], ...Array.isArray(state.data.goalAchievements) ? state.data.goalAchievements : []],
+    []
   );
+  const monthlyGoalsAdded = goalAchievementRows.filter((goal) => isSelectedMonth(goal.createdAt || goal.createdOn));
+  const monthlyGoalsCompleted = goalAchievementRows.filter((goal) => {
+    const completed = goal.status === "Completed" || Number(goal.current || 0) >= Number(goal.target || 1);
+    return completed && isSelectedMonth(goal.completedAt || goal.updatedAt || goal.createdAt);
+  });
+  const monthMoods = (Array.isArray(state.data.moods) ? state.data.moods : []).filter((mood) => isSelectedMonth(mood.date || mood.createdAt));
+  const moodNames = { "\u{1F60A}": "Happy", "\u{1F610}": "Normal", "\u{1F622}": "Sad", "\u{1F621}": "Angry", "\u{1F634}": "Tired", "\u{1F525}": "Motivated", "\u{1F60D}": "Excited" };
+  const moodCounts = monthMoods.reduce((counts, entry) => {
+    const emoji = String(entry.mood || "").trim();
+    if (emoji) counts[emoji] = (counts[emoji] || 0) + 1;
+    return counts;
+  }, {});
+  const rankedMoods = Object.entries(moodCounts).map(([emoji, count]) => ({ emoji, count, label: moodNames[emoji] || "Mood" })).sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
+  const topMood = rankedMoods[0] || null;
+  const serverFocusRows = Array.isArray(state.focusStatsData?.records) ? state.focusStatsData.records : [];
+  const localFocusRows = Array.isArray(state.focusSessions) ? state.focusSessions : [];
+  const focusById = /* @__PURE__ */ new Map();
+  [...serverFocusRows, ...localFocusRows].forEach((session, index) => {
+    if (!session || session.completed === false) return;
+    const dateValue = session.sessionDate || session.date || session.endedAt || session.completedAt || session.startedAt || session.createdAt;
+    if (!isSelectedMonth(dateValue)) return;
+    const fallbackId = `${getRecordDateKey(dateValue)}|${Number(session.minutes ?? session.plannedMinutes) || 0}|${String(session.label || "")}|${index}`;
+    const key = String(session.sessionId || session._id || session.id || fallbackId);
+    const existing = focusById.get(key);
+    if (!existing || !existing._id && (session._id || session.id)) focusById.set(key, session);
+  });
+  const monthlyFocusSessions = [...focusById.values()];
+  const monthlyFocusMinutes = monthlyFocusSessions.reduce((sum, session) => sum + Math.max(0, Number(session.minutes ?? session.plannedMinutes) || 0), 0);
+  const focusDurationLabel = monthlyFocusMinutes >= 60 ? `${Math.floor(monthlyFocusMinutes / 60)}h ${monthlyFocusMinutes % 60}m` : `${monthlyFocusMinutes} min`;
+  const upcomingEvents = monthEvents.filter((event) => String(event.date || "").slice(0, 10) >= todayIso).length;
+  const earlierEvents = Math.max(0, monthEvents.length - upcomingEvents);
+  const completedPercent = totalTasks ? Math.round(completedTasks / totalTasks * 100) : 0;
+  const pendingPercent = totalTasks ? Math.round(pendingTasks / totalTasks * 100) : 0;
+  const overduePercent = totalTasks ? Math.max(0, 100 - completedPercent - pendingPercent) : 0;
   const activityItems = (selectedProgress?.activity || fallbackActivity).map((item) => ({
     ...item,
     timeLabel: item.timeLabel || formatActivityTime(item.occurredAt)
@@ -8423,108 +8502,74 @@ function renderProgressPage() {
 
       </section>
 
-      <!-- OVERALL PROGRESS -->
-
-      <section class="glass-card progress-panel">
-
-        <div class="panel-header">
-
-          <h3>
-            Overall Progress
-          </h3>
-
-      
-
+      <!-- TO-DO LIST PROGRESS -->
+      <section class="glass-card todo-progress-panel" aria-label="To-Do List monthly progress">
+        <div class="todo-progress-heading">
+          <div class="todo-progress-title">
+            <p class="dashboard-section-kicker">TASK PERFORMANCE</p>
+            <h3>To-Do List Progress</h3>
+            <p>Tasks scheduled for ${currentMonthName} ${state.currentYear}</p>
+          </div>
+          <div class="todo-progress-score" aria-label="${completionPercent}% completed">
+            <strong>${completionPercent}%</strong>
+            <span>completed</span>
+          </div>
         </div>
+        <div class="todo-progress-track" role="img" aria-label="${completedTasks} completed, ${pendingTasks} pending and ${overdueTasks} overdue tasks">
+          <span class="todo-progress-segment is-completed" style="width:${completedPercent}%"></span>
+          <span class="todo-progress-segment is-pending" style="width:${pendingPercent}%"></span>
+          <span class="todo-progress-segment is-overdue" style="width:${overduePercent}%"></span>
+        </div>
+        <div class="todo-progress-legend">
+          <div class="todo-progress-stat"><span class="todo-progress-stat-label"><i class="is-completed"></i>Completed</span><strong>${completedTasks}</strong><small>${completedPercent}% of tasks</small></div>
+          <div class="todo-progress-stat"><span class="todo-progress-stat-label"><i class="is-pending"></i>Pending</span><strong>${pendingTasks}</strong><small>${pendingPercent}% of tasks</small></div>
+          <div class="todo-progress-stat"><span class="todo-progress-stat-label"><i class="is-overdue"></i>Overdue</span><strong>${overdueTasks}</strong><small>${overduePercent}% of tasks</small></div>
+        </div>
+        <div class="todo-progress-footer"><span>${totalTasks} ${totalTasks === 1 ? "task" : "tasks"} in this month</span><span>${completedTasks} of ${totalTasks} completed</span></div>
+      </section>
 
-        <div class="progress-grid">
-
-          <div class="donut-wrap">
-
-            <div
-              class="donut-chart"
-              style="
-                background:
-                  conic-gradient(
-                    from 220deg,
-                    #7ad8ff 0 ${completionPercent}%,
-                    #9f7cff ${completionPercent}% 100%
-                  );
-              "
-            >
-
-              <div class="donut-center">
-
-                <strong>
-                  ${completionPercent}%
-                </strong>
-
-                <span>
-                  Completed
-                </span>
-
+      <!-- MONTHLY APP USAGE -->
+      <section class="monthly-highlights-section" aria-label="Monthly app activity">
+        <div class="monthly-highlights-heading">
+          <div><p class="dashboard-section-kicker">YOUR MONTH IN REVIEW</p><h3>App activity</h3></div>
+          <span>${currentMonthName} ${state.currentYear}</span>
+        </div>
+        <div class="monthly-highlights-grid">
+          <article class="monthly-highlight-card events-highlight-card">
+            <div class="monthly-highlight-top"><span class="monthly-highlight-icon">\u{1F5D3}\uFE0F</span><span class="monthly-highlight-label">Events</span></div>
+            <strong class="monthly-highlight-value">${monthEvents.length}</strong>
+            <span class="monthly-highlight-caption">Scheduled this month</span>
+            <div class="monthly-highlight-foot"><span>${upcomingEvents} upcoming</span><span>${earlierEvents} earlier</span></div>
+          </article>
+          <article class="monthly-highlight-card notes-highlight-card">
+            <div class="monthly-highlight-top"><span class="monthly-highlight-icon">\u{1F4DD}</span><span class="monthly-highlight-label">Notes</span></div>
+            <strong class="monthly-highlight-value">${monthlyNotes.length}</strong>
+            <span class="monthly-highlight-caption">Created this month</span>
+            <div class="monthly-highlight-foot"><span>${noteRows.length} total saved</span></div>
+          </article>
+          <article class="monthly-highlight-card goals-highlight-card">
+            <div class="monthly-highlight-top"><span class="monthly-highlight-icon">\u{1F3C6}</span><span class="monthly-highlight-label">Goal &amp; Achievements</span></div>
+            <strong class="monthly-highlight-value">${monthlyGoalsCompleted.length}</strong>
+            <span class="monthly-highlight-caption">Completed this month</span>
+            <div class="monthly-highlight-foot"><span>${monthlyGoalsAdded.length} added</span><span>${goalAchievementRows.length} total</span></div>
+          </article>
+          <article class="monthly-highlight-card focus-highlight-card">
+            <div class="monthly-highlight-top"><span class="monthly-highlight-icon">\u23F1\uFE0F</span><span class="monthly-highlight-label">Focus Timer</span></div>
+            <strong class="monthly-highlight-value">${monthlyFocusSessions.length}</strong>
+            <span class="monthly-highlight-caption">Completed sessions</span>
+            <div class="monthly-highlight-foot"><span>${focusDurationLabel} focused</span><span>${monthlyFocusMinutes} min</span></div>
+          </article>
+          <article class="monthly-highlight-card mood-highlight-card">
+            <div class="monthly-highlight-top"><span class="monthly-highlight-icon">\u{1F49B}</span><span class="monthly-highlight-label">This month\u2019s mood</span></div>
+            <div class="mood-highlight-body">
+              <div class="mood-highlight-feature">
+                <span class="mood-highlight-emoji">${topMood ? escapeHtml5(topMood.emoji) : "\u2014"}</span>
+                <div><strong>${topMood ? escapeHtml5(topMood.label) : "No mood logged"}</strong><span>${topMood ? `${topMood.count} of ${monthMoods.length} check-ins` : "Record a mood to see your pattern"}</span></div>
               </div>
-
+              <div class="mood-highlight-distribution">${rankedMoods.length ? rankedMoods.slice(0, 4).map((mood) => `<span title="${escapeHtml5(mood.label)}: ${mood.count}"><b>${escapeHtml5(mood.emoji)}</b><small>${mood.count}</small></span>`).join("") : '<span class="mood-no-data">No check-ins for this month</span>'}</div>
             </div>
-
-          </div>
-
-          <div class="progress-metrics">
-
-            <div class="metric-item">
-
-              <span class="metric-icon success">
-                \u2713
-              </span>
-
-              <span class="metric-label">
-                Tasks Completed
-              </span>
-
-              <strong>
-                ${completedTasks}
-              </strong>
-
-            </div>
-
-            <div class="metric-item">
-
-              <span class="metric-icon pending">
-                \u25D4
-              </span>
-
-              <span class="metric-label">
-                Pending
-              </span>
-
-              <strong>
-                ${pendingTasks}
-              </strong>
-
-            </div>
-
-            <div class="metric-item">
-
-              <span class="metric-icon overdue">
-                \u2022
-              </span>
-
-              <span class="metric-label">
-                Overdue
-              </span>
-
-              <strong>
-                ${overdueTasks}
-              </strong>
-
-            </div>
-
-          </div>
-
-          </div>
-
+          </article>
         </div>
-
       </section>
 
             <!-- MONTHLY FINANCE -->
@@ -8634,7 +8679,7 @@ function renderProgressPage() {
                       </div>
                     `
   ).join("") : `
-                <div class="activity-item">
+                <div class="activity-item activity-empty-item">
 
                   <span class="activity-text">
                     No activity recorded for
@@ -10145,6 +10190,7 @@ async function performSelectedDataReset() {
         state.focusSessionId = null;
         state.focusSeconds = state.focusInitialSeconds || 25 * 60;
         state.focusSessions = [];
+        state.focusStatsData = null;
         try {
           localStorage.removeItem("sahraFocusSessions");
           localStorage.removeItem(FOCUS_TIMER_STORAGE_KEY);
@@ -10253,6 +10299,7 @@ function bindGlobalListeners() {
         const updatedGoal = { ...previous, ...editableFields };
         const today2 = formatDateKey2(/* @__PURE__ */ new Date());
         updatedGoal.status = Number(updatedGoal.current || 0) >= target ? "Completed" : targetDate < today2 ? "Overdue" : "Active";
+        if (previous.status !== "Completed" && updatedGoal.status === "Completed") updatedGoal.completedAt = (/* @__PURE__ */ new Date()).toISOString();
         const updatedItems2 = [...items];
         updatedItems2[existingIndex] = updatedGoal;
         if (!saveGoalAchievements(updatedItems2)) {
@@ -10308,7 +10355,9 @@ function bindGlobalListeners() {
     goal.current = Math.min(Number(goal.target) || 1, (Number(goal.current) || 0) + amount);
     goal.xp = (Number(goal.xp) || 0) + 10;
     refreshGoalStreak(goal);
+    const wasCompleted = goal.status === "Completed";
     goal.status = goal.current >= goal.target ? "Completed" : goal.targetDate < today ? "Overdue" : "Active";
+    if (!wasCompleted && goal.status === "Completed") goal.completedAt = (/* @__PURE__ */ new Date()).toISOString();
     saveGoalAchievements(items);
     showToast(goal.status === "Completed" ? "Goal completed! Achievement unlocked." : "+10 XP \xB7 Progress saved");
     renderLayout();

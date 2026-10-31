@@ -1,0 +1,79 @@
+DaySync — Monthly Progress & Stats + Light Theme Contrast Patch
+
+PACKAGE LAYOUT
+This ZIP has no wrapper folder. Extract it directly into:
+P:\MyProjects\calender_todolist
+
+Files included:
+- app.js                  Updated Progress & Stats screen and monthly data calculations
+- style.css               Scoped 3D monthly dashboard styling and light-theme contrast fixes
+- models/index.js         Focus session idempotency/date fields
+- routes/dashboard.js     Monthly Focus Timer stats and idempotent session saving
+
+WHAT CHANGED
+1. Replaced the old Overall Progress donut with To-Do List Progress.
+   - Completed, Pending and Overdue are separate categories.
+   - Counts add up to the selected month's task total.
+   - Percentages and progress bar use the selected month's tasks.
+2. Added monthly App Activity cards for:
+   - Events scheduled in the selected month (upcoming / earlier)
+   - Notes created this month and total saved notes
+   - Goal & Achievements added and completed this month
+   - Completed Focus Timer sessions and focus minutes
+   - Most frequently selected mood emoji and mood check-in distribution
+3. Kept the existing Monthly Finance and Recent Activity sections.
+4. Fixed the empty Recent Activity row so its message uses the full card width.
+5. Added explicit light-theme contrast for the monthly stats cards, Settings > Reset Options danger row,
+   the permanent deletion warning, and Cancel / Go Back buttons.
+6. Focus session completions are saved to the existing FocusSession API with a stable session ID.
+   The API can now return records for a selected calendar month. Existing on-device focus history
+   remains visible locally; old local-only sessions are not automatically uploaded to another account.
+
+INSTALLATION
+1. Stop the running DaySync server (Ctrl+C in the npm start terminal).
+2. Extract this ZIP directly into P:\MyProjects\calender_todolist.
+3. Choose Replace the files in the destination when prompted.
+4. Open PowerShell in the project root and run:
+
+   node --check .\app.js
+   node --check .\models\index.js
+   node --check .\routes\dashboard.js
+   node .\scripts\build-web.js
+
+5. Restart the backend:
+
+   npm start
+
+6. Refresh the browser with Ctrl+Shift+R.
+7. For Android APK rebuild, after web build succeeds run:
+
+   npx cap sync android
+   cd .\android
+   .\gradlew.bat assembleDebug
+
+APK output:
+android\app\build\outputs\apk\debug\app-debug.apk
+
+NOTES
+- index.html, server.js, scripts/build-web.js and package.json are unchanged and are not included.
+- web-app.js is intentionally not included because it must be freshly generated on the project machine
+  by scripts/build-web.js. Do not keep using the old bundle after replacing app.js.
+- No data is seeded or fabricated. Counts are calculated from existing DaySync records.
+- Notes use the same Assets/Notes collection that the current Notepad page displays.
+- Goal & Achievements uses its own existing goalAchievementItems records, not the separate Progress Tracker goals.
+- Focus session stats include server-synced sessions plus this device's local records, deduplicated by session ID.
+- Older local-only focus records are not automatically transferred to the account server because they were
+  created before account-scoped focus sync existed.
+
+VERIFICATION PERFORMED IN THIS WORKSPACE
+- node --check app.js: passed
+- node --check models/index.js: passed
+- node --check routes/dashboard.js: passed
+- Progress page render fixture with representative tasks, events, notes, goals, focus sessions and moods: passed
+- Confirmed the old Overall Progress heading is absent and new sections render.
+- ZIP structure/integrity checked after packaging.
+
+NOT PERFORMED
+- Full browser or Android runtime testing
+- Live MongoDB/API calls
+- APK build (the uploaded project did not include node_modules / esbuild in this workspace)

@@ -11173,3 +11173,164 @@ html[data-theme="light"] .ga-panel,body.theme-light .ga-panel,html[data-theme="l
 @media (prefers-reduced-motion: reduce) {
   .ga-goal-card, .ga-button { transition: none; }
 }
+
+
+/* =========================================================
+   MONTHLY PERFORMANCE DASHBOARD — DaySync
+   Scoped to Progress & Stats; existing pages retain their styling.
+========================================================= */
+.dashboard-screen .todo-progress-panel,
+.dashboard-screen .monthly-highlights-section {
+  min-width: 0;
+}
+
+.dashboard-screen .todo-progress-panel {
+  padding: 18px 17px 15px;
+  border-radius: 22px;
+  border: 1px solid rgba(128, 164, 240, .22);
+  background: linear-gradient(145deg, rgba(28, 48, 88, .98), rgba(13, 27, 55, .98));
+  box-shadow: 0 13px 25px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .10), inset 0 -3px 0 rgba(0, 0, 0, .18);
+}
+.todo-progress-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.todo-progress-title { min-width:0; }
+.dashboard-section-kicker { margin:0 0 5px; color:var(--cyan, #73cfff); font-size:9px; line-height:1.2; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+.todo-progress-title h3,
+.monthly-highlights-heading h3 { margin:0; color:var(--text); font-size:17px; line-height:1.2; font-weight:850; letter-spacing:-.025em; }
+.todo-progress-title > p:last-child { margin:5px 0 0; color:var(--muted); font-size:11px; line-height:1.4; }
+.todo-progress-score { flex:0 0 auto; display:grid; justify-items:end; gap:1px; }
+.todo-progress-score strong { color:#9b83ff; font-size:clamp(25px, 7vw, 34px); line-height:1; font-weight:900; letter-spacing:-.05em; }
+.todo-progress-score span { color:var(--muted); font-size:10px; font-weight:700; }
+.todo-progress-track { display:flex; width:100%; height:12px; margin:17px 0 15px; overflow:hidden; border:1px solid rgba(150,180,255,.16); border-radius:999px; background:rgba(3,10,24,.32); box-shadow:inset 0 2px 4px rgba(0,0,0,.24); }
+.todo-progress-segment { display:block; height:100%; min-width:0; transition:width .35s ease; }
+.todo-progress-segment.is-completed, .todo-progress-stat-label i.is-completed { background:linear-gradient(90deg,#42d9a1,#18a978); }
+.todo-progress-segment.is-pending, .todo-progress-stat-label i.is-pending { background:linear-gradient(90deg,#57b8ff,#3984e8); }
+.todo-progress-segment.is-overdue, .todo-progress-stat-label i.is-overdue { background:linear-gradient(90deg,#ff879b,#df4569); }
+.todo-progress-legend { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.todo-progress-stat { display:grid; gap:4px; min-width:0; padding:10px 9px; border:1px solid rgba(151,181,239,.14); border-radius:13px; background:rgba(255,255,255,.045); }
+.todo-progress-stat-label { display:flex; align-items:center; gap:5px; color:rgba(226,236,255,.88); font-size:10px; font-weight:750; white-space:nowrap; }
+.todo-progress-stat-label i { width:8px; height:8px; flex:0 0 8px; border-radius:50%; }
+.todo-progress-stat > strong { color:var(--text); font-size:20px; line-height:1.1; font-weight:900; }
+.todo-progress-stat > small { color:var(--muted); font-size:9px; line-height:1.2; }
+.todo-progress-footer { display:flex; justify-content:space-between; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid rgba(151,181,239,.14); color:var(--muted); font-size:10px; }
+
+.monthly-highlights-section { display:grid; gap:11px; }
+.monthly-highlights-heading { display:flex; align-items:end; justify-content:space-between; gap:10px; padding:0 3px; }
+.monthly-highlights-heading > span { color:var(--muted); font-size:10px; white-space:nowrap; }
+.monthly-highlights-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.monthly-highlight-card { position:relative; display:flex; flex-direction:column; min-width:0; min-height:142px; padding:13px 13px 11px; overflow:hidden; border:1px solid rgba(133,166,234,.20); border-radius:18px; color:var(--text); background:linear-gradient(150deg,rgba(28,47,84,.96),rgba(13,27,52,.98)); box-shadow:0 8px 16px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.16); }
+.monthly-highlight-card::after { content:""; position:absolute; right:-25px; top:-34px; width:88px; height:88px; border-radius:50%; background:var(--highlight-glow,rgba(83,150,255,.10)); filter:blur(2px); pointer-events:none; }
+.events-highlight-card { --highlight-glow:rgba(64,174,255,.16); }
+.notes-highlight-card { --highlight-glow:rgba(255,202,91,.15); }
+.goals-highlight-card { --highlight-glow:rgba(174,126,255,.17); }
+.focus-highlight-card { --highlight-glow:rgba(56,218,183,.15); }
+.mood-highlight-card { --highlight-glow:rgba(255,132,168,.14); }
+.monthly-highlight-top { position:relative; z-index:1; display:flex; align-items:center; gap:8px; min-width:0; }
+.monthly-highlight-icon { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; border:1px solid rgba(156,185,245,.14); border-radius:10px; background:rgba(117,157,232,.13); font-size:15px; }
+.monthly-highlight-label { min-width:0; color:var(--muted); font-size:10px; font-weight:750; line-height:1.25; }
+.monthly-highlight-value { position:relative; z-index:1; display:block; margin-top:13px; color:var(--text); font-size:clamp(24px,7vw,31px); line-height:1; font-weight:900; letter-spacing:-.04em; overflow-wrap:anywhere; }
+.monthly-highlight-caption { position:relative; z-index:1; margin-top:5px; color:var(--muted); font-size:10px; line-height:1.3; }
+.monthly-highlight-foot { position:relative; z-index:1; display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 8px; margin-top:auto; padding-top:11px; color:var(--muted); font-size:9px; line-height:1.25; }
+.mood-highlight-card { grid-column:1 / -1; min-height:128px; }
+.mood-highlight-body { position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; margin-top:12px; }
+.mood-highlight-feature { display:flex; align-items:center; gap:11px; min-width:0; }
+.mood-highlight-emoji { display:grid; place-items:center; flex:0 0 52px; width:52px; height:52px; border:1px solid rgba(255,255,255,.13); border-radius:16px; background:rgba(255,255,255,.07); font-size:29px; }
+.mood-highlight-feature > div { display:grid; gap:3px; min-width:0; }
+.mood-highlight-feature strong { color:var(--text); font-size:15px; font-weight:850; }
+.mood-highlight-feature span:not(.mood-highlight-emoji) { color:var(--muted); font-size:10px; }
+.mood-highlight-distribution { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.mood-highlight-distribution > span:not(.mood-no-data) { display:flex; align-items:center; gap:4px; padding:6px 8px; border:1px solid rgba(151,181,239,.15); border-radius:11px; background:rgba(255,255,255,.05); }
+.mood-highlight-distribution b { font-size:14px; }
+.mood-highlight-distribution small { color:var(--muted); font-size:9px; font-weight:800; }
+.mood-no-data { max-width:115px; color:var(--muted); font-size:10px; line-height:1.35; text-align:right; }
+.dashboard-screen .activity-empty-item { grid-template-columns:minmax(0,1fr); min-height:74px; padding:14px; border:1px dashed rgba(137,166,223,.2); border-radius:14px; color:var(--muted); text-align:center; }
+.dashboard-screen .activity-empty-item .activity-text { display:block; width:100%; white-space:normal; overflow-wrap:normal; word-break:normal; line-height:1.5; }
+.dashboard-screen .activity-item { grid-template-columns:22px minmax(0,1fr) auto; gap:9px; }
+.dashboard-screen .activity-text { min-width:0; overflow-wrap:anywhere; }
+
+@media (max-width:380px) {
+  .dashboard-screen .todo-progress-panel { padding:15px 12px 13px; }
+  .todo-progress-stat { padding:9px 7px; }
+  .todo-progress-stat-label { font-size:9px; }
+  .monthly-highlights-grid { gap:8px; }
+  .monthly-highlight-card { padding:11px 10px 10px; min-height:137px; }
+  .monthly-highlight-label { font-size:9px; }
+  .mood-highlight-body { grid-template-columns:1fr; }
+  .mood-highlight-distribution { justify-content:flex-start; }
+}
+
+/* Explicit light-theme contrast fixes for Settings and Reset Options.
+   The previous dark translucent danger surfaces kept pale text on pale cards. */
+body.theme-light .daysync-setting-row-danger {
+  background:linear-gradient(145deg,#fff7f8,#fff0f2) !important;
+  border-color:rgba(190,35,72,.25) !important;
+  box-shadow:0 3px 0 rgba(191,75,97,.08),0 8px 16px rgba(90,55,75,.08),inset 0 1px 0 #fff !important;
+}
+body.theme-light .daysync-setting-row-danger .daysync-setting-copy strong,
+body.theme-light .daysync-setting-row-danger .daysync-setting-trail { color:#9f2446 !important; }
+body.theme-light .daysync-setting-row-danger .daysync-setting-copy small { color:#5c5362 !important; }
+body.theme-light .daysync-setting-row-danger .daysync-setting-icon { background:rgba(205,49,83,.10) !important; color:#a3284b !important; }
+body.theme-light .daysync-reset-warning {
+  color:#572238 !important;
+  background:linear-gradient(145deg,#fff8f7,#fff0f1) !important;
+  border-color:rgba(194,54,80,.24) !important;
+  box-shadow:0 5px 14px rgba(128,49,70,.07),inset 0 1px 0 #fff !important;
+}
+body.theme-light .daysync-reset-warning > span { color:#a52b4b !important; background:rgba(198,49,78,.10) !important; }
+body.theme-light .daysync-reset-warning strong { color:#922343 !important; }
+body.theme-light .daysync-reset-warning p { color:#5b5361 !important; }
+body.theme-light .daysync-reset-cancel {
+  color:#26334f !important;
+  background:linear-gradient(180deg,#ffffff,#edf2fc) !important;
+  border-color:rgba(94,116,166,.30) !important;
+  box-shadow:0 3px 0 rgba(111,130,174,.12),inset 0 1px 0 #fff !important;
+}
+body.theme-light .daysync-reset-cancel:hover { background:#e6edfb !important; color:#172542 !important; }
+body.theme-light .daysync-reset-review-bar { background:rgba(246,249,255,.96) !important; border-color:rgba(100,122,174,.22) !important; box-shadow:0 10px 24px rgba(72,91,137,.14) !important; }
+body.theme-light .daysync-reset-select-actions { color:#53617d !important; }
+body.theme-light .daysync-reset-select-actions button { color:#9b2948 !important; background:#fff0f3 !important; }
+body.theme-light .daysync-reset-category-copy strong { color:#1b2944 !important; }
+body.theme-light .daysync-reset-category-copy small { color:#5a6986 !important; }
+body.theme-light .daysync-reset-empty { color:#596985 !important; }
+
+/* Light surfaces for the new monthly statistics cards. */
+body.theme-light .dashboard-screen .todo-progress-panel,
+body.theme-light .dashboard-screen .monthly-highlight-card {
+  color:#182642 !important;
+  background:linear-gradient(150deg,#ffffff 0%,#edf3ff 100%) !important;
+  border-color:rgba(95,119,174,.24) !important;
+  box-shadow:0 3px 0 rgba(166,182,215,.26),0 10px 20px rgba(87,108,157,.12),inset 0 1px 0 #fff !important;
+}
+body.theme-light .todo-progress-title h3,
+body.theme-light .monthly-highlights-heading h3,
+body.theme-light .todo-progress-stat > strong,
+body.theme-light .monthly-highlight-value,
+body.theme-light .mood-highlight-feature strong {
+  color:#182642 !important;
+}
+body.theme-light .todo-progress-title > p:last-child,
+body.theme-light .todo-progress-score span,
+body.theme-light .monthly-highlights-heading > span,
+body.theme-light .monthly-highlight-label,
+body.theme-light .monthly-highlight-caption,
+body.theme-light .monthly-highlight-foot,
+body.theme-light .mood-highlight-feature span:not(.mood-highlight-emoji),
+body.theme-light .mood-highlight-distribution small,
+body.theme-light .mood-no-data {
+  color:#5b6b89 !important;
+}
+body.theme-light .todo-progress-stat {
+  background:rgba(255,255,255,.82) !important;
+  border-color:rgba(98,122,178,.20) !important;
+  box-shadow:inset 0 1px 0 #fff !important;
+}
+body.theme-light .todo-progress-stat-label { color:#465775 !important; }
+body.theme-light .todo-progress-track { background:#dfe7f6 !important; border-color:rgba(90,113,165,.20) !important; }
+body.theme-light .todo-progress-footer { border-color:rgba(98,122,178,.18) !important; color:#5b6b89 !important; }
+body.theme-light .monthly-highlight-icon,
+body.theme-light .mood-highlight-emoji,
+body.theme-light .mood-highlight-distribution > span:not(.mood-no-data) {
+  border-color:rgba(98,122,178,.18) !important;
+  background:rgba(107,139,205,.10) !important;
+}
+body.theme-light .dashboard-screen .activity-empty-item { color:#5b6b89 !important; border-color:rgba(98,122,178,.28) !important; }
+body.theme-light .todo-progress-score strong { color:#6557c9 !important; }
