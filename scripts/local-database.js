@@ -19,7 +19,8 @@ const COLLECTIONS = [
   'transactions',
   'syncOutbox',
   'syncIdMap',
-  'profileCache'
+  'profileCache',
+  'goalAchievements'
 ];
 
 const PROFILE_KEY = 'sahra.local.profile';
@@ -34,7 +35,7 @@ function isNative() {
 
 function validateCollection(collection) {
   const valid = COLLECTIONS.includes(collection) ||
-    /^acct_[A-Za-z0-9_-]{1,128}__(events|tasks|moods|habits|goals|reminders|notes|habitLogs|expenses|subscriptions|assets|transactions|syncOutbox|syncIdMap|profileCache)$/.test(collection);
+    /^acct_[A-Za-z0-9_-]{1,128}__(events|tasks|moods|habits|goals|reminders|notes|habitLogs|expenses|subscriptions|assets|transactions|syncOutbox|syncIdMap|profileCache|goalAchievements)$/.test(collection);
   if (!valid) throw new Error(`Unsupported local collection: ${collection}`);
 }
 

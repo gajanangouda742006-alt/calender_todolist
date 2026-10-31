@@ -710,6 +710,18 @@ const HabitLog = mongoose.model('HabitLog', habitLogSchema);
 
 const Goal = mongoose.model('Goal', goalSchema);
 
+// Goal & Achievements is distinct from the Progress Tracker Goal model.
+// Keep the complete client object as a Mixed payload to preserve future metadata.
+const goalAchievementSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  goalId: { type: String, required: true, trim: true, maxlength: 160 },
+  payload: { type: mongoose.Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+}, { collection: 'goalAchievements', minimize: false });
+goalAchievementSchema.index({ userId: 1, goalId: 1 }, { unique: true });
+const GoalAchievement = mongoose.models.GoalAchievement || mongoose.model('GoalAchievement', goalAchievementSchema);
+
 const Reminder = mongoose.model('Reminder', reminderSchema);
 
 const Note = mongoose.model('Note', noteSchema);
@@ -793,6 +805,7 @@ module.exports = {
   Habit,
   HabitLog,
   Goal,
+  GoalAchievement,
   Reminder,
   Note,
   Asset,

@@ -12,6 +12,7 @@ const {
   Habit,
   HabitLog,
   Goal,
+  GoalAchievement,
   Reminder,
   Note,
   Asset,
@@ -33,13 +34,14 @@ router.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const [user, events, tasks, moods, habits, goals, reminders, assets, habitLogs] = await Promise.all([
+    const [user, events, tasks, moods, habits, goals, goalAchievements, reminders, assets, habitLogs] = await Promise.all([
       User.findById(userId).select('name email profile preferences createdAt'),
       Event.find({ userId }).sort({ date: 1, startTime: 1 }),
       Task.find({ userId }).sort({ date: 1, createdAt: -1 }),
       Mood.find({ userId }).sort({ date: 1, createdAt: -1 }),
       Habit.find({ userId }).sort({ createdAt: -1 }),
       Goal.find({ userId }).sort({ createdAt: -1 }),
+      GoalAchievement.find({ userId }).sort({ createdAt: -1 }),
       Reminder.find({ userId }).sort({ date: 1, time: 1 }),
       Asset.find({ userId }).sort({ createdAt: -1 }),
       HabitLog.find({ userId }).sort({ date: 1 }),
@@ -63,6 +65,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
         moods: moods.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         habits: habits.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         goals: goals.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
+        goalAchievements: goalAchievements.map((item) => ({ ...(item.payload || {}), id: item.goalId, updatedAt: item.updatedAt })),
         reminders: reminders.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         notes: assets.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
         assets: assets.map((item) => ({ ...item.toObject(), id: item._id.toString() })),
@@ -1727,6 +1730,55 @@ router.post('/goals', verifyToken, async (req, res) => {
   }
 });
 
+router.get('/goal-achievements', verifyToken, async (req, res) => {
+  try {
+    const items = await GoalAchievement.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    return res.status(200).json({
+      goalAchievements: items.map((item) => ({ ...(item.payload || {}), id: item.goalId, updatedAt: item.updatedAt })),
+    });
+  } catch (error) {
+    console.error('Goal & Achievements fetch error:', error);
+    return res.status(500).json({ message: 'Unable to load Goal & Achievements data.' });
+  }
+});
+
+router.put('/goal-achievements/:goalId', verifyToken, async (req, res) => {
+  const goalId = String(req.params.goalId || '').trim();
+  if (!goalId || goalId.length > 160) return res.status(400).json({ message: 'A valid goal ID is required.' });
+  try {
+    const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? { ...req.body } : {};
+    delete payload._id;
+    delete payload.__v;
+    delete payload.userId;
+    payload.id = goalId;
+    const now = new Date();
+    const item = await GoalAchievement.findOneAndUpdate(
+      { userId: req.user.id, goalId },
+      { $set: { payload, updatedAt: now }, $setOnInsert: { createdAt: now } },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    );
+    return res.status(200).json({
+      message: 'Goal & Achievements record synchronized.',
+      goalAchievement: { ...(item.payload || {}), id: item.goalId, updatedAt: item.updatedAt },
+    });
+  } catch (error) {
+    console.error('Goal & Achievements save error:', error);
+    return res.status(500).json({ message: 'Unable to save Goal & Achievements data.' });
+  }
+});
+
+router.delete('/goal-achievements/:goalId', verifyToken, async (req, res) => {
+  const goalId = String(req.params.goalId || '').trim();
+  if (!goalId || goalId.length > 160) return res.status(400).json({ message: 'A valid goal ID is required.' });
+  try {
+    const result = await GoalAchievement.deleteOne({ userId: req.user.id, goalId });
+    return res.status(200).json({ message: 'Goal & Achievements record deleted.', deletedCount: Number(result.deletedCount || 0) });
+  } catch (error) {
+    console.error('Goal & Achievements delete error:', error);
+    return res.status(500).json({ message: 'Unable to delete Goal & Achievements data.' });
+  }
+});
+
 router.get('/reminders', verifyToken, async (req, res) => {
   try {
     const items = await Reminder.find({ userId: req.user.id }).sort({ date: 1, time: 1 });
@@ -2305,13 +2357,26 @@ const RESET_DATA_MODELS = {
   expenses: [Transaction],
   calendar: [Event, Reminder],
   progress: [Goal, Habit, HabitLog, Mood],
+  'goal-achievements': [GoalAchievement],
   focus: [FocusSession],
 };
 
 router.delete('/reset-data/:category', verifyToken, async (req, res) => {
-  const category = String(req.params.category || '').toLowerCase();
+  // Accept the canonical slug as well as the camelCase/underscore variants
+  // that may be sent by older installed web bundles.
+  const requestedCategory = String(req.params.category || '').trim().toLowerCase();
+  const categoryToken = requestedCategory.replace(/[^a-z0-9]/g, '');
+  const category = categoryToken === 'goalachievements'
+    ? 'goal-achievements'
+    : requestedCategory.replace(/[_\s]+/g, '-');
   const models = RESET_DATA_MODELS[category];
-  if (!models) return res.status(400).json({ message: 'Unknown reset category.' });
+  if (!models) {
+    return res.status(400).json({
+      message: 'Unknown reset category.',
+      receivedCategory: req.params.category || '',
+      supportedCategories: Object.keys(RESET_DATA_MODELS),
+    });
+  }
   try {
     let deletedCount = 0;
     const deletedByCollection = {};

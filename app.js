@@ -30,6 +30,7 @@ const EMPTY_DATA = {
   reminders: [],
   notes: [],
   habitLogs: [],
+  goalAchievements: [],
   expenses: [],
   subscriptions: [],
   assets: [],
@@ -159,7 +160,7 @@ noteSearchQuery: '',
   showFinanceResetConfirm: false,
   financeResetLoading: false,
   tempFinanceType: null,
-  resetOptionsSelected: { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false },
+  resetOptionsSelected: { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false },
   resetConfirmOpen: false,
   resetOptionsBusy: false,
   settingsInfoPanel: '',
@@ -433,19 +434,182 @@ async function syncGoalReminder(goal) {
   } catch (error) { console.warn('Could not schedule goal reminder:',error.message); }
 }
 
+function normalizeGoalAchievementIdentity(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+}
+
+// Earlier app versions could save this page's goals using a username or email
+// before the server supplied the stable Mongo account ID. Read every identity
+// key belonging to the current signed-in profile and migrate those rows to the
+// canonical account-ID key. This prevents existing goals disappearing from
+// Settings/Reset after the profile gains a server ID.
+function goalAchievementStorageKeys() {
+  const users = [state.user || {}];
+  try {
+    const storedUser = JSON.parse(localStorage.getItem('sahraUser') || 'null');
+    if (storedUser && typeof storedUser === 'object') users.push(storedUser);
+  } catch (_) {}
+
+  const identities = [];
+  for (const user of users) {
+    for (const field of ['id', '_id', 'email', 'username', 'name']) {
+      const value = normalizeGoalAchievementIdentity(user?.[field]);
+      if (value && !identities.includes(value)) identities.push(value);
+    }
+  }
+  if (!identities.length && !state.authenticated) identities.push('guest');
+  const keys = identities.map((identity) => `daysyncGoalAchievements:${identity}`);
+  return [...new Set(keys)];
+}
+
 function goalAchievementStorageKey() {
   const user = state.user || {};
-  const identity = user.id || user._id || user.email || user.username || user.name || 'guest';
-  return `daysyncGoalAchievements:${String(identity).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`;
+  let identity = user.id || user._id || user.email || user.username || user.name;
+  if (!identity) {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('sahraUser') || 'null');
+      identity = storedUser?.id || storedUser?._id || storedUser?.email || storedUser?.username || storedUser?.name;
+    } catch (_) {}
+  }
+  return `daysyncGoalAchievements:${normalizeGoalAchievementIdentity(identity || 'guest')}`;
 }
+
 function loadGoalAchievements() {
-  try { const value = JSON.parse(localStorage.getItem(goalAchievementStorageKey()) || '[]'); return Array.isArray(value) ? value : []; }
-  catch (_) { return []; }
+  const keys = goalAchievementStorageKeys();
+  const rows = [];
+  for (const key of keys) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || '[]');
+      if (Array.isArray(value)) rows.push(...value);
+    } catch (error) {
+      console.warn(`Could not read saved Goal & Achievements data from ${key}:`, error.message);
+    }
+  }
+  const merged = typeof mergeGoalAchievementRecords === 'function'
+    ? mergeGoalAchievementRecords(rows, [])
+    : [...new Map(rows.filter((row) => row?.id != null).map((row) => [String(row.id), row])).values()];
+
+  // Migrate all legacy user-name/email keys to the current canonical key.
+  if (keys.length && rows.length) {
+    const primaryKey = goalAchievementStorageKey();
+    try {
+      localStorage.setItem(primaryKey, JSON.stringify(merged));
+      for (const key of keys) if (key !== primaryKey) localStorage.removeItem(key);
+    } catch (error) {
+      console.warn('Could not migrate legacy Goal & Achievements storage:', error.message);
+    }
+  }
+  return merged;
 }
+function writeGoalAchievementsLocally(items) {
+  state.goalAchievementItems = Array.isArray(items) ? items : [];
+  state.data.goalAchievements = state.goalAchievementItems;
+  try {
+    localStorage.setItem(goalAchievementStorageKey(), JSON.stringify(state.goalAchievementItems));
+    return true;
+  } catch (_) {
+    showToast('Could not save goals on this device. Check available storage.');
+    return false;
+  }
+}
+
 function saveGoalAchievements(items) {
-  state.goalAchievementItems = items;
-  try { localStorage.setItem(goalAchievementStorageKey(), JSON.stringify(items)); return true; }
-  catch (_) { showToast('Could not save goals on this device. Check available storage.'); return false; }
+  // Read the last persisted snapshot, rather than the in-memory objects: progress
+  // logging updates a goal object in place before this function is called.
+  const previous = loadGoalAchievements();
+  const previousById = new Map(previous.filter((goal) => goal?.id).map((goal) => [String(goal.id), goal]));
+  const stamp = new Date().toISOString();
+  const stripSyncFields = (goal) => {
+    const copy = { ...(goal || {}) };
+    delete copy.updatedAt;
+    delete copy._offlinePending;
+    return copy;
+  };
+  const next = (Array.isArray(items) ? items : []).map((goal) => {
+    const before = previousById.get(String(goal?.id || ''));
+    const changed = !before || JSON.stringify(stripSyncFields(before)) !== JSON.stringify(stripSyncFields(goal));
+    return { ...goal, updatedAt: changed ? stamp : (goal.updatedAt || before?.updatedAt || stamp) };
+  });
+  if (!writeGoalAchievementsLocally(next)) return false;
+
+  // Goal & Achievements is a separate account-scoped collection. PUT uses the
+  // stable client goal ID so online and offline edits update one record rather
+  // than creating duplicates. apiRequest queues writes when the device is offline.
+  if (state.authenticated) {
+    const nextIds = new Set(next.map((goal) => String(goal.id)));
+    for (const goal of next) {
+      if (!goal?.id) continue;
+      const before = previousById.get(String(goal.id));
+      if (before && JSON.stringify(stripSyncFields(before)) === JSON.stringify(stripSyncFields(goal))) continue;
+      void apiRequest(`/api/goal-achievements/${encodeURIComponent(goal.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(goal),
+      }).catch((error) => console.warn('Goal & Achievements sync is pending:', error.message));
+    }
+    for (const oldGoal of previous) {
+      if (!oldGoal?.id || nextIds.has(String(oldGoal.id))) continue;
+      void apiRequest(`/api/goal-achievements/${encodeURIComponent(oldGoal.id)}`, { method: 'DELETE' })
+        .catch((error) => console.warn('Goal deletion sync is pending:', error.message));
+    }
+  }
+  return true;
+}
+
+function mergeGoalAchievementRecords(localRows, serverRows) {
+  const byId = new Map();
+  const timestamp = (row) => {
+    const parsed = Date.parse(row?.updatedAt || row?.createdAt || 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  for (const row of [...(Array.isArray(localRows) ? localRows : []), ...(Array.isArray(serverRows) ? serverRows : [])]) {
+    if (!row || row.id == null) continue;
+    const id = String(row.id);
+    const existing = byId.get(id);
+    if (!existing) { byId.set(id, { ...row, id }); continue; }
+    const localIsNewer = timestamp(row) >= timestamp(existing);
+    const newer = localIsNewer ? row : existing;
+    const older = localIsNewer ? existing : row;
+    const logs = new Map();
+    for (const log of [...(Array.isArray(older.logs) ? older.logs : []), ...(Array.isArray(newer.logs) ? newer.logs : [])]) {
+      const logId = String(log?.id || `${log?.date || ''}:${log?.amount || ''}:${log?.createdAt || ''}`);
+      logs.set(logId, { ...(logs.get(logId) || {}), ...log });
+    }
+    byId.set(id, {
+      ...older,
+      ...newer,
+      id,
+      createdAt: [older.createdAt, newer.createdAt].filter(Boolean).sort()[0] || newer.createdAt,
+      updatedAt: new Date(Math.max(timestamp(older), timestamp(newer)) || Date.now()).toISOString(),
+      current: Math.max(Number(older.current) || 0, Number(newer.current) || 0),
+      xp: Math.max(Number(older.xp) || 0, Number(newer.xp) || 0),
+      currentStreak: Number(newer.currentStreak ?? older.currentStreak) || 0,
+      bestStreak: Math.max(Number(older.bestStreak) || 0, Number(newer.bestStreak) || 0),
+      logs: [...logs.values()].sort((a, b) => String(a.createdAt || a.date || '').localeCompare(String(b.createdAt || b.date || ''))),
+    });
+  }
+  return [...byId.values()].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
+async function syncGoalAchievementsWithServer(serverRows = []) {
+  const localRows = loadGoalAchievements();
+  const merged = mergeGoalAchievementRecords(localRows, serverRows);
+  if (!writeGoalAchievementsLocally(merged)) return { synced: 0, pending: true };
+  if (!state.authenticated) return { synced: 0, pending: false };
+
+  let synced = 0;
+  for (const goal of merged) {
+    if (!goal?.id) continue;
+    try {
+      await apiRequest(`/api/goal-achievements/${encodeURIComponent(goal.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(goal),
+      });
+      synced += 1;
+    } catch (error) {
+      console.warn('Goal & Achievements sync will retry:', error.message);
+    }
+  }
+  return { synced, pending: !globalThis.navigator?.onLine };
 }
 function goalPeriodKey(dateValue, frequency) {
   const d = new Date(`${String(dateValue || formatDateKey(new Date())).slice(0,10)}T12:00:00`);
@@ -481,24 +645,61 @@ function renderGoalAchievementsPage() {
   const totalXp = goals.reduce((n,g)=>n+(Number(g.xp)||0),0);
   const completed = goals.filter(g=>g.status==='Completed').length;
   const bestStreak = goals.reduce((n,g)=>Math.max(n,Number(g.bestStreak)||0),0);
-  const editing = goals.find(g=>g.id===state.goalAchievementEditingId) || null;
   const esc = escapeHtml;
   return `<section class="screen ga-screen" aria-label="Goal and Achievements">
     <header class="ga-header daysync-common-header"><button type="button" class="daysync-page-back-button" data-action="ga-back" aria-label="Back" title="Back">‹</button><div class="ga-heading"><p class="ga-eyebrow">PLAN · PROGRESS · ACHIEVE</p><h1>Goal &amp; Achievements</h1><p>Small steps, meaningful progress.</p></div><span class="ga-header-icon" aria-hidden="true">✦</span></header>
     <div class="ga-summary-grid"><article class="ga-summary-card"><span>Goals completed</span><strong>${completed}</strong></article><article class="ga-summary-card"><span>Total XP</span><strong>${totalXp.toLocaleString()}</strong></article><article class="ga-summary-card"><span>Best streak</span><strong>🔥 ${bestStreak}</strong></article></div>
-    <section class="ga-panel ga-create-panel"><div class="ga-section-heading"><div><h2>${editing ? 'Edit goal' : 'Create a goal'}</h2><p>Choose a target and build a routine that works for you.</p></div><span class="ga-panel-symbol">＋</span></div>
-      <form class="ga-form" data-form="goal-achievement" data-edit-id="${editing ? esc(editing.id) : ''}">
-        <label class="ga-field ga-field-wide"><span>Goal name *</span><input name="title" maxlength="90" required value="${editing ? esc(editing.title) : ''}" placeholder="e.g. Learn Java programming" /></label>
-        <label class="ga-field ga-field-wide"><span>Description <small>Optional</small></span><textarea name="description" maxlength="240" rows="2" placeholder="Why does this goal matter?">${editing ? esc(editing.description || '') : ''}</textarea></label>
-        <div class="ga-field-row"><label class="ga-field"><span>Target amount *</span><input name="target" type="number" min="1" max="1000000" required value="${editing ? Number(editing.target) : 30}" /></label><label class="ga-field"><span>Unit</span><select name="unit"><option ${editing?.unit==='sessions'?'selected':''} value="sessions">Sessions</option><option ${editing?.unit==='minutes'?'selected':''} value="minutes">Minutes</option><option ${editing?.unit==='pages'?'selected':''} value="pages">Pages</option><option ${editing?.unit==='tasks'?'selected':''} value="tasks">Tasks</option><option ${editing?.unit==='items'?'selected':''} value="items">Items</option></select></label></div>
-        <div class="ga-field-row"><label class="ga-field"><span>Target date *</span><input name="targetDate" type="date" required min="${formatDateKey(new Date())}" value="${editing ? esc(editing.targetDate) : formatDateKey(new Date(Date.now()+30*86400000))}" /></label><label class="ga-field"><span>Frequency</span><select name="frequency"><option ${!editing||editing.frequency==='Daily'?'selected':''}>Daily</option><option ${editing?.frequency==='Weekly'?'selected':''}>Weekly</option><option ${editing?.frequency==='Monthly'?'selected':''}>Monthly</option></select></label></div>
-        <div class="ga-field-row"><label class="ga-field"><span>Reminder time <small>Optional</small></span><input name="reminderTime" type="time" value="${editing ? esc(editing.reminderTime || '') : ''}" /></label><label class="ga-field"><span>Category</span><select name="category"><option ${!editing||editing.category==='Learning'?'selected':''}>Learning</option><option ${editing?.category==='Health'?'selected':''}>Health</option><option ${editing?.category==='Career'?'selected':''}>Career</option><option ${editing?.category==='Personal'?'selected':''}>Personal</option><option ${editing?.category==='Finance'?'selected':''}>Finance</option></select></label></div>
-        <div class="ga-form-actions"><button type="button" class="ga-button ga-button-quiet" data-action="ga-cancel-edit" ${editing?'':'hidden'}>Cancel edit</button><button type="submit" class="ga-button ga-button-primary">${editing ? 'Save changes' : '＋ Save goal'}</button></div>
-      </form><p class="ga-helper">Progress logs earn 10 XP each. Repeated logs in the same period earn XP, but only one period counts toward a streak.</p>
+    <section class="ga-panel ga-add-goal-panel">
+      <div class="ga-section-heading"><div><h2>Set a new goal</h2><p>Create a goal, choose a target and build a routine that works for you.</p></div><span class="ga-panel-symbol" aria-hidden="true">＋</span></div>
+      <button type="button" class="ga-button ga-button-primary ga-add-goal-button" data-action="ga-open-create">＋ Add Goal</button>
     </section>
     <section class="ga-goals-section"><div class="ga-section-heading"><div><h2>Your goals</h2><p>${goals.length} saved ${goals.length===1?'goal':'goals'}</p></div></div><div class="ga-filters" role="group" aria-label="Filter goals">${['All','Active','Completed','Overdue'].map(f=>`<button type="button" data-action="ga-filter" data-filter="${f}" class="ga-filter ${filter===f?'active':''}" aria-pressed="${filter===f}">${f}</button>`).join('')}</div>
       ${visible.length ? `<div class="ga-goal-list">${visible.map(goal=>{ const progress=goalAchievementProgress(goal); const overdue=goal.status!=='Completed'&&goal.targetDate<formatDateKey(new Date()); const status=goal.status==='Completed'?'Completed':overdue?'Overdue':'Active'; const days=Math.ceil((new Date(`${goal.targetDate}T23:59:59`).getTime()-Date.now())/86400000); const logs=Array.isArray(goal.logs)?goal.logs:[]; return `<article class="ga-goal-card ${status==='Completed'?'is-complete':''}"><div class="ga-goal-top"><span class="ga-category-chip">${esc(goal.category||'Personal')}</span><span class="ga-status-chip ${status.toLowerCase()}">${status}</span></div><h3>${esc(goal.title)}</h3>${goal.description?`<p class="ga-goal-description">${esc(goal.description)}</p>`:''}<div class="ga-progress-row"><div class="ga-progress-ring" style="--ga-progress:${progress}%" role="img" aria-label="${progress}% complete"><div><strong>${progress}%</strong></div></div><div class="ga-progress-copy"><strong>${Number(goal.current)||0} / ${Number(goal.target)||1} ${esc(goal.unit||'items')}</strong><span>${status==='Completed'?'Goal achieved!':days<0?`${Math.abs(days)} days overdue`:days===0?'Due today':`${days} days left`}</span><div class="ga-progress-track"><span style="width:${progress}%"></span></div></div></div><div class="ga-goal-stats"><span>🔥 <strong>${Number(goal.currentStreak)||0}</strong> streak</span><span>🏆 <strong>${Number(goal.bestStreak)||0}</strong> best</span><span>✨ <strong>${Number(goal.xp)||0}</strong> XP</span><span>📅 ${esc(goal.frequency)}</span></div>${status!=='Completed'?`<form class="ga-log-form" data-form="goal-progress" data-goal-id="${esc(goal.id)}"><label><span class="sr-only">Progress to add</span><input type="number" name="amount" min="1" max="1000000" value="1" required aria-label="Progress amount" /></label><button class="ga-button ga-button-primary" type="submit">＋ Add progress</button></form>`:'<p class="ga-complete-note">✓ Completed — keep this achievement as a reminder of what you can do.</p>'}<div class="ga-card-actions"><button type="button" data-action="ga-edit" data-goal-id="${esc(goal.id)}">Edit</button><button type="button" data-action="ga-delete" data-goal-id="${esc(goal.id)}">Delete</button></div></article>`;}).join('')}</div>` : `<div class="ga-empty-state"><span>✦</span><h3>${goals.length?'No goals in this filter yet':'Your next achievement starts here'}</h3><p>${goals.length?'Choose another filter to see your goals.':'Create a goal above, then record small steps to watch your progress ring grow.'}</p></div>`}
     </section></section>`;
+}
+
+
+function renderGoalCreatePage() {
+  const today = formatDateKey(new Date());
+  const defaultTargetDate = formatDateKey(new Date(Date.now() + 30 * 86400000));
+  return `<section class="screen ga-screen ga-create-screen" aria-label="Create a Goal">
+    <header class="ga-header daysync-common-header"><button type="button" class="daysync-page-back-button" data-action="ga-back" aria-label="Back" title="Back">‹</button><div class="ga-heading"><p class="ga-eyebrow">PLAN · PROGRESS · ACHIEVE</p><h1>Create a Goal</h1><p>Turn a small intention into a meaningful achievement.</p></div><span class="ga-header-icon" aria-hidden="true">＋</span></header>
+    <section class="ga-panel ga-create-panel"><div class="ga-section-heading"><div><h2>Create a goal</h2><p>Choose a target and build a routine that works for you.</p></div><span class="ga-panel-symbol" aria-hidden="true">✦</span></div>
+      <form class="ga-form" data-form="goal-achievement">
+        <label class="ga-field ga-field-wide"><span>Goal name *</span><input name="title" maxlength="90" required placeholder="e.g. Learn Java programming" /></label>
+        <label class="ga-field ga-field-wide"><span>Description <small>Optional</small></span><textarea name="description" maxlength="240" rows="2" placeholder="Why does this goal matter?"></textarea></label>
+        <div class="ga-field-row"><label class="ga-field"><span>Target amount *</span><input name="target" type="number" min="1" max="1000000" required value="30" /></label><label class="ga-field"><span>Unit</span><select name="unit"><option value="sessions">Sessions</option><option value="minutes">Minutes</option><option value="pages">Pages</option><option value="tasks">Tasks</option><option value="items">Items</option></select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Target date *</span><input name="targetDate" type="date" required min="${today}" value="${defaultTargetDate}" /></label><label class="ga-field"><span>Frequency</span><select name="frequency"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Reminder time <small>Optional</small></span><input name="reminderTime" type="time" /></label><label class="ga-field"><span>Category</span><select name="category"><option>Learning</option><option>Health</option><option>Career</option><option>Personal</option><option>Finance</option></select></label></div>
+        <div class="ga-form-actions"><button type="button" class="ga-button ga-button-quiet" data-action="ga-cancel-create">Cancel</button><button type="submit" class="ga-button ga-button-primary">＋ Save goal</button></div>
+      </form><p class="ga-helper">Progress logs earn 10 XP each. Repeated logs in the same period earn XP, but only one period counts toward a streak.</p>
+    </section>
+  </section>`;
+}
+
+function renderGoalEditPage() {
+  const goals = Array.isArray(state.goalAchievementItems) ? state.goalAchievementItems : [];
+  const goal = goals.find((item) => String(item.id) === String(state.goalAchievementEditingId));
+  if (!goal) return '';
+  const esc = escapeHtml;
+  const units = ['sessions', 'minutes', 'pages', 'tasks', 'items'];
+  const categories = ['Learning', 'Health', 'Career', 'Personal', 'Finance'];
+  const selectedUnit = units.includes(goal.unit) ? goal.unit : 'items';
+  const selectedCategory = categories.includes(goal.category) ? goal.category : 'Personal';
+  const frequency = ['Daily', 'Weekly', 'Monthly'].includes(goal.frequency) ? goal.frequency : 'Daily';
+  return `<section class="screen ga-screen ga-edit-screen" aria-label="Edit Goal">
+    <header class="ga-header daysync-common-header"><button type="button" class="daysync-page-back-button" data-action="ga-back" aria-label="Back" title="Back">‹</button><div class="ga-heading"><p class="ga-eyebrow">PLAN · PROGRESS · ACHIEVE</p><h1>Edit Goal</h1><p>Update your goal details and keep your progress.</p></div><span class="ga-header-icon" aria-hidden="true">✦</span></header>
+    <section class="ga-panel ga-edit-panel"><div class="ga-section-heading"><div><h2>Update goal details</h2><p>Progress, logs, XP, streaks and achievement history stay unchanged.</p></div><span class="ga-panel-symbol" aria-hidden="true">✎</span></div>
+      <form class="ga-form" data-form="goal-achievement-edit">
+        <label class="ga-field ga-field-wide"><span>Goal name *</span><input name="title" maxlength="90" required value="${esc(goal.title || '')}" placeholder="e.g. Learn Java programming" /></label>
+        <label class="ga-field ga-field-wide"><span>Description <small>Optional</small></span><textarea name="description" maxlength="240" rows="2" placeholder="Why does this goal matter?">${esc(goal.description || '')}</textarea></label>
+        <div class="ga-field-row"><label class="ga-field"><span>Target amount *</span><input name="target" type="number" min="1" max="1000000" required value="${Math.max(1, Number(goal.target) || 1)}" /></label><label class="ga-field"><span>Unit</span><select name="unit">${units.map((unit) => `<option value="${unit}" ${unit === selectedUnit ? 'selected' : ''}>${unit.charAt(0).toUpperCase() + unit.slice(1)}</option>`).join('')}</select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Target date *</span><input name="targetDate" type="date" required value="${esc(goal.targetDate || '')}" /></label><label class="ga-field"><span>Frequency</span><select name="frequency">${['Daily', 'Weekly', 'Monthly'].map((value) => `<option ${value === frequency ? 'selected' : ''}>${value}</option>`).join('')}</select></label></div>
+        <div class="ga-field-row"><label class="ga-field"><span>Reminder time <small>Optional</small></span><input name="reminderTime" type="time" value="${esc(goal.reminderTime || '')}" /></label><label class="ga-field"><span>Category</span><select name="category">${categories.map((value) => `<option ${value === selectedCategory ? 'selected' : ''}>${value}</option>`).join('')}</select></label></div>
+        <div class="ga-form-actions"><button type="button" class="ga-button ga-button-quiet" data-action="ga-cancel-edit">Cancel</button><button type="submit" class="ga-button ga-button-primary">Save Changes</button></div>
+      </form>
+    </section>
+  </section>`;
 }
 
 function renderMenuPage() {
@@ -532,6 +733,9 @@ function renderSettingsPage() {
   const expensesCount = (Array.isArray(state.financeData) && state.financeData.length)
     ? state.financeData.length : ((state.data?.expenses?.length || 0) + (state.data?.subscriptions?.length || 0));
   const progressCount = (state.data?.goals?.length || 0) + (state.data?.habits?.length || 0) + (state.data?.habitLogs?.length || 0) + (state.data?.moods?.length || 0);
+  const goalAchievementRecords = getGoalAchievementRecordsForReset();
+  const goalAchievementCount = goalAchievementRecords.length;
+  const achievementCount = goalAchievementRecords.filter((goal) => goal.status === 'Completed' || Number(goal.current || 0) >= Number(goal.target || 1)).length;
   const focusCount = Array.isArray(state.focusSessions) ? state.focusSessions.length : 0;
   return `
     <section class="screen daysync-settings-screen" aria-label="DaySync settings">
@@ -558,7 +762,7 @@ function renderSettingsPage() {
         <p class="daysync-settings-section-label" id="settings-data-heading">APP &amp; DATA</p>
         <div class="daysync-settings-list">
           <button class="daysync-setting-row" type="button" data-menu-action="sync-now">
-            <span class="daysync-setting-icon">⟳</span><span class="daysync-setting-copy"><strong>Data &amp; Sync</strong><small>${tasksCount} tasks · ${notesCount} notes · ${expensesCount} transactions · ${eventsCount} calendar items</small><small class="daysync-setting-subline">${progressCount} progress records · ${focusCount} focus sessions · Tap to sync now</small></span><span class="daysync-setting-trail">›</span>
+            <span class="daysync-setting-icon">⟳</span><span class="daysync-setting-copy"><strong>Data &amp; Sync</strong><small>${tasksCount} tasks · ${notesCount} notes · ${expensesCount} transactions · ${eventsCount} calendar items</small><small class="daysync-setting-subline">${progressCount} progress records · ${goalAchievementCount} goals · ${achievementCount} achievements · ${focusCount} focus sessions · Tap to sync now</small></span><span class="daysync-setting-trail">›</span>
           </button>
           <button class="daysync-setting-row" type="button" data-menu-action="privacy-security" aria-expanded="${state.settingsInfoPanel === 'privacy' ? 'true' : 'false'}">
             <span class="daysync-setting-icon">◇</span><span class="daysync-setting-copy"><strong>Privacy &amp; Security</strong><small>Account-scoped data and device permissions</small></span><span class="daysync-setting-trail">${state.settingsInfoPanel === 'privacy' ? '⌄' : '›'}</span>
@@ -582,8 +786,21 @@ const RESET_CATEGORY_META = {
   expenses: { title: 'Expense Tracker', icon: '💰', description: 'Income, expenses and transactions', collections: ['transactions', 'expenses', 'subscriptions'] },
   calendar: { title: 'Calendar Data', icon: '🗓️', description: 'Calendar events and reminders', collections: ['events', 'reminders'] },
   progress: { title: 'Progress Tracker', icon: '📈', description: 'Goals, habits, mood entries and habit logs', collections: ['goals', 'habits', 'habitLogs', 'moods'] },
+  goalAchievements: { title: 'Goal & Achievements', icon: '🏆', description: 'Your personal goals, progress logs, XP and achievement history', collections: ['goalAchievements'] },
   focus: { title: 'Focus Timer', icon: '⏱️', description: 'Saved focus sessions and timer history', collections: [] },
 };
+
+function getGoalAchievementRecordsForReset() {
+  // The page's current state, dashboard response, and browser storage can each
+  // contain a snapshot. Merge by stable goal ID so Reset always previews every
+  // record visible on the Goal & Achievements page exactly once.
+  const rows = [
+    ...(Array.isArray(state.goalAchievementItems) ? state.goalAchievementItems : []),
+    ...(Array.isArray(state.data?.goalAchievements) ? state.data.goalAchievements : []),
+    ...loadGoalAchievements(),
+  ];
+  return mergeGoalAchievementRecords(rows, []);
+}
 
 function getResetCategoryRecords(category) {
   const data = state.data || {};
@@ -601,6 +818,7 @@ function getResetCategoryRecords(category) {
   if (category === 'progress') return [
     ...tag(data.goals, 'Goal'), ...tag(data.habits, 'Habit'), ...tag(data.habitLogs, 'Habit log'), ...tag(data.moods, 'Mood entry'),
   ];
+  if (category === 'goalAchievements') return tag(getGoalAchievementRecordsForReset(), 'Goal & achievement');
   if (category === 'focus') return tag(state.focusSessions, 'Focus session');
   return [];
 }
@@ -760,6 +978,14 @@ async function loadDashboardData() {
   }
   state.authenticated = true;
 
+  // Apply queued offline goal changes before reading the server snapshot. This
+  // prevents a pending delete from being re-imported during account restore.
+  let goalSyncStillPending = !globalThis.navigator?.onLine;
+  if (globalThis.navigator?.onLine) {
+    try { goalSyncStillPending = Boolean((await offlineSync.flush(token))?.pending); }
+    catch (syncError) { console.warn('Pending offline changes could not be flushed before dashboard load:', syncError.message); goalSyncStillPending = true; }
+  }
+
   try {
     const payload = await apiRequest('/api/dashboard');
 
@@ -783,6 +1009,16 @@ async function loadDashboardData() {
 
     state.user = payload.user || state.user;
     state.goalAchievementItems = loadGoalAchievements();
+    let serverGoalRows = Array.isArray(state.data.goalAchievements) ? state.data.goalAchievements : [];
+    if (goalSyncStillPending) {
+      try {
+        const cachedGoalRows = await offlineSync.read(token, 'goalAchievements');
+        serverGoalRows = mergeGoalAchievementRecords(serverGoalRows, cachedGoalRows);
+      } catch (cacheError) {
+        console.warn('Unable to read the local Goal & Achievements sync cache:', cacheError.message);
+      }
+    }
+    await syncGoalAchievementsWithServer(serverGoalRows);
 
     localStorage.setItem(
       'sahraUser',
@@ -1182,6 +1418,21 @@ function setView(nextView) {
 }
 
 function goBackFromView() {
+  if (state.view === 'goal-create') {
+    const history = state.navigationHistory || [];
+    if (history[history.length - 1] === 'goal-achievements') history.pop();
+    state.view = 'goal-achievements';
+    renderLayout();
+    return;
+  }
+  if (state.view === 'goal-edit') {
+    state.goalAchievementEditingId = null;
+    const history = state.navigationHistory || [];
+    if (history[history.length - 1] === 'goal-achievements') history.pop();
+    state.view = 'goal-achievements';
+    renderLayout();
+    return;
+  }
   // Calendar is opened from Home's date/event overview; Back must return to Home,
   // rather than popping a stale Menu entry left from an earlier navigation.
   if (state.view === 'calendar') {
@@ -3030,7 +3281,7 @@ function applySharedPageBackButton() {
     tasks: '.todo-header', vault: '.notepad-page-header',
     finance: '.finance-dashboard-header, .finance-transactions-header', calendar: '.page-header', mood: '.page-header',
     habits: '.page-header', goals: '.page-header', progress: '.dashboard-topbar',
-    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header',
+    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header', 'goal-create': '.ga-header', 'goal-edit': '.ga-header',
     'reset-options': '.daysync-reset-header',
   };
   let header = app.querySelector(selectors[state.view] || '.screen > header, .screen > .page-header');
@@ -3101,6 +3352,22 @@ function renderLayout() {
 } else if (state.view === 'goal-achievements') {
   content = renderGoalAchievementsPage();
 
+} else if (state.view === 'goal-create') {
+  content = renderGoalCreatePage();
+
+} else if (state.view === 'goal-edit') {
+  const editingGoalExists = (state.goalAchievementItems || []).some((goal) => String(goal.id) === String(state.goalAchievementEditingId));
+  if (!editingGoalExists) {
+    state.goalAchievementEditingId = null;
+    const history = state.navigationHistory || [];
+    if (history[history.length - 1] === 'goal-achievements') history.pop();
+    state.view = 'goal-achievements';
+    content = renderGoalAchievementsPage();
+    showToast('This goal is no longer available.');
+  } else {
+    content = renderGoalEditPage();
+  }
+
 } else if (state.view === 'assistant') {
   content = renderAssistantPage(state);
 
@@ -3156,7 +3423,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'focus', 'weather', 'settings', 'reset-options'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'goal-create', 'goal-edit', 'focus', 'weather', 'settings', 'reset-options'];
 
 
 
@@ -4251,6 +4518,7 @@ document.addEventListener('input', (e) => {
           const token = await getAuthToken();
           if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
           await loadDashboardData();
+          if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
           await fetchFinanceData();
           showToast('DaySync data sync finished.');
         } catch (error) { showToast(error.message || 'Unable to sync DaySync data.'); }
@@ -4814,6 +5082,7 @@ async function clearResetCategoryLocalCache(token, category) {
   if (category === 'expenses') { names.add('transactions'); names.add('expenses'); names.add('subscriptions'); }
   if (category === 'calendar') { names.add('events'); names.add('reminders'); }
   if (category === 'progress') { names.add('goals'); names.add('habits'); names.add('habitLogs'); names.add('moods'); }
+  if (category === 'goalAchievements') names.add('goalAchievements');
   for (const collection of names) {
     try {
       const cached = await offlineSync.read(token, collection);
@@ -4826,9 +5095,15 @@ async function clearResetCategoryLocalCache(token, category) {
       : category === 'notepad' ? ['assets', 'notes']
       : category === 'expenses' ? ['transactions', 'expenses', 'subscriptions']
       : category === 'calendar' ? ['events', 'reminders']
-      : category === 'progress' ? ['goals', 'habits', 'habitlogs', 'habit-logs', 'moods'] : [];
+      : category === 'progress' ? ['goals', 'habits', 'habitlogs', 'habit-logs', 'moods']
+      : category === 'goalAchievements' ? ['goal-achievements', 'goalachievements', 'goal_achievements'] : [];
     for (const op of outbox) {
-      if (roots.includes(String(op.resource || op.root || op.collection || '').toLowerCase())) {
+      const resourceName = String(op?.resource?.collection || op?.resource || op?.root || op?.collection || '').toLowerCase();
+      const isGoalAchievementOperation = category === 'goalAchievements' && (
+        resourceName === 'goalachievements' ||
+        String(op?.path || '').toLowerCase().includes('/goal-achievements')
+      );
+      if (roots.includes(resourceName) || isGoalAchievementOperation) {
         await offlineSync.remove(token, 'syncOutbox', op.id || op._id);
       }
     }
@@ -4850,9 +5125,22 @@ async function performSelectedDataReset() {
     }
     const results = [];
     for (const category of selected) {
-      const response = await apiRequest(`/api/reset-data/${encodeURIComponent(category)}`, { method: 'DELETE' });
-      results.push({ category, count: Number(response.deletedCount || 0) });
+      const visibleCountBeforeReset = getResetCategoryRecords(category).length;
+      const previousGoals = category === 'goalAchievements' ? getGoalAchievementRecordsForReset() : [];
+      const apiCategory = category === 'goalAchievements' ? 'goal-achievements' : category;
+      const response = await apiRequest(`/api/reset-data/${encodeURIComponent(apiCategory)}`, { method: 'DELETE' });
       await clearResetCategoryLocalCache(token, category);
+      results.push({ category, count: Math.max(Number(response.deletedCount || 0), visibleCountBeforeReset) });
+      if (category === 'goalAchievements') {
+        await Promise.all(previousGoals.map((goal) => syncGoalReminder({ ...goal, status: 'Completed', reminderTime: '' })));
+        state.goalAchievementItems = [];
+        state.data.goalAchievements = [];
+        // Clear canonical and legacy identity keys, not just the current ID key.
+        for (const key of goalAchievementStorageKeys()) {
+          try { localStorage.removeItem(key); } catch (_) {}
+        }
+        try { localStorage.removeItem(goalAchievementStorageKey()); } catch (_) {}
+      }
       if (category === 'focus') {
         focusStopAudio();
         state.focusRunning = false; state.focusEndsAt = null; state.focusStartedAt = null;
@@ -4869,7 +5157,7 @@ async function performSelectedDataReset() {
     if (selected.includes('calendar')) { state.data.events = []; state.data.reminders = []; state.calendarCache = new Set(); }
     if (selected.includes('progress')) { state.data.goals = []; state.data.habits = []; state.data.habitLogs = []; state.data.moods = []; state.progressData = null; }
     state.resetConfirmOpen = false;
-    state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false };
+    state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false };
     await loadDashboardData();
     await fetchFinanceData();
     await loadProgressData(false);
@@ -4896,22 +5184,75 @@ function bindGlobalListeners() {
   bindSmartNavigationAndKeyboard();
 
   document.addEventListener('submit', (event) => {
-    const form = event.target.closest('form[data-form="goal-achievement"], form[data-form="goal-progress"]');
+    const form = event.target.closest('form[data-form="goal-achievement"], form[data-form="goal-achievement-edit"], form[data-form="goal-progress"]');
     if (!form) return;
     event.preventDefault();
     const items = [...(state.goalAchievementItems || [])];
-    if (form.dataset.form === 'goal-achievement') {
+    if (form.dataset.form === 'goal-achievement' || form.dataset.form === 'goal-achievement-edit') {
       const fd = new FormData(form);
       const title = String(fd.get('title') || '').trim();
       const target = Number(fd.get('target'));
       const targetDate = String(fd.get('targetDate') || '');
-      if (!title || !Number.isFinite(target) || target <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) { showToast('Enter a goal name, positive target, and valid target date.'); return; }
-      const id = form.dataset.editId || (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-      const previous = items.find(g => g.id === id);
-      const goal = { ...(previous || { id, current:0, xp:0, logs:[], currentStreak:0, bestStreak:0, status:'Active', createdAt:new Date().toISOString() }), title, description:String(fd.get('description')||'').trim(), target, targetDate, unit:String(fd.get('unit')||'items'), frequency:String(fd.get('frequency')||'Daily'), reminderTime:String(fd.get('reminderTime')||''), category:String(fd.get('category')||'Personal') };
-      goal.status = Number(goal.current) >= goal.target ? 'Completed' : 'Active';
-      const index = items.findIndex(g=>g.id===id); if(index>=0) items[index]=goal; else items.unshift(goal);
-      saveGoalAchievements(items); state.goalAchievementEditingId=null; state.goalAchievementFilter='All'; void syncGoalReminder(goal); showToast(previous?'Goal updated':'Goal saved'); renderLayout(); return;
+      if (!title || !Number.isFinite(target) || target <= 0 || target > 1000000 || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) { showToast('Enter a goal name, positive target, and valid target date.'); return; }
+      const editableFields = {
+        title,
+        description: String(fd.get('description') || '').trim(),
+        target,
+        targetDate,
+        unit: String(fd.get('unit') || 'items'),
+        frequency: String(fd.get('frequency') || 'Daily'),
+        reminderTime: String(fd.get('reminderTime') || ''),
+        category: String(fd.get('category') || 'Personal'),
+      };
+
+      if (form.dataset.form === 'goal-achievement-edit') {
+        const editingId = state.goalAchievementEditingId;
+        const existingIndex = items.findIndex((goal) => String(goal.id) === String(editingId));
+        if (existingIndex < 0) {
+          state.goalAchievementEditingId = null;
+          state.view = 'goal-achievements';
+          const history = state.navigationHistory || [];
+          if (history[history.length - 1] === 'goal-achievements') history.pop();
+          showToast('This goal is no longer available.');
+          renderLayout();
+          return;
+        }
+        const previous = items[existingIndex];
+        const updatedGoal = { ...previous, ...editableFields };
+        const today = formatDateKey(new Date());
+        updatedGoal.status = Number(updatedGoal.current || 0) >= target ? 'Completed' : (targetDate < today ? 'Overdue' : 'Active');
+        const updatedItems = [...items];
+        updatedItems[existingIndex] = updatedGoal;
+        if (!saveGoalAchievements(updatedItems)) {
+          state.goalAchievementItems = items;
+          renderLayout();
+          return;
+        }
+        state.goalAchievementEditingId = null;
+        state.goalAchievementFilter = 'All';
+        state.view = 'goal-achievements';
+        const history = state.navigationHistory || [];
+        if (history[history.length - 1] === 'goal-achievements') history.pop();
+        void syncGoalReminder(updatedGoal);
+        showToast('Goal updated. Existing progress and achievements were preserved.');
+        renderLayout();
+        return;
+      }
+
+      const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const goal = { id, current: 0, xp: 0, logs: [], currentStreak: 0, bestStreak: 0, status: 'Active', createdAt: new Date().toISOString(), ...editableFields };
+      goal.status = Number(goal.current) >= goal.target ? 'Completed' : (goal.targetDate < formatDateKey(new Date()) ? 'Overdue' : 'Active');
+      const updatedItems = [goal, ...items];
+      if (!saveGoalAchievements(updatedItems)) { state.goalAchievementItems = items; renderLayout(); return; }
+      state.goalAchievementEditingId = null;
+      state.goalAchievementFilter = 'All';
+      state.view = 'goal-achievements';
+      const history = state.navigationHistory || [];
+      if (history[history.length - 1] === 'goal-achievements') history.pop();
+      void syncGoalReminder(goal);
+      showToast('Goal saved');
+      renderLayout();
+      return;
     }
     const goal = items.find(g=>g.id===form.dataset.goalId); if (!goal || goal.status==='Completed') return;
     const amount = Number(new FormData(form).get('amount'));
@@ -4931,10 +5272,30 @@ function bindGlobalListeners() {
     const gaAction = event.target.closest('[data-action^="ga-"]');
     if (gaAction) {
       const action = gaAction.dataset.action;
-      if (action === 'ga-back') { state.goalAchievementEditingId = null; goBackFromView(); return; }
+      if (action === 'ga-back') { goBackFromView(); return; }
       if (action === 'ga-filter') { state.goalAchievementFilter = gaAction.dataset.filter || 'All'; renderLayout(); return; }
-      if (action === 'ga-cancel-edit') { state.goalAchievementEditingId = null; renderLayout(); return; }
-      if (action === 'ga-edit') { state.goalAchievementEditingId = gaAction.dataset.goalId; renderLayout(); return; }
+      if (action === 'ga-cancel-create') { goBackFromView(); return; }
+      if (action === 'ga-open-create') {
+        if (state.view !== 'goal-create') {
+          state.navigationHistory = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
+          state.navigationHistory.push(state.view || 'goal-achievements');
+          state.view = 'goal-create';
+        }
+        renderLayout();
+        return;
+      }
+      if (action === 'ga-cancel-edit') { goBackFromView(); return; }
+      if (action === 'ga-edit') {
+        const selectedGoal = (state.goalAchievementItems || []).find((goal) => String(goal.id) === String(gaAction.dataset.goalId));
+        if (!selectedGoal) { showToast('This goal is no longer available.'); renderLayout(); return; }
+        state.goalAchievementEditingId = selectedGoal.id;
+        if (state.view !== 'goal-edit') {
+          state.navigationHistory.push(state.view || 'goal-achievements');
+          state.view = 'goal-edit';
+        }
+        renderLayout();
+        return;
+      }
       if (action === 'ga-delete') {
         const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
         if (!goal) return;
@@ -4948,7 +5309,7 @@ function bindGlobalListeners() {
     if (sharedBack) { goBackFromView(); return; }
     const openReset = event.target.closest('[data-action="open-reset-options"]');
     if (openReset) {
-      state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, focus: false };
+      state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false };
       state.resetConfirmOpen = false;
       setView('reset-options');
       return;

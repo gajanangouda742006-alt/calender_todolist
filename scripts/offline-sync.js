@@ -1,6 +1,6 @@
 const DATA_COLLECTIONS = new Set([
   'events', 'tasks', 'moods', 'habits', 'goals', 'reminders',
-  'notes', 'habitLogs', 'assets', 'transactions', 'expenses', 'subscriptions'
+  'notes', 'habitLogs', 'assets', 'transactions', 'expenses', 'subscriptions', 'goalAchievements'
 ]);
 
 function parseTokenAccount(token) {
@@ -30,7 +30,7 @@ function resourceFor(path, body = {}) {
   const map = {
     events: 'events', tasks: 'tasks', moods: 'moods', habits: 'habits',
     goals: 'goals', reminders: 'reminders', notes: 'notes',
-    'habit-logs': 'habitLogs', assets: 'assets', transactions: 'transactions',
+    'habit-logs': 'habitLogs', assets: 'assets', 'goal-achievements': 'goalAchievements', transactions: 'transactions',
     expenses: 'transactions', subscriptions: 'transactions'
   };
   const collection = map[root];
@@ -89,7 +89,7 @@ export class OfflineSync {
   async cacheDashboard(token, payload) {
     const account = await this.accountId(token);
     const data = payload?.data || {};
-    for (const collection of ['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets']) {
+    for (const collection of ['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets','goalAchievements']) {
       const name = await this.scoped(account, collection);
       const incoming = Array.isArray(data[collection]) ? data[collection] : [];
       // Do not replace the cache with a server snapshot while local operations are pending.
@@ -109,7 +109,7 @@ export class OfflineSync {
     const resource = resourceFor(path, options.body ? JSON.parse(options.body) : {});
     if (!resource) return;
     const body = options.body ? JSON.parse(options.body) : {};
-    const returned = payload.event || payload.task || payload.mood || payload.habit || payload.goal || payload.reminder || payload.asset || payload.transaction || payload.note;
+    const returned = payload.event || payload.task || payload.mood || payload.habit || payload.goal || payload.goalAchievement || payload.reminder || payload.asset || payload.transaction || payload.note;
     if (method === 'DELETE') {
       const tokenAccount = await this.accountId(token);
       const name = await this.scoped(tokenAccount, resource.collection);
@@ -133,9 +133,9 @@ export class OfflineSync {
   async dashboardFallback(token) {
     const [userCache, ...values] = await Promise.all([
       this.read(token, 'profileCache'),
-      ...['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets'].map((c) => this.read(token, c))
+      ...['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets','goalAchievements'].map((c) => this.read(token, c))
     ]);
-    const names = ['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets'];
+    const names = ['events','tasks','moods','habits','goals','reminders','notes','habitLogs','assets','goalAchievements'];
     const data = Object.fromEntries(names.map((name, i) => [name, values[i]]));
     return { user: userCache.find((x) => x.id === 'dashboard')?.payload?.user || null, data, offline: true };
   }
@@ -175,7 +175,7 @@ export class OfflineSync {
       await this.saveNamed(collectionName, localRecord);
     } else if (method === 'PUT' || method === 'PATCH') {
       const existing = rows.find((r) => String(r.id || r._id) === String(recordId));
-      if (!existing) throw new Error('Cannot edit this item offline because it is not in the local cache. Reconnect and retry.');
+      if (!existing && resource.collection !== 'goalAchievements') throw new Error('Cannot edit this item offline because it is not in the local cache. Reconnect and retry.');
       localRecord = { ...existing, ...body, id: String(recordId), _offlinePending: true, updatedAt: new Date().toISOString() };
       await this.saveNamed(collectionName, localRecord);
     } else if (method === 'DELETE') {
@@ -236,7 +236,7 @@ export class OfflineSync {
           // Preserve order: later edits/deletes may depend on this operation.
           break;
         }
-        const returned = payload.event || payload.task || payload.mood || payload.habit || payload.goal || payload.reminder || payload.asset || payload.transaction || payload.note;
+        const returned = payload.event || payload.task || payload.mood || payload.habit || payload.goal || payload.goalAchievement || payload.reminder || payload.asset || payload.transaction || payload.note;
         if (op.method === 'POST' && returned?.id && op.localId) {
           const dataName = await this.scoped(account, op.collection);
           const oldRows = await this.getNamed(dataName);
@@ -247,6 +247,9 @@ export class OfflineSync {
           }
           await this.saveNamed(idMapName, { id: op.localId, localId: String(op.localId), serverId: String(returned.id) });
           idMap.set(String(op.localId), String(returned.id));
+        } else if (['PUT', 'PATCH'].includes(op.method) && returned?.id) {
+          const dataName = await this.scoped(account, op.collection);
+          await this.saveNamed(dataName, { ...returned, id: String(returned.id), _offlinePending: false });
         }
         await this.deleteNamed(outboxName, op.id);
         synced += 1;
