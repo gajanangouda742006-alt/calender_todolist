@@ -1,19 +1,21 @@
-const CACHE_NAME = 'daysync-shell-fast-swipe-system-theme-20261101-v3';
+const CACHE_NAME = 'daysync-shell-settings-recovery-20261101-v6';
 
 
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/style.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
-  '/goal-achievements-3d.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
+  '/style.css?v=daysync-settings-recovery-20261101-v6',
+  '/goal-achievements-3d.css?v=daysync-settings-recovery-20261101-v6',
   '/app-config.js',
-  '/web-app.js?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
+  '/web-app.js?v=daysync-settings-recovery-20261101-v6',
   '/manifest.webmanifest',
   '/image-192.png',
   '/images/DaySync-192.png',
   '/images/DaySync-512.png',
   '/images/DaySync.png',
-  '/image-512.png'
+  '/image-512.png',
+  '/assets/app-intro.mp4',
+  '/assets/intro-poster.jpeg'
 ];
 
 self.addEventListener('install', (event) => {

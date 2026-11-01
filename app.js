@@ -37,6 +37,11 @@ const EMPTY_DATA = {
 };
 
 let notepadEventsBound = false;
+// Delegated document listeners must be installed only once. renderLayout()
+// runs on every page interaction, so an unguarded listener there multiplies
+// handlers and causes accordions/theme changes to toggle repeatedly.
+let menuActionListenerBound = false;
+let financeSearchListenersBound = false;
 let lastRenderedView = null;
 window.SAHRA_APP_READY = false;
 
@@ -112,6 +117,7 @@ const state = {
   currentYear: new Date().getFullYear(),
   selectedDate: hasNotificationTarget ? notificationTargetDate : formatDateKey(new Date()),
   authenticated: false,
+  localDatabaseReady: false,
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'DaySync User' },
   // System is the default appearance. An explicit Light/Dark choice is
@@ -347,9 +353,22 @@ async function apiRequest(path, options = {}) {
   const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
   const idempotencyKey = isWrite ? (options.headers?.['Idempotency-Key'] || globalThis.crypto?.randomUUID?.() || `sahra-${Date.now()}-${Math.random().toString(36).slice(2)}`) : null;
   let response;
+  let requestTimeoutId = null;
+  let requestController = null;
   try {
+    // GET requests must not leave a page waiting forever when a hosted API is
+    // cold-starting or a mobile connection stalls. Mutations are deliberately
+    // not timed out here to avoid queuing a duplicate write after an uncertain
+    // server commit; writes retain their idempotency key.
+    let requestSignal = options.signal;
+    if (method === 'GET' && !requestSignal && typeof AbortController !== 'undefined') {
+      requestController = new AbortController();
+      requestSignal = requestController.signal;
+      requestTimeoutId = window.setTimeout(() => requestController.abort(), 12000);
+    }
     response = await fetch(getApiUrl(path), {
       ...options,
+      ...(requestSignal ? { signal: requestSignal } : {}),
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers || {}),
@@ -358,18 +377,18 @@ async function apiRequest(path, options = {}) {
       },
     });
   } catch (networkError) {
-    if (token && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+    if (token && state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
       const cached = await offlineSync.dashboardFallback(token);
       if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) {
         showOfflineBannerOnce();
         return cached;
       }
     }
-    if (token && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+    if (token && state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
       const cached = await offlineSync.transactionFallback(token);
       if (cached.length) { showOfflineBannerOnce(); return cached; }
     }
-    if (token && isWrite) {
+    if (token && isWrite && state.localDatabaseReady) {
       try {
         const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
         showOfflineBannerOnce();
@@ -379,6 +398,8 @@ async function apiRequest(path, options = {}) {
       }
     }
     throw networkError;
+  } finally {
+    if (requestTimeoutId !== null) window.clearTimeout(requestTimeoutId);
   }
 
   const contentType = response.headers.get('content-type') || '';
@@ -398,15 +419,15 @@ async function apiRequest(path, options = {}) {
     }
     if ([502, 503, 504].includes(response.status) && token) {
       try {
-        if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+        if (state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
           const cached = await offlineSync.dashboardFallback(token);
           if (cached.user || Object.values(cached.data || {}).some((rows) => rows.length)) { showOfflineBannerOnce(); return cached; }
         }
-        if (method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+        if (state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
           const cached = await offlineSync.transactionFallback(token);
           if (cached.length) { showOfflineBannerOnce(); return cached; }
         }
-        if (isWrite) {
+        if (isWrite && state.localDatabaseReady) {
           const queued = await offlineSync.enqueueAndApply(token, path, { ...options, method, idempotencyKey });
           showOfflineBannerOnce();
           return queued;
@@ -433,12 +454,20 @@ async function apiRequest(path, options = {}) {
   }
 
   if (token) {
-    try {
-      if (method === 'GET' && cleanApiPath(path) === 'api/dashboard') await offlineSync.cacheDashboard(token, payload);
-      else if (method === 'GET' && cleanApiPath(path) === 'api/transactions') await offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []));
-      else if (isWrite) await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
-      if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
-    } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+    if (state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/dashboard') {
+      // Dashboard cache replacement can involve many SQLite records. Do not
+      // hold the visible page open while refreshing this offline snapshot.
+      void offlineSync.cacheDashboard(token, payload)
+        .catch((cacheError) => console.warn('Dashboard cache update failed:', cacheError.message));
+    } else if (state.localDatabaseReady && method === 'GET' && cleanApiPath(path) === 'api/transactions') {
+      void offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []))
+        .catch((cacheError) => console.warn('Transaction cache update failed:', cacheError.message));
+    } else if (isWrite && state.localDatabaseReady) {
+      try {
+        await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
+        if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
+      } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+    }
   }
   return payload;
 }
@@ -450,8 +479,12 @@ function showOfflineBannerOnce() {
 }
 window.addEventListener('online', async () => {
   offlineBannerShown = false;
-  try { const token = await getAuthToken(); await offlineSync.flush(token); await loadDashboardData(); await fetchFinanceData(); }
-  catch (error) { console.warn('Reconnect sync failed:', error.message); }
+  try {
+    const token = await getAuthToken();
+    if (state.localDatabaseReady && token) await offlineSync.flush(token);
+    await loadDashboardData({ skipLocalSync: !state.localDatabaseReady });
+    if (state.localDatabaseReady) await fetchFinanceData();
+  } catch (error) { console.warn('Reconnect sync failed:', error.message); }
 });
 
 function goalReminderId(goalId) {
@@ -772,7 +805,6 @@ function renderSettingsPage() {
     ? `System theme · follows device (${isLightTheme ? 'Light' : 'Dark'})`
     : `${isLightTheme ? 'Light' : 'Dark'} theme enabled`;
   const notificationsEnabled = areDeviceNotificationsEnabled();
-  const native = Boolean(window.SAHRA_NOTIFICATIONS?.isNative?.());
   const tasksCount = Array.isArray(state.data?.tasks) ? state.data.tasks.length : 0;
   const notesCount = (Array.isArray(state.data?.assets) && state.data.assets.length)
     ? state.data.assets.length : (Array.isArray(state.data?.notes) ? state.data.notes.length : 0);
@@ -814,8 +846,7 @@ function renderSettingsPage() {
           <button class="daysync-setting-row" type="button" data-menu-action="privacy-security" aria-expanded="${state.settingsInfoPanel === 'privacy' ? 'true' : 'false'}">
             <span class="daysync-setting-icon">◇</span><span class="daysync-setting-copy"><strong>Privacy &amp; Security</strong><small>Account-scoped data and device permissions</small></span><span class="daysync-setting-trail">${state.settingsInfoPanel === 'privacy' ? '⌄' : '›'}</span>
           </button>
-          ${state.settingsInfoPanel === 'privacy' ? `<div class="daysync-settings-detail-panel"><strong>Your account and device</strong><p>DaySync requests access only when a feature needs it. Location is used to find local weather. Your saved records are associated with your signed-in account; sign out on shared devices.</p><button type="button" data-action="open-location-permission-settings">Location permissions</button><button type="button" data-action="open-notification-permission-settings">Notification permissions</button></div>` : ''}
-          ${native ? `<button class="daysync-setting-row" type="button" data-action="open-location-permission-settings"><span class="daysync-setting-icon">⌖</span><span class="daysync-setting-copy"><strong>Location access</strong><small>Manage location permission for local weather</small></span><span class="daysync-setting-trail">›</span></button><button class="daysync-setting-row" type="button" data-action="open-notification-permission-settings"><span class="daysync-setting-icon">♧</span><span class="daysync-setting-copy"><strong>Notification permissions</strong><small>Manage reminders on this device</small></span><span class="daysync-setting-trail">›</span></button><button class="daysync-setting-row" type="button" data-menu-action="exact-alarms"><span class="daysync-setting-icon">⏰</span><span class="daysync-setting-copy"><strong>Timer alarms</strong><small>Open Android's precise alarm setting where available</small></span><span class="daysync-setting-trail">›</span></button>` : ''}
+          ${state.settingsInfoPanel === 'privacy' ? `<div class="daysync-settings-detail-panel" role="group" aria-label="Privacy and device permissions"><strong>Your account and device</strong><p>DaySync requests access only when a feature needs it. Location is used to find local weather. Your saved records are associated with your signed-in account; sign out on shared devices.</p><div class="daysync-settings-detail-actions"><button class="daysync-settings-detail-action" type="button" data-action="open-location-permission-settings"><strong>Location permissions</strong><small>Manage location access for local weather</small></button><button class="daysync-settings-detail-action" type="button" data-action="open-notification-permission-settings"><strong>Notification permissions</strong><small>Manage task, event and focus reminders</small></button><button class="daysync-settings-detail-action" type="button" data-menu-action="exact-alarms"><strong>Timer alarms</strong><small>Manage precise Focus Timer alarms on Android</small></button></div></div>` : ''}
           <button class="daysync-setting-row daysync-setting-row-danger" type="button" data-action="open-reset-options">
             <span class="daysync-setting-icon daysync-danger-icon">⚠</span><span class="daysync-setting-copy"><strong>Reset Options</strong><small>Review saved data by section and date before deleting</small></span><span class="daysync-setting-trail">›</span>
           </button>
@@ -928,13 +959,20 @@ function renderMoreMenu() {
 }
 
 async function updateThemeInDatabase(theme) {
+  // Theme changes are local-first. A sleeping/unavailable API must never make
+  // the Settings screen feel frozen while the preference is already applied.
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), 4500) : null;
   try {
     await apiRequest('/api/profile/theme', {
       method: 'PUT',
       body: JSON.stringify({ theme }),
+      ...(controller ? { signal: controller.signal } : {}),
     });
   } catch (error) {
-    console.warn('Theme sync failed:', error.message);
+    console.warn('Theme sync deferred; the device preference remains active:', error.message);
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
   }
 }
 
@@ -1015,7 +1053,7 @@ async function toggleDeviceNotifications() {
   }
 }
 
-async function loadDashboardData() {
+async function loadDashboardData({ loadFinanceInBackground = false, skipLocalSync = false } = {}) {
   const token = await getAuthToken();
 
   if (!token) {
@@ -1025,13 +1063,35 @@ async function loadDashboardData() {
   }
   state.authenticated = true;
 
-  // Apply queued offline goal changes before reading the server snapshot. This
-  // prevents a pending delete from being re-imported during account restore.
-  let goalSyncStillPending = !globalThis.navigator?.onLine;
-  if (globalThis.navigator?.onLine) {
+  // Hydrate the last account-scoped local snapshot first. This makes the app
+  // useful immediately while the hosted API wakes up or the network responds.
+  if (!skipLocalSync && state.localDatabaseReady) {
+    try {
+      const cached = await offlineSync.dashboardFallback(token);
+      const cachedRows = Object.values(cached.data || {}).some((rows) => Array.isArray(rows) && rows.length);
+      if (cachedRows) {
+        state.data = { ...EMPTY_DATA, ...(cached.data || {}) };
+        if (cached.user) state.user = cached.user;
+        state.goalAchievementItems = loadGoalAchievements();
+        renderLayout();
+      }
+    } catch (cacheError) {
+      console.warn('Local dashboard snapshot is unavailable:', cacheError.message);
+    }
+  }
+
+  // Apply queued offline changes before reading the server snapshot. Do not
+  // touch SQLite while the native database is still opening.
+  let goalSyncStillPending = skipLocalSync || !state.localDatabaseReady || !globalThis.navigator?.onLine;
+  if (!skipLocalSync && state.localDatabaseReady && globalThis.navigator?.onLine) {
     try { goalSyncStillPending = Boolean((await offlineSync.flush(token))?.pending); }
     catch (syncError) { console.warn('Pending offline changes could not be flushed before dashboard load:', syncError.message); goalSyncStillPending = true; }
   }
+
+  // Transactions are independent of the dashboard snapshot. Start their
+  // request after queued offline writes have been flushed, without serially
+  // delaying the Home page's main dashboard request.
+  if (loadFinanceInBackground && !goalSyncStillPending) void fetchFinanceData();
 
   try {
     const payload = await apiRequest('/api/dashboard');
@@ -1057,7 +1117,7 @@ async function loadDashboardData() {
     state.user = payload.user || state.user;
     state.goalAchievementItems = loadGoalAchievements();
     let serverGoalRows = Array.isArray(state.data.goalAchievements) ? state.data.goalAchievements : [];
-    if (goalSyncStillPending) {
+    if (goalSyncStillPending && state.localDatabaseReady) {
       try {
         const cachedGoalRows = await offlineSync.read(token, 'goalAchievements');
         serverGoalRows = mergeGoalAchievementRecords(serverGoalRows, cachedGoalRows);
@@ -1065,7 +1125,14 @@ async function loadDashboardData() {
         console.warn('Unable to read the local Goal & Achievements sync cache:', cacheError.message);
       }
     }
-    await syncGoalAchievementsWithServer(serverGoalRows);
+    // Merge and persist local/server goal records synchronously, then sync
+    // remote goal rows in the background instead of serially blocking startup.
+    const mergedGoalRows = mergeGoalAchievementRecords(loadGoalAchievements(), serverGoalRows);
+    writeGoalAchievementsLocally(mergedGoalRows);
+    if (state.localDatabaseReady) {
+      void syncGoalAchievementsWithServer(serverGoalRows)
+        .catch((syncError) => console.warn('Goal & Achievements sync will retry:', syncError.message));
+    }
 
     localStorage.setItem(
       'sahraUser',
@@ -1076,12 +1143,14 @@ async function loadDashboardData() {
     // server-side Light/Dark value override System mode on this phone.
     applyTheme(getStoredTheme());
 
-    await loadProgressData(false);
     checkDueNotifications();
     if (!notificationInterval) {
       notificationInterval = setInterval(checkDueNotifications, 30_000);
     }
     renderLayout();
+    // Progress and focus statistics are useful but not required to display
+    // Home. Load them after the first fully-populated dashboard paint.
+    void loadProgressData(true).catch((progressError) => console.warn('Background progress refresh failed:', progressError.message));
 
  } catch (error) {
   console.error('Dashboard load failed:', error);
@@ -4496,6 +4565,8 @@ document.querySelectorAll(
 // FINANCE SEARCH AND FILTER LISTENERS
 // ==========================================
 
+if (!financeSearchListenersBound) {
+  financeSearchListenersBound = true;
 // Handle dropdown filter change
 document.addEventListener('change', (e) => {
     const target = e.target;
@@ -4530,7 +4601,7 @@ document.addEventListener('input', (e) => {
         }, 0);
     }
 });
-
+}
   document.querySelectorAll('[data-action="edit-task"]').forEach((button) => {
     button.addEventListener('click', () => {
       const task = state.data.tasks.find((item) => String(item.id || item._id) === String(button.dataset.taskId));
@@ -4856,8 +4927,11 @@ document.addEventListener('input', (e) => {
     });
   }
 
-  document.querySelectorAll('[data-menu-action]').forEach((button) => {
-    button.addEventListener('click', async () => {
+  if (!menuActionListenerBound) {
+    menuActionListenerBound = true;
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('[data-menu-action]');
+    if (!button) return;
       const action = button.dataset.menuAction;
 
       if (action === 'toggle-theme') {
@@ -4871,7 +4945,7 @@ document.addEventListener('input', (e) => {
         renderLayout();
         // The API stores an effective color theme; the System preference stays
         // local so each device can follow its own operating-system appearance.
-        await updateThemeInDatabase(state.theme);
+        void updateThemeInDatabase(state.theme);
         return;
       }
 
@@ -4906,6 +4980,11 @@ document.addEventListener('input', (e) => {
       if (action === 'sync-now') {
         try {
           const token = await getAuthToken();
+          if (!state.localDatabaseReady) {
+            await loadDashboardData({ skipLocalSync: true });
+            showToast('Online data refreshed. Local storage is still initializing.');
+            return;
+          }
           if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
           await loadDashboardData();
           if (token && globalThis.navigator?.onLine) await offlineSync.flush(token);
@@ -4939,8 +5018,8 @@ document.addEventListener('input', (e) => {
         state.view = 'home';
         window.location.href = getLoginPath();
       }
-    });
   });
+  }
 
   if (!notepadEventsBound) {
   notepadEventsBound = true;
@@ -5623,6 +5702,7 @@ async function performSelectedDataReset() {
   const token = await getAuthToken();
   if (!token) { showToast('Sign in again to reset saved data.'); return; }
   if (!globalThis.navigator?.onLine) { showToast('Connect to the internet before resetting synced data.'); return; }
+  if (!state.localDatabaseReady) { showToast('Local storage is still initializing. Please try again in a moment.'); return; }
   state.resetOptionsBusy = true;
   renderLayout();
   try {
@@ -5979,10 +6059,12 @@ async function fetchFinanceData() {
     renderLayout();
   } catch (error) {
     console.error('Failed to load finance data:', error);
-    try {
-      const cached = await offlineSync.transactionFallback(await getAuthToken());
-      if (cached.length) { state.financeData = cached; showOfflineBannerOnce(); renderLayout(); }
-    } catch (cacheError) { console.warn('Finance cache unavailable:', cacheError.message); }
+    if (state.localDatabaseReady) {
+      try {
+        const cached = await offlineSync.transactionFallback(await getAuthToken());
+        if (cached.length) { state.financeData = cached; showOfflineBannerOnce(); renderLayout(); }
+      } catch (cacheError) { console.warn('Finance cache unavailable:', cacheError.message); }
+    }
   }
 }
 
@@ -6302,38 +6384,83 @@ document.addEventListener('submit', (event) => {
 });
 
 async function initializeApp() {
-  await initializeLocalDatabase();
-  window.addEventListener('daysync:permissions-updated', () => { if (state.view === 'settings') renderLayout(); });
+  // Apply the theme and bind long-lived listeners before any native plugin or
+  // secure-storage waits. index.html keeps a lightweight boot placeholder
+  // visible until the first authenticated render replaces it.
   applyTheme(getStoredTheme());
   bindSystemThemeUpdates();
   bindBottomNav();
   bindGlobalListeners();
   bindFinanceListeners();
+  window.addEventListener('daysync:permissions-updated', () => { if (state.view === 'settings') renderLayout(); });
 
-  const token = await getAuthToken();
+  // Begin SQLite initialization immediately, but do not hold the first screen
+  // behind native database startup. Secure token retrieval is the only required
+  // prerequisite for showing the signed-in app shell.
+  const databasePromise = initializeLocalDatabase();
+  let token;
+  try {
+    token = await getAuthToken();
+  } catch (tokenError) {
+    void databasePromise.catch(() => {});
+    throw tokenError;
+  }
   state.authenticated = Boolean(token);
   if (!token) {
+    void databasePromise.catch(() => {});
     window.location.href = getLoginPath();
     return;
   }
 
-  // Render Home immediately after authentication. Dashboard loading performs
-  // its own offline-queue flush; waiting for it before the first render made
-  // the native app appear stuck on its initial Home screen on slow networks.
   state.authenticated = true;
   window.SAHRA_APP_READY = true;
   renderLayout();
-
-  await loadDashboardData();
-  await fetchFinanceData();
   restorePersistedFocusTimer();
-  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) { void window.SAHRA_NOTIFICATIONS.permissionStatus().then(() => { if (state.view === 'settings') renderLayout(); }); }
   window.SAHRA_FOCUS_TIMER_READY = true;
   processPendingFocusAlarmAction();
 
+  // Give the first screen a short SQLite startup budget. If the DB is slower,
+  // load online dashboard data without waiting, then reconcile offline changes
+  // when the database becomes available.
+  let databaseTimer = null;
+  const databaseOutcome = await Promise.race([
+    databasePromise.then(() => 'ready').catch((error) => ({ error })),
+    new Promise((resolve) => {
+      databaseTimer = window.setTimeout(() => resolve('timeout'), 3500);
+    }),
+  ]);
+  if (databaseTimer !== null) window.clearTimeout(databaseTimer);
+
+  if (databaseOutcome === 'ready') {
+    state.localDatabaseReady = true;
+    await loadDashboardData({ loadFinanceInBackground: true });
+  } else {
+    state.localDatabaseReady = false;
+    if (databaseOutcome === 'timeout') {
+      console.warn('Local database is taking longer than expected; opening DaySync in online mode first.');
+      await loadDashboardData({ skipLocalSync: true });
+      void databasePromise.then(() => {
+        state.localDatabaseReady = true;
+        return loadDashboardData({ loadFinanceInBackground: true });
+      }).catch((databaseError) => {
+        console.warn('Offline storage is unavailable; online DaySync remains usable:', databaseError.message);
+      });
+    } else {
+      console.warn('Local database could not be initialized; continuing in online mode:', databaseOutcome.error?.message || databaseOutcome.error);
+      await loadDashboardData({ skipLocalSync: true });
+    }
+  }
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    void window.SAHRA_NOTIFICATIONS.permissionStatus().then(() => {
+      if (state.view === 'settings') renderLayout();
+    }).catch((error) => console.warn('Notification permission status unavailable:', error.message));
+  }
+
+  // OTA readiness is not part of the interactive startup path.
   if (window.Capacitor?.isNativePlatform()) {
-    const { markSahraOtaReady } = await import('./scripts/mobile-ota.js');
-    await markSahraOtaReady();
+    void import('./scripts/mobile-ota.js')
+      .then(({ markSahraOtaReady }) => markSahraOtaReady())
+      .catch((error) => console.warn('Sahra OTA readiness could not be updated:', error.message));
   }
 }
 

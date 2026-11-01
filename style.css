@@ -11908,3 +11908,52 @@ html[data-theme="light"] .assistant-system-note {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Lightweight first-paint state; replaced by the authenticated app render. */
+.daysync-boot-shell {
+  min-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text, #edf4ff);
+  text-align: center;
+  font-weight: 750;
+}
+.daysync-boot-shell img { width: 48px; height: 48px; object-fit: contain; }
+.daysync-boot-shell > span:not(.daysync-boot-spinner) { color: var(--muted, #a5b4d8); font-size: 12px; }
+.daysync-boot-spinner {
+  width: 18px; height: 18px; margin-top: 5px; border-radius: 50%;
+  border: 2px solid rgba(120, 174, 255, .22);
+  border-top-color: var(--cyan, #62dfff);
+  animation: daysync-boot-spin .8s linear infinite;
+}
+@keyframes daysync-boot-spin { to { transform: rotate(360deg); } }
+
+.daysync-settings-detail-actions { display: grid; gap: 7px; }
+.daysync-settings-detail-panel .daysync-settings-detail-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  width: 100%; min-height: 48px; margin: 0; padding: 9px 11px;
+  text-align: left; border-radius: 11px; color: var(--text);
+  background: var(--button-surface); border: 1px solid var(--panel-border);
+}
+.daysync-settings-detail-action strong { font-size: 12px; font-weight: 800; }
+.daysync-settings-detail-action small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+
+/* Native Android WebViews can spend substantial time repainting large blur
+   surfaces while scrolling. Keep gradients, borders and 3D shadows, but
+   disable backdrop filtering on frequently composited controls. */
+:root[data-sahra-native="true"] .page-fixed-header,
+:root[data-sahra-native="true"] .daysync-settings-header,
+:root[data-sahra-native="true"] .bottom-nav,
+:root[data-sahra-native="true"] .assistant-fixed-composer,
+:root[data-sahra-native="true"] .menu-panel,
+:root[data-sahra-native="true"] .daysync-reset-review-bar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .daysync-boot-spinner { animation: none; }
+}

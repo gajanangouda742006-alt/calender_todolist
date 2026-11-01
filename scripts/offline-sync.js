@@ -206,6 +206,7 @@ export class OfflineSync {
     if (this.flushing || !token || !globalThis.navigator?.onLine) return { synced: 0, pending: true };
     this.flushing = true;
     let synced = 0;
+    const flushDeadline = Date.now() + 7000;
     try {
       const account = await this.accountId(token);
       const outboxName = await this.scoped(account, 'syncOutbox');
@@ -214,18 +215,26 @@ export class OfflineSync {
       const mappings = await this.getNamed(idMapName);
       const idMap = new Map(mappings.map((m) => [String(m.localId), String(m.serverId)]));
       for (const op of ops) {
+        if (Date.now() >= flushDeadline) break;
         let path = op.path;
         for (const [localId, serverId] of idMap) path = path.replace(`/${localId}`, `/${serverId}`);
         let response;
+        let timeoutId = null;
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         try {
+          const remainingBudget = Math.max(1, flushDeadline - Date.now());
+          if (controller) timeoutId = setTimeout(() => controller.abort(), Math.min(4500, remainingBudget));
           response = await this.fetchImpl(`${this.baseUrl()}${path}`, {
             method: op.method,
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'Idempotency-Key': op.idempotencyKey },
+            ...(controller ? { signal: controller.signal } : {}),
             ...(op.method === 'GET' || op.method === 'HEAD' ? {} : { body: JSON.stringify(op.body || {}) })
           });
         } catch (error) {
           console.warn("[OfflineSync] Network request failed:", error?.name || "Error", error?.message || "Unknown network error");
           break;
+        } finally {
+          if (timeoutId !== null) clearTimeout(timeoutId);
         }
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {

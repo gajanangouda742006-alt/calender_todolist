@@ -1,0 +1,65 @@
+DaySync Settings and Performance Fix
+====================================
+
+This is a source patch for the existing DaySync project. It is not a complete project archive.
+Extract the ZIP directly into P:\MyProjects\calender_todolist and allow matching files to be overwritten.
+
+Settings layout
+---------------
+The main Settings screen now keeps the compact structure:
+- Appearance
+- Profile
+- Notifications
+- APP & DATA: Data & Sync, Privacy & Security, Reset Options
+- About DaySync and Sign out
+
+Location permissions, Notification permissions, and Timer alarms are inside the expandable Privacy & Security panel. Their existing handlers are retained. The Settings action listener uses event delegation so it continues to work when the Settings page is created dynamically.
+
+Performance / startup updates
+-----------------------------
+- The first signed-in app screen renders as soon as secure sign-in storage returns; it no longer waits for SQLite initialization before showing the app.
+- If SQLite takes longer than 3.5 seconds, DaySync attempts to load online data first and reconciles local data when SQLite becomes ready.
+- Local cache operations are skipped while SQLite is unavailable, so an unfinished native database open cannot block online requests.
+- Dashboard GET requests have a 12-second abort timeout.
+- Offline outbox replay has a 7-second total budget and preserves queued operations for a later retry.
+- Progress and focus-stat requests and finance loading run after the initial dashboard render.
+- The startup video is not downloaded or played on ordinary launches. It plays only when the successful login/signup flow sets the one-time session flag.
+- Web and mobile esbuild bundles are minified and tree-shaken.
+- Service-worker cache version is incremented so old cached app resources are replaced.
+
+Web build (PowerShell)
+----------------------
+cd P:\MyProjects\calender_todolist
+npm ci
+node --check .\app.js
+node .\scripts\build-web.js
+npm start
+
+Open: http://localhost:9090/login
+
+Android staging/build (PowerShell)
+---------------------------------
+cd P:\MyProjects\calender_todolist
+$env:SAHRA_API_BASE_URL = "https://calender-todolist.onrender.com"
+npm run mobile:stage
+npx cap sync android
+cd .\android
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat assembleDebug
+
+Verification performed by the patch author
+-------------------------------------------
+- JavaScript syntax checks: passed for app, page modules, relevant scripts, server and backend files.
+- CSS parsing: passed for style.css and goal-achievements-3d.css.
+- JSON parsing: passed for package.json, capacitor.config.json and manifest.webmanifest.
+- Offline-sync tests: 6/6 passed.
+- HTML parser check: passed.
+
+Not performed in this environment
+----------------------------------
+- A fresh esbuild bundle, because npm registry DNS failed during dependency availability check (EAI_AGAIN).
+- Browser runtime tests or a physical Android device test.
+- A fresh Android APK build.
+
+The ZIP deliberately does not include node_modules, generated web-app.js, generated www output, APKs, credentials, or private environment files. Run the build commands above after replacing the source files.

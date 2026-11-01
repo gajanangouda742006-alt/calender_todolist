@@ -10,6 +10,9 @@ build({
   format: 'esm',
   platform: 'browser',
   target: 'es2022',
+  minify: true,
+  treeShaking: true,
+  legalComments: 'none',
   outfile: path.join(root, 'web-app.js'),
 })
   .then(() => console.log('Web app bundled successfully: web-app.js'))

@@ -22,8 +22,8 @@
       name="description"
       content="DaySync — your personal planner for tasks, calendar, expenses, goals, and focus."
     />
-    <link rel="stylesheet" href="./style.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3" />
-    <link rel="stylesheet" href="./goal-achievements-3d.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3" />
+    <link rel="stylesheet" href="./style.css?v=daysync-settings-recovery-20261101-v6" />
+    <link rel="stylesheet" href="./goal-achievements-3d.css?v=daysync-settings-recovery-20261101-v6" />
     <link rel="icon" type="image/png" sizes="192x192" href="./images/DaySync-192.png" />
     <link rel="apple-touch-icon" href="./images/DaySync-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -32,12 +32,19 @@
   </head>
   <body>
     <div id="app-startup-intro" class="startup-intro" aria-hidden="true" hidden>
-      <video muted playsinline preload="auto">
+      <video muted playsinline preload="none" poster="./assets/intro-poster.jpeg">
         <source src="./assets/app-intro.mp4" type="video/mp4" />
       </video>
     </div>
     <div class="mobile-frame">
-      <main id="app" aria-live="polite"></main>
+      <main id="app" aria-live="polite">
+        <div class="daysync-boot-shell" role="status" aria-live="polite">
+          <img src="./images/DaySync-192.png" width="48" height="48" alt="" />
+          <strong>DaySync</strong>
+          <span>Opening your planner…</span>
+          <span class="daysync-boot-spinner" aria-hidden="true"></span>
+        </div>
+      </main>
 
       <nav class="bottom-nav" aria-label="Main navigation">
   <div class="nav-indicator"></div>
@@ -64,23 +71,18 @@
     </div>
 
     <script src="./app-config.js"></script>
-<script type="module" src="./web-app.js?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3"></script>
+<script type="module" src="./web-app.js?v=daysync-settings-recovery-20261101-v6"></script>
 
 <script>
 (() => {
   const INTRO_FLAG = 'sahra:play-intro-after-auth';
   const intro = document.getElementById('app-startup-intro');
   const video = intro?.querySelector('video');
-  let shouldPlay = false;
-
-  // The animation is opt-in: only a successful login/signup sets this flag.
-  // Consume it immediately so refreshes and normal navigation do not replay it.
-  try {
-    shouldPlay = !window.Capacitor?.isNativePlatform?.() || window.sessionStorage.getItem(INTRO_FLAG) === '1';
-    window.sessionStorage.removeItem(INTRO_FLAG);
-  } catch (_error) {
-    // Storage can be unavailable in restricted browsing modes; the app still works.
-  }
+  // Show the short branded opening animation on every fresh app load. App
+  // initialization continues underneath it, so this never delays data startup.
+  // Remove the older auth flag so an upgrade cannot replay the intro twice.
+  let shouldPlay = true;
+  try { window.sessionStorage.removeItem(INTRO_FLAG); } catch (_error) { /* optional storage */ }
 
   if (!intro || !video || !shouldPlay) {
     if (video) {
@@ -98,6 +100,7 @@
   intro.setAttribute('aria-hidden', 'false');
   video.muted = true;
   video.playsInline = true;
+  video.preload = 'auto';
   video.removeAttribute('autoplay');
   try { video.currentTime = 0; } catch (_error) {}
 
@@ -119,12 +122,13 @@
     }, 650);
   };
 
-  fallbackTimer = window.setTimeout(finish, 90000);
+  fallbackTimer = window.setTimeout(finish, 6000);
   video.addEventListener('playing', () => intro.classList.add('is-playing'), { once: true });
   video.addEventListener('ended', finish, { once: true });
   video.addEventListener('error', finish, { once: true });
 
   try {
+    video.load();
     const playback = video.play();
     if (playback && typeof playback.catch === 'function') {
       playback.catch((error) => {

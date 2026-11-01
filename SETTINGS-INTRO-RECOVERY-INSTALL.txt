@@ -1,0 +1,68 @@
+DaySync Settings Freeze + Opening Video Recovery
+================================================
+
+WHAT WAS FIXED
+- Delegated data-menu-action click handler now binds only once. Previously it
+  was registered inside renderLayout() on every render, so Privacy & Security
+  could toggle repeatedly and theme changes could trigger many renders.
+- Finance search/filter delegated listeners now also bind only once.
+- Theme preference changes apply locally immediately. Server theme sync is
+  best-effort and aborts after 4.5 seconds, so a sleeping API cannot hold up
+  Settings interaction.
+- The opening animation is enabled for every fresh app load. The web/native
+  entrypoint has a single owner for video playback, avoiding a second startup
+  module hiding or pausing the same video.
+- Intro video is optimized to portrait 720x1280 at 30fps (about 366 KB vs the
+  original 12 MB), with the existing intro poster copied into web and Android
+  assets.
+- Service-worker cache version is updated.
+
+FILES
+- app.js
+- index.html
+- service-worker.js
+- scripts/stage-mobile.js
+- assets/app-intro.mp4
+- assets/intro-poster.jpeg
+- www/index.html and www service-worker/video/poster copies
+- Android public index/service-worker/video/poster copies
+
+INSTALL WEB VERSION (PowerShell)
+1. Extract this ZIP directly into P:\MyProjects\calender_todolist and replace
+   matching files.
+2. Run:
+
+   cd P:\MyProjects\calender_todolist
+   npm ci
+   node --check .\app.js
+   node .\scripts\build-web.js
+   npm start
+
+3. Open http://localhost:9090/login and hard-refresh once if the browser has
+   an older cached page.
+
+INSTALL ANDROID VERSION (PowerShell)
+After the files above are replaced, run:
+
+   cd P:\MyProjects\calender_todolist
+   $env:SAHRA_API_BASE_URL = "https://calender-todolist.onrender.com"
+   npm run mobile:stage
+   npx cap sync android
+   cd .\android
+   $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
+   $env:Path = "$env:JAVA_HOME\bin;$env:Path"
+   .\gradlew.bat assembleDebug
+
+Install the newly generated APK on the phone. An already-installed APK does
+not automatically receive source-file changes; it must be rebuilt and updated.
+
+VERIFICATION
+- Node syntax checks passed for the modified JavaScript files.
+- CSS and project JSON parse checks passed.
+- Existing offline-sync regression tests passed: 6/6.
+- Optimized MP4 was inspected: H.264, 720x1280, 30fps, approximately 1.97 sec.
+- A fresh web bundle, browser runtime session, and Android APK were not built
+  or device-tested in this environment because the esbuild dependency is not
+  installed here. Run npm ci locally before rebuilding.
+
+No database schema, API route, authentication, or user data files were changed.

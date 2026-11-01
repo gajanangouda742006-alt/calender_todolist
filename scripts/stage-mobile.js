@@ -76,6 +76,7 @@ copyStageSource('menubars.png');
 copyStageSource('mic.png');
 copyStageSource('images');
 copyStageSource('assets/app-intro.mp4');
+copyStageSource('assets/intro-poster.jpeg', 'assets/intro-poster.jpeg', false);
 copyStageSource('images/DaySync.png', 'assets/intro-poster.png');
 fs.rmSync(fallbackDir, { recursive: true, force: true });
 
@@ -126,6 +127,9 @@ async function bundleEntries() {
       bundle: true,
       format: 'esm',
       target: 'es2022',
+      minify: true,
+      treeShaking: true,
+      legalComments: 'none',
       outfile: path.join(webDir, 'mobile-entry.js'),
     }),
     build({
@@ -133,6 +137,9 @@ async function bundleEntries() {
       bundle: true,
       format: 'esm',
       target: 'es2022',
+      minify: true,
+      treeShaking: true,
+      legalComments: 'none',
       outfile: path.join(webDir, 'mobile-login.js'),
     }),
   ]);
