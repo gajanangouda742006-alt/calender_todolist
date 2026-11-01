@@ -33,6 +33,14 @@ export function renderAssistantPage(state = {}) {
       <div class="assistant-chat">
         ${messages.map((message) => {
           const isUser = message.role === 'user';
+          const isSystem = message.role === 'system';
+          if (isSystem) {
+            return `
+              <div class="assistant-system-row" role="status" aria-live="polite">
+                <div class="assistant-system-note">${escapeHtml(message.text)}</div>
+              </div>
+            `;
+          }
           return `
             <div class="chat-row ${isUser ? 'user-row' : 'assistant-row'}">
               ${!isUser ? '<div class="chat-avatar bot-avatar">🤖</div>' : ''}
@@ -44,6 +52,7 @@ export function renderAssistantPage(state = {}) {
         }).join('')}
 
         ${state.assistantLoading ? '<div class="message-time">Sahra is thinking...</div>' : ''}
+        <div class="assistant-scroll-anchor" aria-hidden="true"></div>
       </div>
 
       <div class="assistant-composer assistant-fixed-composer">

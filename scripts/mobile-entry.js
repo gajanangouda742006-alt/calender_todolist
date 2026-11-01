@@ -32,25 +32,50 @@ async function configureNativeShell() {
     console.error('Native Back listener registration failed:', error);
   }
 
+  // Reserve the native status-bar area before sizing the web content. Keep the
+  // bar visible, then apply the correct icon contrast for the active app theme.
   try {
-    const applyNativeStatusBarTheme = async (theme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark') => {
-      const lightApp = theme === 'light';
-      await StatusBar.setStyle({ style: lightApp ? Style.Dark : Style.Light });
-      if (platform === 'android') await StatusBar.setBackgroundColor({ color: lightApp ? '#f8faff' : '#071126' });
-    };
-    await applyNativeStatusBarTheme();
-    window.addEventListener('daysync:theme-changed', (event) => {
-      void applyNativeStatusBarTheme(event.detail?.theme).catch((error) => console.warn('Status bar theme update failed:', error));
-    });
+    await StatusBar.setOverlaysWebView({ overlay: false });
+    await StatusBar.show();
   } catch (error) {
-    console.warn('Native status-bar configuration failed:', error);
+    console.warn('Native status-bar visibility configuration failed:', error);
   }
 
   try {
-    await StatusBar.setOverlaysWebView({ overlay: false });
+    const getEffectiveAppTheme = () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      if (current === 'light' || current === 'dark') return current;
+      return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    };
+    const applyNativeStatusBarTheme = async (theme = getEffectiveAppTheme()) => {
+      const lightApp = theme === 'light';
+      // Capacitor Style.Dark means dark (black) status icons on a light bar;
+      // Style.Light means white icons on a dark bar.
+      await StatusBar.setStyle({ style: lightApp ? Style.Dark : Style.Light });
+      if (platform === 'android') {
+        await StatusBar.setBackgroundColor({ color: lightApp ? '#f8faff' : '#071126' });
+      }
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+      if (themeColor) themeColor.setAttribute('content', lightApp ? '#f8faff' : '#071126');
+    };
+    await applyNativeStatusBarTheme();
+    window.addEventListener('daysync:theme-changed', (event) => {
+      void applyNativeStatusBarTheme(event.detail?.theme || getEffectiveAppTheme())
+        .catch((error) => console.warn('Status bar theme update failed:', error));
+    });
+    // Re-apply after the native app returns from the background in case the
+    // phone's system appearance changed while DaySync was suspended.
+    window.addEventListener('daysync:resume', () => {
+      void applyNativeStatusBarTheme().catch((error) => console.warn('Status bar resume theme update failed:', error));
+    });
+  } catch (error) {
+    console.warn('Native status-bar theme configuration failed:', error);
+  }
+
+  try {
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
   } catch (error) {
-    console.warn('Native viewport/keyboard configuration failed:', error);
+    console.warn('Native keyboard configuration failed:', error);
   }
 
   try {

@@ -11642,3 +11642,269 @@ body.theme-light .home-screen .brand-text p {
 @media (max-width: 360px) {
   :root { --daysync-shared-header-gutter: 9px; }
 }
+
+
+/* =========================================================
+   DAYSYNC TOP-EDGE HEADER + CHAT NAVIGATION REFINEMENT
+   This final block intentionally supersedes legacy spacing rules above.
+========================================================= */
+:root {
+  --daysync-shared-header-gutter: 12px;
+  --daysync-shared-header-width: 402px;
+}
+
+/* On phones, use the full viewport instead of the old 94vh frame. That old
+   frame left a visible top gap and could push every page header down. */
+@media (max-width: 760px) {
+  html,
+  body {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    height: 100dvh;
+    min-height: 100dvh;
+    align-items: stretch;
+  }
+
+  .mobile-frame {
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Remove accumulated page-level top spacers. The native StatusBar plugin
+   reserves the Android status-bar row, so the web page itself starts at y=0. */
+#app {
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  scroll-padding-top: env(safe-area-inset-top, 0px) !important;
+}
+
+#app > .screen,
+#app > .notepad-container,
+#app > .finance-dashboard-page,
+#app > .finance-transactions-page,
+#app > .focus-screen,
+#app > .weather-page,
+#app > .ga-screen,
+#app > .daysync-reset-screen,
+#app > .profile-screen,
+#app > .dashboard-screen,
+#app > .todo-screen {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+
+#app > .finance-dashboard-page,
+#app > .finance-transactions-page {
+  padding-top: 0 !important;
+}
+
+#app > .menu-screen {
+  padding-top: 0 !important;
+}
+
+/* Every actual page header shares the same top edge, width and baseline
+   height. Sticky is used inside #app, the app's intentional scroll container,
+   so a header remains pinned while its page content scrolls. */
+#app > .home-screen > .home-hero,
+#app > .dashboard-screen > .dashboard-topbar,
+#app .daysync-common-header,
+#app .daysync-reset-header,
+#app .page-header,
+#app .todo-page-header,
+#app .todo-screen .todo-header,
+#app .assistant-header.page-fixed-header,
+#app .weather-page-header,
+#app .focus-header,
+#app .notepad-page-header,
+#app .finance-dashboard-header,
+#app .finance-transactions-header,
+#app .profile-header,
+#app .menu-page-heading {
+  position: sticky !important;
+  top: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+  width: min(calc(100% - (2 * var(--daysync-shared-header-gutter))), var(--daysync-shared-header-width)) !important;
+  max-width: var(--daysync-shared-header-width) !important;
+  min-width: 0 !important;
+  min-height: 68px !important;
+  height: auto !important;
+  margin: 0 auto 12px !important;
+  padding: 9px 12px !important;
+  box-sizing: border-box !important;
+  z-index: 1000 !important;
+}
+
+/* Preserve enough room for multi-line page titles without reintroducing a
+   top offset. These page-specific roots used to reserve large blank spacers. */
+.finance-dashboard-page,
+.finance-transactions-page {
+  padding-top: 0 !important;
+}
+
+.todo-screen .todo-header,
+.todo-screen .todo-page-header {
+  margin-top: 0 !important;
+}
+
+body.theme-light .assistant-system-note,
+html[data-theme="light"] .assistant-system-note {
+  color: #334563;
+  background: rgba(220, 232, 255, .88);
+  border-color: rgba(95, 121, 177, .24);
+}
+
+.assistant-system-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+}
+
+.assistant-system-note {
+  max-width: min(94%, 420px);
+  padding: 10px 14px;
+  border: 1px solid rgba(147, 178, 232, .24);
+  border-radius: 14px;
+  background: rgba(38, 58, 91, .72);
+  color: #d7e5ff;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the message composer above the tray; the chat's delegated scroll
+   listener hides the tray until the reader returns near the newest message. */
+.assistant-screen .assistant-chat {
+  scroll-behavior: smooth;
+  scroll-padding-bottom: 20px;
+}
+
+@media (max-width: 760px) {
+  #app:has(> .assistant-screen) {
+    padding-top: 0 !important;
+  }
+
+  #app > .assistant-screen {
+    padding-top: 0 !important;
+  }
+
+  .assistant-screen .assistant-header.page-fixed-header {
+    top: 0 !important;
+    margin-top: 0 !important;
+  }
+}
+
+/* =========================================================
+   DAYSync FOLLOW-UP FIXES
+   - Keep Sahra's newest bubble above the fixed composer.
+   - Pin the Finance dashboard header independently of page scrolling.
+   - Finance content flows in the main #app scroll area, not a nested one.
+========================================================= */
+
+@media (max-width: 760px) {
+  .assistant-screen .assistant-chat {
+    /* The composer overlays the lower edge of the chat viewport. Reserve
+       its full height as scroll padding so the newest message clears it. */
+    padding-bottom: calc(var(--assistant-composer-height, 60px) + 22px) !important;
+    scroll-padding-bottom: calc(var(--assistant-composer-height, 60px) + 22px) !important;
+    scroll-behavior: smooth !important;
+  }
+}
+
+/* The Finance dashboard header is viewport-fixed, so it never joins the
+   scrolling transaction/dashboard content. Its page reserves matching room. */
+#app > .finance-dashboard-page {
+  overflow: visible !important;
+  padding-top: calc(104px + env(safe-area-inset-top, 0px)) !important;
+}
+
+#app > .finance-dashboard-page > .finance-dashboard-header {
+  position: fixed !important;
+  top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: min(calc(100vw - 28px), 402px) !important;
+  max-width: 402px !important;
+  min-height: 68px !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 1200 !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 430px) {
+  #app > .finance-dashboard-page {
+    padding-top: calc(104px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  #app > .finance-dashboard-page > .finance-dashboard-header {
+    width: calc(100vw - 20px) !important;
+  }
+}
+
+
+/* =========================================================
+   DAYSync RESPONSIVENESS + ASSISTANT SAFE SCROLL + SYSTEM THEME
+========================================================= */
+
+@media (max-width: 760px) {
+  /* Match the small top breathing space used by the other pages. The native
+     status bar is already reserved by Capacitor when overlay=false. */
+  #app > .assistant-screen {
+    padding-top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  #app > .assistant-screen > .assistant-header.page-fixed-header {
+    margin-top: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* Allow the final long Sahra bubble to scroll completely above the fixed
+     composer. The bottom nav remains outside the chat's scrollport. */
+  #app > .assistant-screen .assistant-chat {
+    padding-bottom: calc(var(--assistant-composer-height, 60px) + 42px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom: calc(var(--assistant-composer-height, 60px) + 42px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-behavior: auto !important;
+    overflow-anchor: none;
+  }
+
+  #app > .assistant-screen .assistant-scroll-anchor {
+    display: block;
+    width: 1px;
+    height: 1px;
+    min-height: 1px;
+    flex: 0 0 1px;
+    scroll-margin-bottom: 10px;
+  }
+}
+
+/* Avoid expensive paint work during touch navigation while preserving the
+   existing 3D cards and shadows. The browser can keep the active view on the
+   compositor rather than repeatedly repainting the fixed frame. */
+.mobile-frame,
+.bottom-nav,
+.assistant-fixed-composer {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-frame,
+  .bottom-nav,
+  .assistant-fixed-composer {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

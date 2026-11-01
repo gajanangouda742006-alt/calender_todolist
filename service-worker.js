@@ -1,12 +1,13 @@
-const CACHE_NAME = 'daysync-shell-reset-options-20261028-2225';
+const CACHE_NAME = 'daysync-shell-fast-swipe-system-theme-20261101-v3';
 
 
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/style.css',
+  '/style.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
+  '/goal-achievements-3d.css?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
   '/app-config.js',
-  '/web-app.js',
+  '/web-app.js?v=daysync-fast-swipe-system-theme-assistant-scroll-20261101-v3',
   '/manifest.webmanifest',
   '/image-192.png',
   '/images/DaySync-192.png',

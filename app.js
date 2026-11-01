@@ -114,7 +114,16 @@ const state = {
   authenticated: false,
   data: { ...EMPTY_DATA },
   user: JSON.parse(localStorage.getItem('sahraUser') || 'null') || { name: 'DaySync User' },
-  theme: localStorage.getItem('theme') || 'dark',
+  // System is the default appearance. An explicit Light/Dark choice is
+  // stored separately so the app can follow later OS theme changes.
+  themePreference: ['system', 'light', 'dark'].includes(localStorage.getItem('themePreference'))
+    ? localStorage.getItem('themePreference')
+    : 'system',
+  theme: (() => {
+    const preference = localStorage.getItem('themePreference');
+    if (preference === 'light' || preference === 'dark') return preference;
+    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  })(),
   goalAchievementItems: [],
   goalAchievementFilter: 'All',
   goalAchievementEditingId: null,
@@ -145,6 +154,7 @@ noteSearchQuery: '',
     { role: 'assistant', text: "I'm Sahra, your AI assistant. I can help you manage tasks, events, and your progress." },
   ],
   assistantLoading: false,
+  assistantForceScroll: false,
   assistantGeneration: 0,
   assistantDraft: '',
   voiceListening: false,
@@ -176,15 +186,33 @@ let notificationInterval = null;
 const offlineSync = new OfflineSync({ getToken: getAuthToken, baseUrl: () => String(window.SAHRA_API_BASE_URL || '').replace(/\/+$/, '') });
 
 
-function applyTheme(theme) {
-  const nextTheme = theme === 'light' ? 'light' : 'dark';
+function applyTheme(preference = 'system', options = {}) {
+  const requestedPreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
+  const followsSystem = requestedPreference === 'system';
+  const systemPrefersLight = Boolean(window.matchMedia?.('(prefers-color-scheme: light)').matches);
+  const nextTheme = followsSystem ? (systemPrefersLight ? 'light' : 'dark') : requestedPreference;
+
+  state.themePreference = requestedPreference;
   state.theme = nextTheme;
   document.documentElement.setAttribute('data-theme', nextTheme);
+  document.documentElement.style.colorScheme = nextTheme;
   document.body.setAttribute('data-theme', nextTheme);
+  document.body.style.colorScheme = nextTheme;
   document.body.classList.toggle('theme-light', nextTheme === 'light');
   document.body.classList.toggle('theme-dark', nextTheme === 'dark');
+
+  // Keep the legacy effective-theme key for older app modules, while the
+  // preference key records whether the user chose System, Light or Dark.
   localStorage.setItem('theme', nextTheme);
-  window.dispatchEvent(new CustomEvent('daysync:theme-changed', { detail: { theme: nextTheme } }));
+  if (options.persistPreference !== false) {
+    localStorage.setItem('themePreference', requestedPreference);
+  }
+
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.setAttribute('content', nextTheme === 'light' ? '#f8faff' : '#071126');
+  window.dispatchEvent(new CustomEvent('daysync:theme-changed', {
+    detail: { theme: nextTheme, preference: requestedPreference, followsSystem },
+  }));
 }
 
 // ==========================================
@@ -268,7 +296,19 @@ confirmBtn.onclick = async () => {
 // ==========================================
 
 function getStoredTheme() {
-  return localStorage.getItem('theme') || 'dark';
+  const preference = localStorage.getItem('themePreference');
+  return ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
+}
+
+function bindSystemThemeUpdates() {
+  const media = window.matchMedia?.('(prefers-color-scheme: light)');
+  if (!media || window.__daysyncSystemThemeListenerBound) return;
+  const handleSystemThemeChange = () => {
+    if (state.themePreference === 'system') applyTheme('system', { persistPreference: false });
+  };
+  if (typeof media.addEventListener === 'function') media.addEventListener('change', handleSystemThemeChange);
+  else if (typeof media.addListener === 'function') media.addListener(handleSystemThemeChange);
+  window.__daysyncSystemThemeListenerBound = true;
 }
 
 function getLoginPath() {
@@ -726,6 +766,11 @@ function renderMenuPage() {
 
 function renderSettingsPage() {
   const isLightTheme = state.theme === 'light';
+  const themePreference = ['system', 'light', 'dark'].includes(state.themePreference) ? state.themePreference : 'system';
+  const appearanceIcon = themePreference === 'system' ? '📱' : (isLightTheme ? '☀️' : '🌙');
+  const appearanceLabel = themePreference === 'system'
+    ? `System theme · follows device (${isLightTheme ? 'Light' : 'Dark'})`
+    : `${isLightTheme ? 'Light' : 'Dark'} theme enabled`;
   const notificationsEnabled = areDeviceNotificationsEnabled();
   const native = Boolean(window.SAHRA_NOTIFICATIONS?.isNative?.());
   const tasksCount = Array.isArray(state.data?.tasks) ? state.data.tasks.length : 0;
@@ -750,7 +795,7 @@ function renderSettingsPage() {
         <p class="daysync-settings-section-label" id="settings-personalization-heading">PERSONALIZATION</p>
         <div class="daysync-settings-list">
           <button class="daysync-setting-row" type="button" data-menu-action="toggle-theme">
-            <span class="daysync-setting-icon">${isLightTheme ? '☀️' : '🌙'}</span><span class="daysync-setting-copy"><strong>Appearance</strong><small>${isLightTheme ? 'Light theme enabled' : 'Dark theme enabled'}</small></span><span class="daysync-setting-trail">›</span>
+            <span class="daysync-setting-icon">${appearanceIcon}</span><span class="daysync-setting-copy"><strong>Appearance</strong><small>${appearanceLabel} · Tap to change</small></span><span class="daysync-setting-trail">›</span>
           </button>
           <button class="daysync-setting-row" type="button" data-menu-action="profile">
             <span class="daysync-setting-icon">♙</span><span class="daysync-setting-copy"><strong>Profile</strong><small>${escapeHtml(state.user?.name || 'Your personal information')}</small></span><span class="daysync-setting-trail">›</span>
@@ -1027,11 +1072,9 @@ async function loadDashboardData() {
       JSON.stringify(state.user)
     );
 
-    if (payload.user?.preferences?.theme) {
-      applyTheme(payload.user.preferences.theme);
-    } else {
-      applyTheme(getStoredTheme());
-    }
+    // Appearance is device-specific by default. Do not let an older
+    // server-side Light/Dark value override System mode on this phone.
+    applyTheme(getStoredTheme());
 
     await loadProgressData(false);
     checkDueNotifications();
@@ -3642,13 +3685,15 @@ function renderLayout() {
   const viewChanged = state.view !== lastRenderedView;
   const oldChat = document.querySelector('.assistant-chat');
   const assistantWasNearBottom = oldChat ? oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 100 : true;
+  const assistantForceScroll = Boolean(state.assistantForceScroll);
+  state.assistantForceScroll = false;
   lastRenderedView = state.view;
 
   if (state.view === 'calendar' && state.authenticated && !state.calendarCache.has(state.selectedDate)) {
     loadSelectedDateData(state.selectedDate);
   }
 
-  let content = renderHomePage();
+  let content = '';
 
  if (state.view === 'calendar') {
   content = renderCalendarPage(state);
@@ -3707,6 +3752,10 @@ function renderLayout() {
 
 } else if (state.view === 'progress' || state.view === 'more') {
   content = renderProgressPage();
+} else {
+  // Build Home only when Home is the active page. Previously renderHomePage()
+  // ran before every branch, doing a large amount of unused DOM work on swipes.
+  content = renderHomePage();
 }
 
   // Appends active modals and menus over the main content
@@ -3724,13 +3773,26 @@ function renderLayout() {
   );
   lastAssistantMessageCount = assistantMessageCount;
   lastAssistantLoadingState = assistantLoadingNow;
-  if (assistantConversationChanged) {
+  if (state.view === 'assistant' && (viewChanged || assistantConversationChanged)) {
     requestAnimationFrame(() => {
       if (state.view !== 'assistant') return;
       const currentApp = document.getElementById('app');
       if (!currentApp) return;
       const chat = currentApp.querySelector('.assistant-chat');
-      if (chat && assistantWasNearBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+      const shouldScroll = viewChanged || assistantWasNearBottom || assistantForceScroll;
+      if (chat && shouldScroll) {
+        const scrollToLatest = () => {
+          if (!chat.isConnected) return;
+          // Instant positioning is more reliable for long responses and avoids
+          // restarting several overlapping smooth-scroll animations.
+          chat.scrollTop = chat.scrollHeight;
+        };
+        scrollToLatest();
+        requestAnimationFrame(scrollToLatest);
+        requestAnimationFrame(() => requestAnimationFrame(scrollToLatest));
+        window.setTimeout(scrollToLatest, 90);
+        document.querySelector('.bottom-nav')?.classList.remove('scroll-hidden');
+      }
     });
   }
 
@@ -4799,11 +4861,17 @@ document.addEventListener('input', (e) => {
       const action = button.dataset.menuAction;
 
       if (action === 'toggle-theme') {
-        const nextTheme = state.theme === 'light' ? 'dark' : 'light';
+        const nextPreference = state.themePreference === 'system'
+          ? 'light'
+          : state.themePreference === 'light'
+            ? 'dark'
+            : 'system';
         state.menuOpen = false;
-        applyTheme(nextTheme);
+        applyTheme(nextPreference);
         renderLayout();
-        await updateThemeInDatabase(nextTheme);
+        // The API stores an effective color theme; the System preference stays
+        // local so each device can follow its own operating-system appearance.
+        await updateThemeInDatabase(state.theme);
         return;
       }
 
@@ -5069,8 +5137,15 @@ document.addEventListener('click', (e) => {
       state.entryModalOpen = false;
       state.entryDraft = null;
 
-      state.view = 'home';
-      state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== 'calendar' && view !== 'menu');
+      // Progress & Stats is opened from the feature Menu. Its back control
+      // must return to that Menu instead of jumping all the way Home.
+      if (state.view === 'progress' || state.view === 'more') {
+        state.view = 'menu';
+        state.navigationHistory = (state.navigationHistory || []).filter((view) => !['progress', 'more', 'menu'].includes(view));
+      } else {
+        state.view = 'home';
+        state.navigationHistory = (state.navigationHistory || []).filter((view) => view !== 'calendar' && view !== 'menu');
+      }
       state.moreMenuOpen = false;
       state.menuOpen = false;
       renderLayout();
@@ -5079,8 +5154,17 @@ document.addEventListener('click', (e) => {
 
   const submitAssistantMessage = async (message, requestId, addUserMessage = true) => {
     if (state.assistantLoading) return;
+    if (navigator.onLine === false) {
+      if (addUserMessage) state.assistantMessages.push({ role: 'user', text: message });
+      state.assistantMessages.push({ role: 'system', text: 'You are offline. Please check your internet connection and try again.' });
+      state.assistantForceScroll = true;
+      state.assistantLoading = false;
+      renderLayout();
+      return;
+    }
     const generation = state.assistantGeneration;
     if (addUserMessage) state.assistantMessages.push({ role: 'user', text: message });
+    state.assistantForceScroll = true;
     state.assistantLoading = true;
     renderLayout();
 
@@ -5138,15 +5222,21 @@ document.addEventListener('click', (e) => {
     } catch (error) {
       const messageText = error.message || 'Sahra is temporarily unavailable.';
       const canRetry = !Number.isInteger(error.status) || error.status >= 500 || error.status === 408;
+      const isOffline = navigator.onLine === false || (!Number.isInteger(error.status) && /failed to fetch|networkerror|network request failed|load failed/i.test(messageText));
       if (generation === state.assistantGeneration) {
-        state.assistantMessages.push({
-          role: 'assistant',
-          text: canRetry ? `${messageText} You can retry safely.` : messageText,
-          ...(canRetry ? { retryRequestId: requestId, retryMessage: message } : {}),
-        });
+        if (isOffline) {
+          state.assistantMessages.push({ role: 'system', text: 'You are offline. Please check your internet connection and try again.' });
+        } else {
+          state.assistantMessages.push({
+            role: 'assistant',
+            text: canRetry ? `${messageText} You can retry safely.` : messageText,
+            ...(canRetry ? { retryRequestId: requestId, retryMessage: message } : {}),
+          });
+        }
       }
     } finally {
       state.assistantLoading = false;
+      if (state.view === 'assistant') state.assistantForceScroll = true;
       renderLayout();
     }
   };
@@ -5382,6 +5472,97 @@ function bindSmartNavigationAndKeyboard() {
       lastAppScrollTop = currentTop;
     }, { passive: true });
   }
+
+  // Assistant chat owns its own scroll area. Hide the bottom tray while the
+  // reader is away from the latest message, then restore it near the bottom.
+  document.addEventListener('scroll', (event) => {
+    const chat = event.target;
+    if (!chat?.classList?.contains('assistant-chat')) return;
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav || document.body.classList.contains('keyboard-open')) return;
+    const remaining = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+    nav.classList.toggle('scroll-hidden', remaining > 72);
+  }, true);
+
+  // Fast, delegated Home <-> Assistant <-> Menu gestures. Buttons and cards
+  // are allowed as swipe start surfaces; editable controls and calendar /
+  // slider widgets retain their own touch behavior. Vertical chat scrolling
+  // wins as soon as the gesture is identified as vertical.
+  let primarySwipeStart = null;
+  let lastPrimarySwipeAt = 0;
+  let suppressClickUntil = 0;
+  const swipeIgnoreSelector = 'input, textarea, select, [contenteditable="true"], [role="slider"], input[type="range"], .assistant-fixed-composer, .bottom-nav, .month-picker-wrapper, .month-picker-popover, .focus-ring-wrap, .entry-modal-backdrop, .daysync-reset-modal-backdrop, .sahra-confirm-overlay, [data-no-swipe]';
+
+  document.addEventListener('touchstart', (event) => {
+    primarySwipeStart = null;
+    if (event.touches?.length !== 1 || !['home', 'assistant', 'menu'].includes(state.view)) return;
+    if (document.body.classList.contains('keyboard-open') || state.entryModalOpen || state.profileModalOpen || state.moreMenuOpen || state.menuOpen) return;
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    if (target?.closest?.(swipeIgnoreSelector)) return;
+    const touch = event.touches[0];
+    primarySwipeStart = {
+      identifier: touch.identifier,
+      x: touch.clientX,
+      y: touch.clientY,
+      startedAt: performance.now(),
+      axis: null,
+    };
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchmove', (event) => {
+    if (!primarySwipeStart || event.touches?.length !== 1) return;
+    const touch = event.touches[0];
+    if (touch.identifier !== primarySwipeStart.identifier) return;
+    const dx = Math.abs(touch.clientX - primarySwipeStart.x);
+    const dy = Math.abs(touch.clientY - primarySwipeStart.y);
+    if (dx < 9 && dy < 9) return;
+    if (dx > dy * 1.12) primarySwipeStart.axis = 'horizontal';
+    else if (dy > dx * 1.05) primarySwipeStart.axis = 'vertical';
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchend', (event) => {
+    if (!primarySwipeStart || event.changedTouches?.length !== 1) { primarySwipeStart = null; return; }
+    const touch = event.changedTouches[0];
+    if (touch.identifier !== primarySwipeStart.identifier) { primarySwipeStart = null; return; }
+    const dx = touch.clientX - primarySwipeStart.x;
+    const dy = touch.clientY - primarySwipeStart.y;
+    const elapsed = Math.max(1, performance.now() - primarySwipeStart.startedAt);
+    const startAxis = primarySwipeStart.axis;
+    primarySwipeStart = null;
+
+    if (startAxis === 'vertical' || Math.abs(dx) <= Math.abs(dy) * 1.15 || Math.abs(dy) > 76) return;
+    const distance = Math.abs(dx);
+    const velocity = distance / elapsed;
+    const regularSwipe = distance >= Math.max(34, Math.min(46, window.innerWidth * 0.105));
+    const quickFlick = distance >= 25 && elapsed <= 260 && velocity >= 0.34;
+    if (!regularSwipe && !quickFlick) return;
+
+    const now = performance.now();
+    if (now - lastPrimarySwipeAt < 320) return;
+    lastPrimarySwipeAt = now;
+
+    let nextView = null;
+    if (state.view === 'home' && dx < 0) nextView = 'assistant';
+    else if (state.view === 'assistant' && dx < 0) nextView = 'menu';
+    else if (state.view === 'menu' && dx > 0) nextView = 'assistant';
+    else if (state.view === 'assistant' && dx > 0) nextView = 'home';
+    if (!nextView) return;
+
+    suppressClickUntil = Date.now() + 280;
+    state.entryModalOpen = false;
+    state.entryDraft = null;
+    state.moreMenuOpen = false;
+    state.menuOpen = false;
+    state.view = nextView;
+    renderLayout();
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchcancel', () => { primarySwipeStart = null; }, { passive: true, capture: true });
+  document.addEventListener('click', (event) => {
+    if (Date.now() >= suppressClickUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 
   document.addEventListener('focusin', (event) => {
     if (!isEditableControl(event.target)) return;
@@ -6124,6 +6305,7 @@ async function initializeApp() {
   await initializeLocalDatabase();
   window.addEventListener('daysync:permissions-updated', () => { if (state.view === 'settings') renderLayout(); });
   applyTheme(getStoredTheme());
+  bindSystemThemeUpdates();
   bindBottomNav();
   bindGlobalListeners();
   bindFinanceListeners();

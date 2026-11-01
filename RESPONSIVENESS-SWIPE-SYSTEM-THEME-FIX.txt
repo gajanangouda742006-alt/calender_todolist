@@ -1,0 +1,38 @@
+DaySync responsiveness, swipe navigation, Assistant spacing and system theme fix
+
+Files changed:
+- app.js
+- style.css
+- index.html
+- service-worker.js
+- pages/assistant.js
+- scripts/mobile-entry.js
+
+Changes:
+1. Primary swipe gestures use a shorter, velocity-aware threshold. They work from page cards and buttons while excluding text inputs, sliders, the Assistant composer, bottom navigation and month-picker controls. Vertical chat scrolling is not treated as page navigation.
+2. renderLayout() no longer renders the complete Home page before rendering Assistant, Menu or another feature page. This removes avoidable work during page changes.
+3. Assistant gets a top gap consistent with the other pages. The chat has additional scroll clearance, a bottom anchor and repeated instant scroll-to-latest after responses so the last bubble is visible above the fixed composer.
+4. Theme preference defaults to System and follows the device prefers-color-scheme setting at launch and when it changes. Settings Appearance cycles System -> Light -> Dark -> System. Explicit Light/Dark choices remain supported.
+5. Capacitor status-bar icon style and background are refreshed from the effective app theme, including after the app resumes.
+6. Updated stylesheet, web bundle and service-worker cache query version strings.
+
+Install into the existing project root, preserving the relative paths. Then run:
+
+  npm ci
+  node --check .\app.js
+  node .\scripts\build-web.js
+  npm start
+
+For Android after the web/source build:
+
+  $env:SAHRA_API_BASE_URL = "https://YOUR-DEPLOYED-API-ORIGIN"
+  npm run mobile:stage
+  npx cap sync android
+
+Then build the APK from the android folder using the project's JDK 21 setup.
+
+Verification performed in this workspace:
+- Node syntax checks passed for app.js, all page modules and all script modules.
+- Existing offline synchronization tests passed: 6/6.
+- style.css, capacitor.config.json and manifest.webmanifest parsed successfully.
+- A fresh web bundle and APK were not built here because this extracted dependency tree does not contain the esbuild package. Run npm ci locally before rebuilding.
