@@ -11957,3 +11957,172 @@ html[data-theme="light"] .assistant-system-note {
 @media (prefers-reduced-motion: reduce) {
   .daysync-boot-spinner { animation: none; }
 }
+
+
+/* =========================================================
+   DAYSync FINAL MOBILE/TABLET LAYOUT + RESPONSIVE POLISH
+   ========================================================= */
+/* Notepad: remove legacy 104–184px fixed spacers below the page header. */
+#app > .notepad-container {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding-top: 0 !important;
+}
+#app > .notepad-container .notepad-page-header {
+  position: sticky !important;
+  top: 0 !important;
+  margin: 0 auto 12px !important;
+  flex: 0 0 auto !important;
+}
+#app > .notepad-container .notepad-notes,
+#app > .notepad-container.search-open .notepad-notes {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  gap: 14px !important;
+}
+#app > .notepad-container [data-action="notepad-search-input"] {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 0 12px !important;
+  z-index: 5 !important;
+}
+
+/* Progress: the dashboard summary starts immediately after the shared header. */
+#app > .dashboard-screen {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding-top: 0 !important;
+}
+#app > .dashboard-screen > .dashboard-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  margin: 0 auto 8px !important;
+  flex: 0 0 auto !important;
+}
+#app > .dashboard-screen > .dashboard-hero,
+#app > .dashboard-screen > .dashboard-summary,
+#app > .dashboard-screen > .dashboard-content {
+  margin-top: 0 !important;
+}
+
+/* Reset and Weather use the same compact page header rhythm as other screens. */
+#app > .daysync-reset-screen,
+#app > .weather-page {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+#app > .daysync-reset-screen > .daysync-reset-header,
+#app > .weather-page > .weather-page-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  position: sticky !important;
+  top: 0 !important;
+  margin: 0 auto 12px !important;
+  padding: 10px 12px !important;
+  min-height: 68px !important;
+  box-sizing: border-box !important;
+}
+#app .daysync-reset-header-copy { min-width: 0; flex: 1 1 auto; }
+#app .daysync-reset-header-copy .daysync-eyebrow { margin: 0 0 3px !important; }
+#app .daysync-reset-header-copy h1 { font-size: clamp(23px, 5.8vw, 30px) !important; line-height: 1.08 !important; }
+#app .daysync-reset-header-copy p:last-child { margin-top: 4px !important; }
+#app .weather-page-header .weather-page-heading { min-width: 0; flex: 1 1 auto; }
+
+/* Assistant: use a dedicated middle scrollport and reserve enough space for
+   composer + navigation on phones and small tablets. */
+@media (max-width: 1024px) {
+  html:has(#app > .assistant-screen),
+  body:has(#app > .assistant-screen),
+  .mobile-frame:has(#app > .assistant-screen) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  #app:has(> .assistant-screen) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #app > .assistant-screen {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+  }
+  #app > .assistant-screen > .assistant-header {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    margin: 0 auto 8px !important;
+  }
+  #app > .assistant-screen > .assistant-chat {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+    padding: 8px 8px calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  #app > .assistant-screen .assistant-fixed-composer {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+    transform: translateX(-50%) !important;
+    width: min(calc(100vw - 24px), 430px) !important;
+    max-width: 430px !important;
+    min-height: 60px !important;
+    margin: 0 !important;
+    z-index: 220 !important;
+  }
+  .mobile-frame:has(#app > .assistant-screen) .bottom-nav {
+    position: fixed !important;
+    left: 50% !important;
+    bottom: calc(7px + env(safe-area-inset-bottom, 0px)) !important;
+    transform: translateX(-50%) !important;
+    width: min(calc(100vw - 20px), 430px) !important;
+    max-width: 430px !important;
+    z-index: 210 !important;
+  }
+}
+@media (max-width: 430px) {
+  #app > .assistant-screen .assistant-fixed-composer {
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  #app > .assistant-screen .assistant-chat {
+    padding-bottom: calc(158px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom: calc(158px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+@media (min-width: 761px) and (max-width: 1024px) {
+  #app > .assistant-screen { padding-left: 12px !important; padding-right: 12px !important; }
+  #app > .assistant-screen .assistant-fixed-composer { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  #app > .assistant-screen .assistant-chat { padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* Appearance is a cycle preference, not a drill-down page: hide any old arrow. */
+.daysync-setting-row[data-menu-action="toggle-theme"] .daysync-setting-trail { display: none !important; }
+
+/* Keep native Android scroll/animation work light; do not blur large surfaces. */
+:root[data-sahra-native="true"] #app,
+:root[data-sahra-native="true"] .assistant-chat,
+:root[data-sahra-native="true"] .notepad-notes {
+  contain: layout style;
+}

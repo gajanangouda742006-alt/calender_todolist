@@ -1,0 +1,359 @@
+/* DaySync — Goal & Achievements 3D UI patch
+   Scoped to .ga-screen so other application pages remain unchanged. */
+
+.ga-screen {
+  --ga-depth-shadow: 0 18px 38px rgba(0, 0, 0, .22), 0 5px 12px rgba(0, 0, 0, .12);
+  --ga-edge-highlight: rgba(255, 255, 255, .16);
+  isolation: isolate;
+}
+
+/* Sticky, independently balanced page header. */
+.ga-screen > .ga-header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 70;
+  box-sizing: border-box;
+  width: calc(100% + 32px);
+  min-height: 88px;
+  margin: -12px -16px 18px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 15px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 88%, transparent);
+  border-top: 0;
+  border-radius: 0 0 22px 22px;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--surface-strong) 96%, white 4%),
+    color-mix(in srgb, var(--surface) 95%, var(--green) 5%));
+  box-shadow: 0 6px 0 rgba(0, 0, 0, .10),
+    0 16px 32px rgba(0, 0, 0, .17),
+    inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 -1px 0 rgba(0, 0, 0, .10);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  scroll-margin-top: env(safe-area-inset-top, 0px);
+}
+
+.ga-screen > .ga-header::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto;
+  height: 45%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), transparent);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ga-screen > .ga-header::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--green) 44%, white), transparent);
+  pointer-events: none;
+}
+
+.ga-screen > .ga-header .daysync-page-back-button {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+  box-shadow: 0 8px 15px rgba(0,0,0,.25),
+    inset 0 1px 1px rgba(255,255,255,.22),
+    inset 0 -2px 0 rgba(0,0,0,.18);
+}
+
+.ga-screen > .ga-header .ga-heading {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: stretch;
+  min-width: 0;
+  text-align: center;
+  padding: 0 3px;
+}
+
+.ga-screen > .ga-header .ga-heading h1 {
+  color: var(--text);
+  font-size: clamp(18px, 4.8vw, 25px);
+  font-weight: 950;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+  text-shadow: 0 1px 0 rgba(255,255,255,.08);
+}
+
+.ga-screen > .ga-header .ga-heading p {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ga-screen > .ga-header .ga-heading .ga-eyebrow {
+  font-size: 8px;
+  letter-spacing: .19em;
+  font-weight: 950;
+}
+
+.ga-screen > .ga-header .ga-header-icon {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: var(--green);
+  border: 1px solid color-mix(in srgb, var(--green) 34%, var(--panel-border));
+  background: linear-gradient(145deg, var(--surface-strong), var(--surface-soft));
+  box-shadow: 0 7px 14px rgba(0,0,0,.15),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -2px 0 rgba(0,0,0,.08);
+  text-shadow: 0 2px 9px color-mix(in srgb, var(--green) 42%, transparent);
+}
+
+/* Raised summary tiles. */
+.ga-screen .ga-summary-grid { gap: 10px; margin-bottom: 17px; }
+.ga-screen .ga-summary-card {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 12px 13px;
+  border-radius: 17px;
+  border-color: color-mix(in srgb, var(--panel-border) 82%, white 18%);
+  background: linear-gradient(150deg, var(--surface-strong), var(--surface));
+  box-shadow: 0 7px 0 rgba(0,0,0,.08), 0 13px 24px rgba(0,0,0,.13),
+    inset 0 1px 0 rgba(255,255,255,.18);
+  transform: translateZ(0);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.ga-screen .ga-summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: .78;
+}
+.ga-screen .ga-summary-card strong { letter-spacing: -.03em; }
+
+/* Premium layered panels and goal cards. */
+.ga-screen .ga-panel,
+.ga-screen .ga-goal-card,
+.ga-screen .ga-empty-state {
+  position: relative;
+  border-color: color-mix(in srgb, var(--panel-border) 84%, white 16%);
+  background: linear-gradient(150deg,
+    color-mix(in srgb, var(--surface-strong) 96%, white 4%),
+    var(--surface) 72%,
+    color-mix(in srgb, var(--surface) 92%, var(--green) 8%));
+  box-shadow: 0 7px 0 rgba(0,0,0,.08), var(--ga-depth-shadow),
+    inset 0 1px 0 var(--ga-edge-highlight);
+}
+.ga-screen .ga-panel { padding: 17px; border-radius: 21px; }
+.ga-screen .ga-goal-card {
+  padding: 16px;
+  border-radius: 20px;
+  box-shadow: 0 6px 0 rgba(0,0,0,.07), 0 15px 28px rgba(0,0,0,.13),
+    inset 0 1px 0 rgba(255,255,255,.17);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.ga-screen .ga-goal-card.is-complete {
+  border-color: color-mix(in srgb, var(--green) 54%, var(--panel-border));
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--green) 14%, transparent),
+    0 16px 30px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.ga-screen .ga-section-heading h2 { letter-spacing: -.02em; }
+.ga-screen .ga-panel-symbol {
+  border: 1px solid color-mix(in srgb, var(--green) 27%, var(--panel-border));
+  box-shadow: 0 5px 10px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+/* High-contrast badges and 3D progress indicator. */
+.ga-screen .ga-category-chip,
+.ga-screen .ga-status-chip {
+  min-height: 26px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  box-shadow: 0 3px 7px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.16);
+}
+.ga-screen .ga-status-chip.completed {
+  background: color-mix(in srgb, var(--green) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--green) 34%, var(--panel-border));
+}
+.ga-screen .ga-status-chip.overdue {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+}
+.ga-screen .ga-progress-ring {
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.18));
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.24);
+}
+.ga-screen .ga-progress-ring::before {
+  inset: 7px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.16), 0 1px 0 rgba(255,255,255,.12);
+}
+.ga-screen .ga-progress-ring strong { font-weight: 950; }
+.ga-screen .ga-progress-track {
+  height: 8px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 72%, transparent);
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.14);
+}
+.ga-screen .ga-progress-track span { box-shadow: 0 0 10px color-mix(in srgb, var(--green) 30%, transparent); }
+
+/* Inputs and controls use the same raised surface treatment. */
+.ga-screen .ga-field input,
+.ga-screen .ga-field select,
+.ga-screen .ga-field textarea,
+.ga-screen .ga-log-form input {
+  border-color: color-mix(in srgb, var(--panel-border) 78%, white 22%);
+  background: linear-gradient(145deg, var(--surface-strong), var(--button-surface));
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.08), 0 2px 0 rgba(255,255,255,.04);
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.ga-screen .ga-field input:focus,
+.ga-screen .ga-field select:focus,
+.ga-screen .ga-field textarea:focus,
+.ga-screen .ga-log-form input:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 17%, transparent),
+    inset 0 1px 2px rgba(0,0,0,.06), 0 5px 12px rgba(0,0,0,.08);
+}
+.ga-screen .ga-filter {
+  box-shadow: 0 3px 0 rgba(0,0,0,.07), 0 5px 10px rgba(0,0,0,.07),
+    inset 0 1px 0 rgba(255,255,255,.16);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.ga-screen .ga-filter.active {
+  border-width: 1px;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--green) 20%, transparent),
+    0 7px 12px rgba(0,0,0,.09), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.ga-screen .ga-button {
+  box-shadow: 0 5px 0 rgba(0,0,0,.11), 0 9px 15px rgba(0,0,0,.10),
+    inset 0 1px 0 rgba(255,255,255,.22);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+.ga-screen .ga-button-primary {
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--green) 46%, #07513b),
+    0 10px 17px rgba(16,185,129,.2), inset 0 1px 0 rgba(255,255,255,.38);
+}
+.ga-screen .ga-card-actions button {
+  box-shadow: 0 3px 0 rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.16);
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.ga-screen .ga-helper { line-height: 1.6; }
+.ga-screen .ga-edit-panel { margin-top: 0; }
+
+@media (hover: hover) and (pointer: fine) {
+  .ga-screen .ga-summary-card:hover,
+  .ga-screen .ga-goal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 9px 0 rgba(0,0,0,.07), 0 20px 34px rgba(0,0,0,.16),
+      inset 0 1px 0 rgba(255,255,255,.2);
+  }
+  .ga-screen .ga-button:hover,
+  .ga-screen .ga-filter:hover,
+  .ga-screen .ga-card-actions button:hover { filter: brightness(1.04); transform: translateY(-1px); }
+}
+.ga-screen .ga-button:active,
+.ga-screen .ga-filter:active,
+.ga-screen .ga-card-actions button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+@media (max-width: 480px) {
+  .ga-screen > .ga-header {
+    width: calc(100% + 24px);
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+    min-height: 82px;
+    grid-template-columns: 40px minmax(0, 1fr) 38px;
+    gap: 7px;
+  }
+  .ga-screen > .ga-header .daysync-page-back-button { width: 40px !important; min-width: 40px !important; height: 40px !important; }
+  .ga-screen > .ga-header .ga-header-icon { width: 36px; height: 36px; }
+  .ga-screen .ga-summary-card { padding: 12px 9px; }
+  .ga-screen .ga-summary-card span { font-size: 9px; }
+  .ga-screen .ga-field-row { gap: 8px; }
+}
+
+@media (max-width: 360px) {
+  .ga-screen > .ga-header .ga-heading h1 { font-size: 17px; }
+  .ga-screen > .ga-header .ga-heading p:not(.ga-eyebrow) { font-size: 10px; }
+  .ga-screen .ga-summary-grid { gap: 6px; }
+  .ga-screen .ga-summary-card strong { font-size: 18px; }
+  .ga-screen .ga-progress-ring { flex-basis: 68px; width: 68px; height: 68px; }
+  .ga-screen .ga-log-form label { flex-basis: 68px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ga-screen .ga-summary-card,
+  .ga-screen .ga-goal-card,
+  .ga-screen .ga-field input,
+  .ga-screen .ga-field select,
+  .ga-screen .ga-field textarea,
+  .ga-screen .ga-log-form input,
+  .ga-screen .ga-filter,
+  .ga-screen .ga-button,
+  .ga-screen .ga-card-actions button { transition: none !important; }
+}
+
+/* Dedicated Create Goal entry card and page. */
+.ga-screen .ga-add-goal-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 17px;
+}
+.ga-screen .ga-add-goal-panel .ga-section-heading {
+  align-items: center;
+  margin: 0;
+}
+.ga-screen .ga-add-goal-panel .ga-section-heading p {
+  max-width: 38ch;
+}
+.ga-screen .ga-add-goal-button {
+  align-self: flex-end;
+  min-width: 148px;
+  min-height: 44px;
+  border-radius: 14px;
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--green) 58%, #183b31),
+    0 10px 18px rgba(0,0,0,.17),
+    inset 0 1px 0 rgba(255,255,255,.30);
+}
+.ga-screen .ga-add-goal-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--green) 58%, #183b31),
+    0 5px 10px rgba(0,0,0,.14),
+    inset 0 1px 0 rgba(255,255,255,.20);
+}
+.ga-create-screen .ga-create-panel {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+.ga-create-screen .ga-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .ga-screen .ga-add-goal-button {
+    width: 100%;
+    align-self: stretch;
+  }
+  .ga-create-screen .ga-panel {
+    padding: 15px;
+  }
+  .ga-create-screen .ga-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

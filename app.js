@@ -463,10 +463,15 @@ async function apiRequest(path, options = {}) {
       void offlineSync.cacheTransactions(token, Array.isArray(payload) ? payload : (payload.transactions || []))
         .catch((cacheError) => console.warn('Transaction cache update failed:', cacheError.message));
     } else if (isWrite && state.localDatabaseReady) {
-      try {
-        await offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload);
-        if (globalThis.navigator?.onLine) void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
-      } catch (cacheError) { console.warn('Local cache update failed:', cacheError.message); }
+      // The server has already committed the operation. Keep the UI responsive
+      // by updating the local mirror and retrying the outbox after returning it.
+      void offlineSync.cacheSuccessfulMutation(token, path, { ...options, method }, payload)
+        .then(() => {
+          if (globalThis.navigator?.onLine) {
+            void offlineSync.flush(token).catch((error) => console.warn('Offline sync retry failed:', error.message));
+          }
+        })
+        .catch((cacheError) => console.warn('Local cache update failed:', cacheError.message));
     }
   }
   return payload;
@@ -827,7 +832,7 @@ function renderSettingsPage() {
         <p class="daysync-settings-section-label" id="settings-personalization-heading">PERSONALIZATION</p>
         <div class="daysync-settings-list">
           <button class="daysync-setting-row" type="button" data-menu-action="toggle-theme">
-            <span class="daysync-setting-icon">${appearanceIcon}</span><span class="daysync-setting-copy"><strong>Appearance</strong><small>${appearanceLabel} · Tap to change</small></span><span class="daysync-setting-trail">›</span>
+            <span class="daysync-setting-icon">${appearanceIcon}</span><span class="daysync-setting-copy"><strong>Appearance</strong><small>${appearanceLabel} · Tap to change</small></span>
           </button>
           <button class="daysync-setting-row" type="button" data-menu-action="profile">
             <span class="daysync-setting-icon">♙</span><span class="daysync-setting-copy"><strong>Profile</strong><small>${escapeHtml(state.user?.name || 'Your personal information')}</small></span><span class="daysync-setting-trail">›</span>
@@ -908,7 +913,7 @@ function renderResetOptionsPage() {
   const summary = selectedCategories.map((key) => `<li>${escapeHtml(RESET_CATEGORY_META[key].title)} <strong>${getResetCategoryRecords(key).length}</strong></li>`).join('');
   return `
     <section class="screen daysync-reset-screen" aria-label="Reset options">
-      <header class="daysync-reset-header"><div><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which sections of saved information to remove.</p></div></header>
+      <header class="daysync-reset-header daysync-common-header"><button type="button" class="daysync-page-back-button" data-action="reset-back-settings" aria-label="Back to Settings" title="Back to Settings">‹</button><div class="daysync-reset-header-copy"><p class="daysync-eyebrow">APP &amp; DATA</p><h1>Reset Options</h1><p>Choose which sections of saved information to remove.</p></div></header>
       <div class="daysync-reset-warning"><span>⚠</span><div><strong>Permanent deletion</strong><p>Select only the sections you want to permanently delete. This action cannot be undone.</p></div></div>
       <div class="daysync-reset-category-list">
         ${Object.entries(RESET_CATEGORY_META).map(([key, meta]) => {
@@ -1200,45 +1205,46 @@ async function loadProgressData(renderWhenDone = true) {
 
 async function createResource(type, body) {
   const endpoints = {
-    event: '/api/events',
-    task: '/api/tasks',
-    mood: '/api/moods',
-    habit: '/api/habits',
-    goal: '/api/goals',
-    expense: '/api/expenses',
-    subscription: '/api/subscriptions',
-    asset: '/api/assets',
+    event: '/api/events', task: '/api/tasks', mood: '/api/moods', habit: '/api/habits',
+    goal: '/api/goals', expense: '/api/expenses', subscription: '/api/subscriptions', asset: '/api/assets',
   };
-
   const endpoint = endpoints[type];
-  if (!endpoint) return;
+  if (!endpoint) return null;
 
   let payload = body;
   if (type === 'expense' || type === 'subscription') {
     payload = {
-      ...body,
-      type: 'expense',
-      amount: Number(body.amount),
+      ...body, type: 'expense', amount: Number(body.amount),
       note: String(body.title || body.note || '').trim(),
       category: String(body.category || 'General').trim() || 'General',
-      date: body.date || state.selectedDate,
-      paymentMethod: body.paymentMethod || 'Cash',
+      date: body.date || state.selectedDate, paymentMethod: body.paymentMethod || 'Cash',
     };
   }
 
-  await apiRequest(endpoint, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const result = await apiRequest(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+  const resultKeys = { event: 'event', task: 'task', mood: 'mood', habit: 'habit', goal: 'goal', asset: 'data', expense: 'transaction', subscription: 'transaction' };
+  const key = resultKeys[type];
+  const record = (key && result?.[key]) || (result?.offline ? result?.[type === 'asset' ? 'asset' : (type === 'subscription' || type === 'expense' ? 'transaction' : type)] : null) || null;
 
-  await loadDashboardData();
-  if (
-    (type === 'event' || type === 'task') &&
-    payload.reminder &&
-    state.user?.preferences?.reminderSettings?.enabled !== false
-  ) {
-    await reconcileNativeNotifications();
+  if (type === 'expense' || type === 'subscription') {
+    if (record) {
+      if (!Array.isArray(state.financeData)) state.financeData = [];
+      state.financeData = [record, ...state.financeData.filter((row) => String(row.id || row._id) !== String(record.id || record._id))];
+    }
+  } else {
+    const collection = type === 'asset' ? 'assets' : ({ event: 'events', task: 'tasks', mood: 'moods', habit: 'habits', goal: 'goals' }[type]);
+    if (collection) {
+      if (!Array.isArray(state.data[collection])) state.data[collection] = [];
+      if (record) state.data[collection] = [record, ...state.data[collection].filter((row) => String(row.id || row._id) !== String(record.id || record._id))];
+    }
   }
+
+  if ((type === 'event' || type === 'task') && payload.reminder && state.user?.preferences?.reminderSettings?.enabled !== false) {
+    // Notification reconciliation is secondary work; don't hold a successful save open for it.
+    void reconcileNativeNotifications().catch((error) => console.warn('Reminder reconciliation deferred:', error.message));
+  }
+  if (!state.entryModalOpen) renderLayout();
+  return result;
 }
 
 async function addQuickTaskFromInput(input) {
@@ -2195,7 +2201,7 @@ function renderWeatherPage() {
         : '';
   return `
     <section class="screen weather-page" aria-label="Detailed weather">
-      <header class="weather-page-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">‹</button><div class="weather-page-heading"><p>DAYSYNC • LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''} aria-label="Refresh weather">↻</button></header>
+      <header class="weather-page-header daysync-common-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">‹</button><div class="weather-page-heading"><p>DAYSYNC • LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''} aria-label="Refresh weather">↻</button></header>
       ${statusContent}
       ${current && data ? `
         <section class="weather-hero-panel">
@@ -2261,7 +2267,7 @@ async function getBrowserCoordinates() {
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: permissions.location === 'granted',
         timeout: 15000,
-        maximumAge: 5 * 60 * 1000,
+        maximumAge: 0,
       });
       return {
         latitude: position.coords.latitude,
@@ -2289,7 +2295,7 @@ async function getBrowserCoordinates() {
         : error.code === 2
           ? 'Your location is unavailable. Turn on location services or search for a city below.'
           : 'Location lookup timed out. Try again or search for a city below.')),
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 },
     );
   });
 }
@@ -2308,34 +2314,20 @@ async function fetchLiveWeather(location, requestId) {
   if (!data.current || !data.daily || !data.hourly) throw new Error('The weather service returned incomplete data. Please refresh.');
   if (state.weather.requestId !== requestId) return;
   state.weather = { ...state.weather, status: 'success', data, locationLabel: location.label, error: '', updatedAt: new Date().toISOString() };
-  try {
-    localStorage.setItem('daysyncWeatherLocation', JSON.stringify({ latitude: Number(location.latitude), longitude: Number(location.longitude), label: String(location.label || 'Selected location') }));
-  } catch (_) {}
 }
 
 async function loadWeatherForCurrentLocation(city = '') {
   const requestId = Number(state.weather.requestId || 0) + 1;
-  state.weather = { ...state.weather, requestId, status: 'loading', error: '', data: null };
+  state.weather = { ...state.weather, requestId, status: 'loading', error: '', data: null, locationLabel: city ? '' : 'Your current location' };
   if (state.view === 'weather') renderLayout();
   try {
     let location;
     if (city) {
       location = await geocodeWeatherCity(city);
     } else {
-      try {
-        location = await getBrowserCoordinates();
-      } catch (locationError) {
-        let savedWeatherLocation = null;
-        try { savedWeatherLocation = JSON.parse(localStorage.getItem('daysyncWeatherLocation') || 'null'); } catch (_) {}
-        if (savedWeatherLocation && Number.isFinite(Number(savedWeatherLocation.latitude)) && Number.isFinite(Number(savedWeatherLocation.longitude)) && Math.abs(Number(savedWeatherLocation.latitude)) <= 90 && Math.abs(Number(savedWeatherLocation.longitude)) <= 180) {
-          location = { latitude: Number(savedWeatherLocation.latitude), longitude: Number(savedWeatherLocation.longitude), label: `${String(savedWeatherLocation.label || 'Selected location')} · last selected` };
-        } else {
-          const savedLocation = state.user?.location || state.user?.preferences?.location || state.user?.city || '';
-          if (!String(savedLocation).trim()) throw new Error(`${locationError.message} Allow location access in your browser, or search for a city below.`);
-          location = await geocodeWeatherCity(String(savedLocation));
-          location.label = `${location.label} · saved profile location`;
-        }
-      }
+      // A refresh without a city search must always use a fresh device fix.
+      // Never silently substitute a previously selected or profile city.
+      location = await getBrowserCoordinates();
     }
     await fetchLiveWeather(location, requestId);
   } catch (error) {
@@ -2507,11 +2499,15 @@ async function focusScheduleNotification(seconds) {
       channelId: 'daysync-focus-alarm',
       actionTypeId: 'daysync-focus-alarm',
       autoCancel: false,
+      ongoing: true,
+      foreground: true,
+      isExactNotification: true,
+      isExactMandatory: true,
       extra: { type: 'focus-alarm', sessionId: String(state.focusSessionId || '') },
     }] });
   } catch (error) {
     console.warn('Could not schedule background Focus Timer alert:', error.message);
-    showToast('The on-screen timer works, but Android could not schedule its background alert. Check notification/alarm permissions in Settings.');
+    showToast('Android could not schedule the exact Focus alarm. Allow DaySync notifications and Alarms & reminders in Settings, then start the timer again.');
   }
 }
 function focusUpdateClock() {
@@ -4630,11 +4626,15 @@ document.addEventListener('input', (e) => {
       
       // Replaces window.confirm with our custom Native App Modal
       showAppConfirm('Are you sure you want to delete this task?', async () => {
+        const previous = (state.data.tasks || []).slice();
+        state.data.tasks = previous.filter((task) => String(task.id || task._id) !== String(taskId));
+        renderLayout();
         try {
           await apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' });
-          await loadDashboardData();
           showToast('Task deleted successfully');
         } catch (error) {
+          state.data.tasks = previous;
+          renderLayout();
           showToast(error.message || 'Unable to delete task');
         }
       });
@@ -4647,6 +4647,10 @@ document.addEventListener('input', (e) => {
       const task = state.data.tasks.find((item) => String(item.id || item._id) === String(taskId));
       if (!task) return;
       const nextCompleted = !(task.completed || task.status === 'Completed');
+      const previousTask = { ...task };
+      task.completed = nextCompleted;
+      task.status = nextCompleted ? 'Completed' : 'Pending';
+      renderLayout();
       try {
         await apiRequest(`/api/tasks/${taskId}`, {
           method: 'PUT',
@@ -4662,8 +4666,9 @@ document.addEventListener('input', (e) => {
             category: task.category || 'General',
           }),
         });
-        await loadDashboardData();
       } catch (error) {
+        Object.assign(task, previousTask);
+        renderLayout();
         window.alert(error.message || 'Unable to update task');
       }
     });
@@ -4686,6 +4691,16 @@ document.addEventListener('input', (e) => {
 
   document.querySelectorAll('[data-action="save-entry"]').forEach((button) => {
   button.addEventListener('click', async () => {
+    if (button.dataset.submitting === 'true') return;
+    button.dataset.originalLabel = button.dataset.originalLabel || button.textContent;
+    button.dataset.submitting = 'true';
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    const releaseSaveButton = () => {
+      button.dataset.submitting = 'false';
+      button.disabled = false;
+      button.textContent = button.dataset.originalLabel || 'Save';
+    };
 
     // Collect all form values before saving
     document.querySelectorAll('[data-entry-field]').forEach((field) => {
@@ -4703,8 +4718,7 @@ document.addEventListener('input', (e) => {
     const date = draft.date || state.selectedDate;
     if (type === 'task' && isJunkTask({ title: draft.title || draft.name || '' })) {
       showToast('That test task name has been removed. Please enter a meaningful task title.');
-      button.dataset.submitting = 'false';
-      button.textContent = 'Add Task';
+      releaseSaveButton();
       return;
     }
 
@@ -4713,6 +4727,7 @@ document.addEventListener('input', (e) => {
       window.alert(
         'Tasks and events can only be added for today or future dates.'
       );
+      releaseSaveButton();
       return;
     }
 
@@ -4725,6 +4740,7 @@ document.addEventListener('input', (e) => {
         const title = (draft.title || '').trim();
         if (!title) {
           window.alert('Please enter an event title.');
+          releaseSaveButton();
           return;
         }
         await createResource('event', {
@@ -4744,6 +4760,7 @@ document.addEventListener('input', (e) => {
         const title = (draft.title || '').trim();
         if (!title) {
           window.alert('Please enter a task title.');
+          releaseSaveButton();
           return;
         }
         const taskPayload = {
@@ -4759,12 +4776,13 @@ document.addEventListener('input', (e) => {
         };
 
         if (draft.id) {
-          await apiRequest(`/api/tasks/${draft.id}`, {
+          const updated = await apiRequest(`/api/tasks/${draft.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(taskPayload),
           });
-          await loadDashboardData();
+          const existingTask = (state.data.tasks || []).find((item) => String(item.id || item._id) === String(draft.id));
+          if (existingTask) Object.assign(existingTask, updated?.task || taskPayload);
         } else {
           await createResource('task', taskPayload);
         }
@@ -4776,6 +4794,7 @@ document.addEventListener('input', (e) => {
         const name = (draft.title || '').trim();
         if (!name) {
           window.alert('Please enter a habit name.');
+          releaseSaveButton();
           return;
         }
         await createResource('habit', {
@@ -4793,6 +4812,7 @@ document.addEventListener('input', (e) => {
         const title = (draft.title || '').trim();
         if (!title) {
           window.alert('Please enter a goal title.');
+          releaseSaveButton();
           return;
         }
         const current = Number(draft.current || 0);
@@ -4828,6 +4848,7 @@ document.addEventListener('input', (e) => {
 
         if (!title || !description) {
           window.alert('Please enter a title and description.');
+          releaseSaveButton();
           return;
         }
 
@@ -4835,16 +4856,11 @@ document.addEventListener('input', (e) => {
 
         if (draft.id) {
           // 🔴 ADDED HEADERS HERE SO THE BACKEND CAN READ THE JSON 🔴
-          await apiRequest(`/api/assets/${draft.id}`, {
-  method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(payload)
-});
-          // Refresh the data so the UI updates instantly
-          await loadDashboardData(); 
-          renderLayout();
+          const updated = await apiRequest(`/api/assets/${draft.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+          const existingNote = (state.data.assets || []).find((item) => String(item.id || item._id) === String(draft.id));
+          if (existingNote) Object.assign(existingNote, updated?.data || payload);
         } else {
           // Creates a brand new note
           await createResource('asset', payload);
@@ -4859,10 +4875,12 @@ document.addEventListener('input', (e) => {
 
         if (!title) {
           window.alert('Please enter a title.');
+          releaseSaveButton();
           return;
         }
         if (!Number.isFinite(amount) || amount <= 0) {
           window.alert('Please enter a valid amount.');
+          releaseSaveButton();
           return;
         }
         await createResource(type, {
@@ -4886,6 +4904,7 @@ document.addEventListener('input', (e) => {
 
     } catch (error) {
       console.error('Save entry failed:', error);
+      releaseSaveButton();
       if (typeof showToast === 'function') {
         showToast(error.message || 'Unable to save item');
       } else {
@@ -5193,15 +5212,18 @@ document.addEventListener('click', (e) => {
     const noteId = delBtn.dataset.noteId;
     
     showCustomNotepadConfirm('Are you sure you want to delete this note?', async () => {
+      const previousAssets = (state.data.assets || []).slice();
+      const previousNotes = (state.data.notes || []).slice();
+      state.data.assets = previousAssets.filter((note) => String(note.id || note._id) !== String(noteId));
+      state.data.notes = previousNotes.filter((note) => String(note.id || note._id) !== String(noteId));
+      renderLayout();
       try {
-        // 🔴 UPDATED URL HERE 🔴
-       await apiRequest(`/api/assets/${noteId}`, {
-  method: 'DELETE'
-});
-    
-        await loadDashboardData(); 
+        await apiRequest(`/api/assets/${noteId}`, { method: 'DELETE' });
         if (typeof showToast === 'function') showToast('Note deleted');
       } catch (error) {
+        state.data.assets = previousAssets;
+        state.data.notes = previousNotes;
+        renderLayout();
         if (typeof showToast === 'function') showToast(error.message || 'Failed to delete note');
       }
     });
@@ -6314,24 +6336,14 @@ if (action === 'delete-finance-transaction') {
       }
 
       try {
-        await apiRequest('/api/transactions', {
+        const saved = await apiRequest('/api/transactions', {
           method: 'POST',
-          body: JSON.stringify({
-            amount: Number(amount),
-            category: category || 'Other',
-            date: date || new Date().toISOString(),
-            note: note || '',
-            type,
-            paymentMethod // 👈 2. ADD THIS LINE to send it to the database
-          })
+          body: JSON.stringify({ amount: Number(amount), category: category || 'Other', date: date || new Date().toISOString(), note: note || '', type, paymentMethod })
         });
-
+        if (saved?.transaction) state.financeData = [saved.transaction, ...(state.financeData || []).filter((row) => String(row.id || row._id) !== String(saved.transaction.id || saved.transaction._id))];
         state.financeView = 'dashboard';
         state.tempFinanceType = null;
-
-        await fetchFinanceData();
-
-
+        renderLayout();
         showToast('Transaction saved successfully');
 
       } catch (error) {

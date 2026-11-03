@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daysync-shell-settings-recovery-20261101-v6';
+const CACHE_NAME = 'daysync-v20261103-settings-mobile-alarm-performance';
 
 
 const APP_SHELL = [
