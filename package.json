@@ -11,7 +11,9 @@
     "mobile:stage": "node scripts/stage-mobile.js",
     "mobile:sync": "npm run mobile:stage && cap sync",
     "android:sync": "npm run mobile:stage && cap sync android",
-    "ios:sync": "npm run mobile:stage && cap sync ios"
+    "ios:sync": "npm run mobile:stage && cap sync ios",
+    "ios:prepare": "node scripts/prepare-ios.js",
+    "ios:open": "npx cap open ios"
   },
   "keywords": [
     "calendar",

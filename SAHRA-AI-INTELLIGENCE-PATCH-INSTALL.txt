@@ -1,0 +1,89 @@
+SAHRA AI INTELLIGENCE PATCH
+============================
+
+PURPOSE
+-------
+Extend the existing Sahra assistant without replacing the DaySync app,
+database, authentication, offline storage/sync, navigation, or existing UI.
+
+PATCH FILES
+-----------
+app.js
+    Sends the already-loaded DaySync live weather snapshot with the chat
+    request. It sends only the current weather fields and timestamp.
+
+backend/routes/dashboard.js
+    The actual assistant route used by server.js. Adds account-scoped
+    answers for goals, today's combined progress, habits, focus sessions,
+    mood, reminders, daily finance, local date/time, app feature help and
+    fresh weather data. Expands the AI provider's read-only context to
+    include bounded summaries of the user's own DaySync records.
+
+INSTALL LOCATION
+----------------
+Extract this ZIP directly into:
+P:\MyProjects\calender_todolist
+
+Allow these two files to be overwritten:
+  app.js
+  backend\routes\dashboard.js
+
+Do not extract into a nested folder. Do not delete any other project files.
+
+BUILD AND RUN (Windows PowerShell)
+---------------------------------
+cd P:\MyProjects\calender_todolist
+npm ci
+node --check .\app.js
+node --check .\backend\routes\dashboard.js
+node .\scripts\build-web.js
+npm start
+
+The build command is important because index.html loads the generated
+web-app.js bundle. It regenerates web-app.js from the updated app.js.
+
+OPTIONAL TESTS
+--------------
+npm run test:smoke
+npm run test:smoke:assistant
+
+These tests require the project's configured test database/environment.
+They were not run as part of this patch.
+
+WHAT SAHRA CAN NOW ANSWER
+------------------------
+- Recorded net balance and monthly finance totals (existing logic).
+- Today's income, expenses and net recorded transactions.
+- Goal count, completed/active goals and recorded progress.
+- Today's task completion, habit check-ins, focus minutes, events and
+  latest mood as a combined daily summary.
+- Today's habit status and individual habit names.
+- Today's focus session count and recorded minutes.
+- Today's mood, today's reminders and local date/time.
+- DaySync feature explanations and navigation guidance.
+- Current weather from a recent weather reading already loaded by the
+  DaySync Weather page. Weather readings older than two hours are rejected.
+
+SAFETY AND LIMITATIONS
+---------------------
+- Personal database queries use the authenticated account ID on the
+  server. A user cannot select another account by asking Sahra.
+- Finance answers describe recorded DaySync transactions, not a live
+  bank account balance.
+- Weather is not guessed. Open Weather and refresh it before asking if
+  Sahra says the reading is unavailable or stale.
+- The AI provider receives a bounded, read-only summary of the signed-in
+  user's own data. The AI provider does not directly write to the database.
+- Existing supported assistant write actions and confirmation rules are
+  preserved. This patch does not silently add destructive operations or
+  claim unsupported actions have been completed.
+- A configured AI_API_KEY or GEMINI_API_KEY is still required for broad
+  open-ended AI conversation. Deterministic personal-data answers above
+  work without an AI provider key.
+- No database schema or existing records are migrated or deleted.
+
+ROLLBACK
+--------
+Before extracting, keep a copy of your current app.js and
+backend\routes\dashboard.js. To roll back, restore those two originals
+and run node .\scripts\build-web.js again.

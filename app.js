@@ -1547,6 +1547,16 @@ function setView(nextView) {
 }
 
 function goBackFromView() {
+  if (state.view === 'reset-options') {
+    state.resetConfirmOpen = false;
+    const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
+    // Reset Options is opened from Settings via setView(), which pushes Settings.
+    // Consume that entry while returning so Back from Settings goes to its real parent.
+    if (history[history.length - 1] === 'settings') history.pop();
+    state.view = 'settings';
+    renderLayout();
+    return;
+  }
   if (state.view === 'goal-create') {
     const history = state.navigationHistory || [];
     if (history[history.length - 1] === 'goal-achievements') history.pop();
@@ -5912,10 +5922,21 @@ function bindGlobalListeners() {
       if (action === 'ga-delete') {
         const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
         if (!goal) return;
-        if (!window.confirm(`Delete the goal “${goal.title}” and its progress history?`)) return;
-        saveGoalAchievements((state.goalAchievementItems || []).filter(g => g.id !== goal.id));
-        if (window.Capacitor?.isNativePlatform?.()) void LocalNotifications.cancel({ notifications:[{id:goalReminderId(goal.id)}] }).catch(()=>{});
-        state.goalAchievementEditingId = null; showToast('Goal deleted'); renderLayout(); return;
+        showAppConfirm(
+          `Delete the goal “${goal.title}” and its progress history?`,
+          async () => {
+            // Keep the existing persistence/sync path; only remove the goal after explicit confirmation.
+            saveGoalAchievements((state.goalAchievementItems || []).filter((item) => String(item.id) !== String(goal.id)));
+            if (window.Capacitor?.isNativePlatform?.() && LocalNotifications?.cancel) {
+              void LocalNotifications.cancel({ notifications: [{ id: goalReminderId(goal.id) }] }).catch(() => {});
+            }
+            state.goalAchievementEditingId = null;
+            showToast('Goal deleted');
+            renderLayout();
+          },
+          'Delete'
+        );
+        return;
       }
     }
     const sharedBack = event.target.closest('[data-action="shared-page-back"]');
@@ -5928,7 +5949,15 @@ function bindGlobalListeners() {
       return;
     }
     const resetBack = event.target.closest('[data-action="reset-back-settings"]');
-    if (resetBack) { state.resetConfirmOpen = false; state.view = 'settings'; renderLayout(); return; }
+    if (resetBack) {
+      state.resetConfirmOpen = false;
+      const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
+      // Remove the Settings entry that setView('reset-options') added.
+      if (history[history.length - 1] === 'settings') history.pop();
+      state.view = 'settings';
+      renderLayout();
+      return;
+    }
     const toggleResetCategory = event.target.closest('[data-action="reset-toggle-category"]');
     if (toggleResetCategory) {
       const category = toggleResetCategory.dataset.category;

@@ -12126,3 +12126,39 @@ html[data-theme="light"] .assistant-system-note {
 :root[data-sahra-native="true"] .notepad-notes {
   contain: layout style;
 }
+
+
+/* DaySync: compact rounded 3D headers for Weather and Reset Options */
+#app .weather-page-header.daysync-common-header,
+#app .daysync-reset-header.daysync-common-header {
+  min-height: 70px !important;
+  height: auto !important;
+  padding: 10px 12px !important;
+  margin: 6px auto 14px !important;
+  border: 1px solid rgba(135, 190, 255, .28) !important;
+  border-top-color: rgba(255, 255, 255, .34) !important;
+  border-radius: 20px !important;
+  background: linear-gradient(145deg, rgba(34, 57, 96, .97), rgba(13, 27, 54, .98)) !important;
+  box-shadow: 0 9px 20px rgba(0, 0, 0, .24),
+              inset 0 1px 1px rgba(255, 255, 255, .15),
+              inset 0 -2px 0 rgba(0, 0, 0, .2) !important;
+}
+#app .weather-page-header .weather-page-heading h1,
+#app .weather-page-header .weather-page-heading span,
+#app .daysync-reset-header h1,
+#app .daysync-reset-header p:last-child { color: #f2f7ff !important; }
+#app .weather-page-header .weather-page-heading p,
+#app .daysync-reset-header .daysync-eyebrow { color: #82e8ff !important; }
+body.theme-light #app .weather-page-header.daysync-common-header,
+body.theme-light #app .daysync-reset-header.daysync-common-header {
+  background: linear-gradient(145deg, #315b91, #19375f) !important;
+  border-color: rgba(49, 91, 145, .3) !important;
+}
+@media (max-width: 430px) {
+  #app .weather-page-header.daysync-common-header,
+  #app .daysync-reset-header.daysync-common-header {
+    width: calc(100% - 20px) !important;
+    max-width: 402px !important;
+    min-height: 66px !important;
+  }
+}
