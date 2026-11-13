@@ -12162,3 +12162,290 @@ body.theme-light #app .daysync-reset-header.daysync-common-header {
     min-height: 66px !important;
   }
 }
+
+/* =====================================================
+   CALENDAR PAGE POLISH — shared header, selected date,
+   mood prompt, and structured day agenda
+===================================================== */
+.calendar-page-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; padding:4px 2px 8px; }
+.calendar-page-heading { display:flex; align-items:center; gap:12px; min-width:0; }
+.calendar-page-title-wrap { min-width:0; }
+.calendar-page-title-wrap h2 { margin:0; }
+.calendar-page-title-wrap p { margin:3px 0 0; color:var(--muted); font-size:.76rem; }
+.calendar-page-header .daysync-page-back-button { flex:0 0 42px; width:42px; height:42px; min-width:42px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:1.45rem; }
+.calendar-today-button { flex:0 0 auto; }
+.calendar-screen > .glass-card.layout-card { margin-bottom:14px; }
+.calendar-screen .calendar-day { position:relative; min-height:46px; font-weight:600; transition:background .14s ease,border-color .14s ease,box-shadow .14s ease,color .14s ease; -webkit-tap-highlight-color:transparent; }
+.calendar-screen .calendar-day.selected,.calendar-screen .calendar-day.selected:focus,.calendar-screen .calendar-day.selected:hover { color:#fff !important; background:linear-gradient(145deg,#477fe8 0%,#2862c9 100%) !important; border:1px solid #8bb6ff !important; box-shadow:0 0 0 2px rgba(75,132,239,.20),0 5px 12px rgba(29,75,155,.22) !important; opacity:1; }
+.calendar-screen .calendar-day.selected > span:first-child { color:#fff !important; font-weight:800; }
+.calendar-screen .calendar-day.selected .mini-indicator { box-shadow:0 0 0 1px rgba(255,255,255,.45); }
+.calendar-selected-day-header { align-items:center; gap:12px; }
+.calendar-selected-date-copy { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.calendar-selected-date-copy h3 { line-height:1.35; }
+.calendar-mood-caption { color:var(--muted); font-size:.76rem; font-weight:600; }
+.calendar-selected-day-header .mood-selector-wrap { flex:0 0 auto; }
+.calendar-selected-day-header .mood-selector-toggle { width:auto; min-width:54px; min-height:44px; height:auto; padding:6px 10px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:14px; font-size:1.25rem; }
+.calendar-selected-day-header .mood-selector-toggle span { font-size:.7rem; font-weight:700; white-space:nowrap; }
+.calendar-selected-day-header .mood-selector-toggle.needs-mood { background:rgba(59,130,246,.12); border:1px dashed rgba(107,159,245,.65); }
+.calendar-list-section { margin-top:16px; padding:13px 0 0; border-top:1px solid var(--card-border,rgba(255,255,255,.09)); }
+.calendar-list-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.calendar-list-heading h4 { margin:0; display:flex; align-items:center; gap:7px; color:var(--muted); font-size:.82rem; letter-spacing:.045em; text-transform:uppercase; }
+.calendar-list-count { min-width:25px; height:25px; padding:0 7px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; background:rgba(99,143,231,.14); color:var(--text); font-size:.75rem; font-weight:800; }
+.calendar-entry-row { min-height:58px; display:grid; grid-template-columns:minmax(66px,auto) minmax(0,1fr) 30px; align-items:center; gap:10px; padding:9px 8px; margin:7px 0; border:1px solid rgba(135,164,218,.16); border-radius:12px; background:rgba(110,143,205,.055); }
+.calendar-entry-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.calendar-entry-copy .calendar-entry-title { display:block; text-align:left; white-space:normal; overflow-wrap:anywhere; line-height:1.3; }
+.calendar-entry-copy small { color:var(--muted); font-size:.7rem; line-height:1.3; overflow-wrap:anywhere; }
+.calendar-entry-time { min-width:0; font-size:.72rem; font-weight:700; }
+.task-status-label { white-space:normal; line-height:1.25; }
+.task-status-label.is-complete { color:#22a06b; }
+.task-status-label.is-pending { color:#d49a35; }
+.calendar-entry-row .calendar-delete-btn { opacity:.72; transform:none; }
+.calendar-empty-state { display:flex; align-items:center; gap:11px; padding:12px 10px; border-radius:12px; background:rgba(110,143,205,.055); }
+.calendar-empty-icon { width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center; border-radius:10px; background:rgba(99,143,231,.12); }
+.calendar-empty-state strong { display:block; color:var(--text); font-size:.82rem; }
+.calendar-empty-state p { margin:3px 0 0; color:var(--muted); font-size:.72rem; }
+.calendar-screen .mood-selector-panel { display:flex; flex-wrap:wrap; max-width:min(260px,calc(100vw - 70px)); }
+body.theme-light .calendar-screen .calendar-day.selected,body[data-theme="light"] .calendar-screen .calendar-day.selected { color:#fff !important; background:linear-gradient(145deg,#3978e8 0%,#245bc1 100%) !important; border-color:#245bc1 !important; box-shadow:0 0 0 2px rgba(48,105,208,.16),0 5px 12px rgba(39,83,163,.18) !important; }
+body.theme-light .calendar-entry-row,body[data-theme="light"] .calendar-entry-row { background:rgba(63,105,180,.045); border-color:rgba(74,108,168,.16); }
+body.theme-light .calendar-empty-state,body[data-theme="light"] .calendar-empty-state { background:rgba(63,105,180,.055); }
+body.theme-light .calendar-selected-day-header .mood-selector-toggle.needs-mood,body[data-theme="light"] .calendar-selected-day-header .mood-selector-toggle.needs-mood { color:#245bc1; background:rgba(48,105,208,.08); border-color:rgba(48,105,208,.45); }
+@media (max-width:480px) { .calendar-page-header { margin-bottom:10px; } .calendar-page-title-wrap p { display:none; } .calendar-screen .calendar-day { min-height:42px; } .calendar-entry-row { grid-template-columns:minmax(58px,auto) minmax(0,1fr) 28px; gap:7px; padding:8px 6px; } .calendar-selected-day-header .mood-selector-toggle span { font-size:.65rem; } }
+
+
+/* Calendar page uses the same branded DaySync header as Home. */
+#app .calendar-screen > .calendar-home-hero {
+  position: sticky !important;
+  top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+  z-index: 75;
+  width: min(calc(100% - 24px), 402px) !important;
+  min-height: 72px !important;
+  height: 72px !important;
+  margin: 0 auto 16px !important;
+  padding: 10px 13px !important;
+  border-radius: 21px !important;
+  overflow: visible !important;
+  background: linear-gradient(135deg, #35296e 0%, #1b376b 54%, #126277 100%) !important;
+  box-shadow: 0 5px 0 rgba(4,12,29,.62), 0 12px 23px rgba(26,55,116,.24), inset 0 1px 0 rgba(255,255,255,.20) !important;
+}
+.calendar-screen .calendar-home-hero::before { pointer-events:none; }
+.calendar-screen .calendar-home-hero .hero-top { min-height:48px; margin:0; gap:8px; }
+.calendar-screen .calendar-home-hero .brand { gap:9px; min-width:0; }
+.calendar-screen .calendar-home-hero .brand-mark { width:46px; height:46px; flex:0 0 46px; }
+.calendar-screen .calendar-home-hero .brand-text h1 { margin:0; color:#fff !important; font-size:1.45rem; line-height:1; letter-spacing:-.035em; }
+.calendar-screen .calendar-home-hero .brand-text p { margin:3px 0 0; color:rgba(255,255,255,.82) !important; font-size:.59rem; letter-spacing:.13em; }
+.calendar-header-actions { display:flex; align-items:center; gap:7px; flex:0 0 auto; }
+.calendar-screen .calendar-brand-back { width:34px !important; min-width:34px !important; height:34px !important; min-height:34px !important; flex-basis:34px !important; border-radius:11px !important; font-size:22px !important; }
+.calendar-screen .calendar-today-button { min-height:34px; padding:7px 10px; border:1px solid rgba(255,255,255,.24); border-radius:10px; color:#fff; background:rgba(255,255,255,.13); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); font-size:.75rem; font-weight:750; }
+
+/* Home mini-calendar: make the selected date unmistakable in either theme. */
+#app .home-screen .calendar-day.selected,
+#app .home-screen .calendar-day.selected:hover,
+#app .home-screen .calendar-day.selected:focus {
+  color:#fff !important;
+  background:linear-gradient(145deg,#477fe8 0%,#245bc1 100%) !important;
+  border:1px solid #8bb6ff !important;
+  border-top-color:#c5dcff !important;
+  box-shadow:0 0 0 2px rgba(75,132,239,.22),0 4px 0 rgba(25,61,126,.45),0 7px 13px rgba(29,75,155,.24),inset 0 1px 0 rgba(255,255,255,.22) !important;
+  opacity:1 !important;
+}
+#app .home-screen .calendar-day.selected > span:first-child { color:#fff !important; font-weight:900 !important; }
+#app .home-screen .calendar-day.selected .mini-indicator { background:#fff !important; box-shadow:0 0 0 1px rgba(255,255,255,.45); }
+body.theme-light #app .home-screen .calendar-day.selected,
+body[data-theme="light"] #app .home-screen .calendar-day.selected {
+  color:#fff !important;
+  background:linear-gradient(145deg,#3978e8 0%,#245bc1 100%) !important;
+  border-color:#245bc1 !important;
+  box-shadow:0 0 0 2px rgba(48,105,208,.18),0 4px 0 rgba(31,76,151,.22),0 7px 13px rgba(39,83,163,.2),inset 0 1px 0 rgba(255,255,255,.22) !important;
+}
+@media (max-width:360px) {
+  .calendar-screen .calendar-home-hero { padding:9px 10px !important; }
+  .calendar-screen .calendar-home-hero .brand-mark { width:40px; height:40px; flex-basis:40px; }
+  .calendar-screen .calendar-home-hero .brand-text h1 { font-size:1.25rem; }
+  .calendar-header-actions { gap:5px; }
+  .calendar-screen .calendar-brand-back { width:31px !important; min-width:31px !important; height:31px !important; min-height:31px !important; flex-basis:31px !important; }
+  .calendar-screen .calendar-today-button { padding:6px 8px; }
+}
+
+
+/* =========================================================
+   CALENDAR NAVIGATION — FIXED AT TOP, COMPACT BLUE BAR
+   ========================================================= */
+#app .calendar-screen > .calendar-simple-header {
+  position: sticky !important;
+  top: max(5px, env(safe-area-inset-top, 0px)) !important;
+  z-index: 120 !important;
+  flex: 0 0 auto;
+  width: calc(100% - 24px);
+  min-height: 50px;
+  margin: 5px auto 12px;
+  padding: 6px 10px;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(151, 190, 255, .38);
+  border-radius: 16px;
+  background: linear-gradient(110deg, #315fba 0%, #2368bd 56%, #147da6 100%);
+  box-shadow: 0 4px 0 rgba(2, 9, 24, .65), 0 8px 18px rgba(18, 61, 130, .24),
+              inset 0 1px 0 rgba(255,255,255,.22);
+  isolation: isolate;
+}
+#app .calendar-screen > .calendar-simple-header .calendar-simple-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 11px;
+  color: #fff;
+  background: #102b54;
+  box-shadow: 0 3px 8px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.16);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+#app .calendar-screen > .calendar-simple-header .calendar-today-button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(8, 39, 82, .38);
+  font-size: .78rem;
+  font-weight: 750;
+}
+#app .calendar-screen > .calendar-simple-header button:active {
+  transform: scale(.97);
+}
+
+/* Hide a legacy standalone calendar back control if an older shell injects it.
+   The Back control inside .calendar-simple-header remains visible. */
+#app .calendar-screen > .daysync-page-back-button:not(.calendar-simple-back),
+#app .calendar-screen > .calendar-brand-back {
+  display: none !important;
+}
+
+/* Mood picker: consistent 2-column grid like the compact reference popup. */
+#app .calendar-screen .mood-selector-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+#app .calendar-screen .mood-selector-panel {
+  display: grid !important;
+  grid-template-columns: repeat(2, 34px);
+  grid-auto-rows: 34px;
+  gap: 7px;
+  width: max-content;
+  max-width: min(150px, calc(100vw - 40px));
+  padding: 9px;
+  right: 0;
+  top: calc(100% + 8px);
+  border-radius: 15px;
+  background: linear-gradient(180deg, #203866 0%, #172c52 50%, #0f2141 100%) !important;
+  border: 1px solid rgba(155,184,255,.25) !important;
+  box-shadow: 0 4px 0 rgba(3,10,24,.8), 0 14px 24px rgba(0,0,0,.38),
+              inset 0 1px 0 rgba(255,255,255,.1) !important;
+  z-index: 150;
+}
+#app .calendar-screen .mood-picker-emoji {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.055);
+  color: #fff;
+  font-size: 1.12rem;
+  line-height: 1;
+}
+#app .calendar-screen .mood-picker-emoji.selected {
+  background: rgba(72,132,239,.32);
+  border-color: rgba(143,185,255,.7);
+  box-shadow: 0 0 0 2px rgba(82,143,255,.12);
+}
+body.theme-light #app .calendar-screen .mood-selector-panel,
+body[data-theme="light"] #app .calendar-screen .mood-selector-panel,
+html[data-theme="light"] #app .calendar-screen .mood-selector-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #edf3ff 100%) !important;
+  border-color: rgba(93,125,190,.28) !important;
+  box-shadow: 0 4px 0 rgba(153,169,204,.32), 0 14px 24px rgba(70,92,145,.2) !important;
+}
+body.theme-light #app .calendar-screen .mood-picker-emoji,
+body[data-theme="light"] #app .calendar-screen .mood-picker-emoji,
+html[data-theme="light"] #app .calendar-screen .mood-picker-emoji {
+  color: #172642;
+  background: rgba(54,96,173,.07);
+}
+
+/* Mood button: show emoji and its readable name side by side. */
+#app .calendar-selected-day-header .mood-selector-toggle {
+  width: auto;
+  min-width: 94px;
+  height: 38px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 12px;
+}
+#app .calendar-selected-day-header .calendar-mood-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+#app .calendar-selected-day-header .calendar-mood-name {
+  font-size: .72rem;
+  line-height: 1.1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Keep the same event/task/mood dot colors on the Home mini-calendar and full Calendar. */
+#app .calendar-day .calendar-indicators,
+#app .calendar-day .day-indicators,
+#app .home-calendar .calendar-indicators,
+#app .home-calendar .day-indicators {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 8px;
+}
+#app .calendar-day .mini-indicator.event,
+#app .calendar-day .day-indicator.event,
+#app .home-calendar .mini-indicator.event,
+#app .home-calendar .day-indicator.event {
+  background: #7bddff !important;
+  box-shadow: 0 0 8px rgba(123,221,255,.8) !important;
+}
+#app .calendar-day .mini-indicator.task,
+#app .calendar-day .day-indicator.task,
+#app .home-calendar .mini-indicator.task,
+#app .home-calendar .day-indicator.task {
+  background: #a58cff !important;
+  box-shadow: 0 0 8px rgba(165,140,255,.8) !important;
+}
+#app .calendar-day .mini-indicator.mood,
+#app .calendar-day .day-indicator.mood,
+#app .home-calendar .mini-indicator.mood,
+#app .home-calendar .day-indicator.mood {
+  background: #f9d76f !important;
+  box-shadow: 0 0 8px rgba(249,215,111,.8) !important;
+}
+@media (max-width: 360px) {
+  #app .calendar-screen > .calendar-simple-header {
+    width: calc(100% - 20px);
+    min-height: 46px;
+    margin-top: 4px;
+    padding: 5px 8px;
+  }
+  #app .calendar-screen > .calendar-simple-header .calendar-simple-back {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+}

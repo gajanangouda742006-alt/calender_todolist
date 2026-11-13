@@ -1,26 +1,9 @@
-SAHRA HOME — TODAY'S PROGRAMS + LIVE WEATHER PATCH
+DaySync Calendar header fix
 
-Files:
-- app.js
-- style.css
+Replace frontend/app.js with the included file.
 
-Installation:
-1. Back up your current project app.js and style.css.
-2. Copy these files into P:\MyProjects\calender_todolist, replacing the matching files.
-3. Run:
-   node --check app.js
-   node scripts/build-web.js
-4. Refresh the existing server/browser.
+This change prevents applySharedPageBackButton() from injecting the extra generic button with data-action=shared-page-back on the Calendar page. It keeps the existing calendar-simple-back button and adds sticky positioning for calendar-simple-header so it remains visible while the calendar content scrolls.
 
-Included:
-- Today's Programs section below Today's Progress.
-- All tasks and events whose date matches the device's local date.
-- Task completion checkboxes use the existing PUT /api/tasks/:id endpoint.
-- Today's income/expenses and net plus overall recorded transaction net balance, using existing /api/transactions data.
-- Expandable live weather via Open-Meteo and browser/device geolocation. No fake temperature is shown.
-- Location/network errors are shown in the UI.
+Then rebuild the web bundle from your project root using your existing build command (for example: node scripts/build-web.js), restart the app, and hard refresh Chrome (Ctrl+Shift+R).
 
-Notes:
-- Total balance means all recorded income minus all recorded expenses; if you need opening balance or account-specific bank balance, that must be stored separately.
-- Weather location requires device/browser location permission and internet access.
-- Please test with your existing API/database before deployment.
+Only frontend/app.js is included. No calendar content, saved data, or other pages are changed.

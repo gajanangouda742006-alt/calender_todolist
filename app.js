@@ -1424,13 +1424,25 @@ state.calendarCache.add(dateString);
   }
 }
 
-async function setSelectedDate(dateString) {
+function setSelectedDate(dateString) {
+  if (!dateString || dateString === state.selectedDate) return;
+
+  // Paint the selected date immediately; never block calendar interaction on the API.
   state.selectedDate = dateString;
-  const [year, month, day] = dateString.split('-').map(Number);
+  const [year, month] = dateString.split('-').map(Number);
   state.currentYear = year;
   state.currentMonth = month - 1;
-  await loadSelectedDateData(dateString);
   renderLayout();
+
+  // Load the selected day's records in the background. Only refresh the view
+  // if the user is still looking at this same date when the request completes.
+  loadSelectedDateData(dateString).then(() => {
+    if (state.selectedDate === dateString && state.view === 'calendar') {
+      renderLayout();
+    }
+  }).catch((error) => {
+    console.warn('Selected date background refresh failed:', error);
+  });
 }
 
 function shiftMonth(offset) {
@@ -3709,16 +3721,92 @@ let isRendering = false;
 let lastAssistantMessageCount = null;
 let lastAssistantLoadingState = null;
 
+function ensureCalendarHeaderStyles() {
+  // The Calendar page is rendered inside #app, which is the app's scroll
+  // container. Use a fixed header so it never moves with the calendar content.
+  if (document.getElementById('daysync-calendar-fixed-header-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'daysync-calendar-fixed-header-styles';
+  style.textContent = `
+    #app > .calendar-screen {
+      box-sizing: border-box !important;
+      padding-top: 66px !important;
+    }
+    #app .calendar-screen > .calendar-simple-header {
+      position: fixed !important;
+      top: max(6px, env(safe-area-inset-top, 0px)) !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) translateZ(0) !important;
+      z-index: 9999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      box-sizing: border-box !important;
+      width: min(calc(100vw - 32px), 418px) !important;
+      min-height: 48px !important;
+      margin: 0 !important;
+      padding: 6px 10px !important;
+      border-radius: 15px !important;
+      background: linear-gradient(110deg, #315fba 0%, #2368bd 56%, #147da6 100%) !important;
+      border: 1px solid rgba(151, 190, 255, .42) !important;
+      box-shadow: 0 4px 0 rgba(2, 9, 24, .68), 0 8px 18px rgba(18, 61, 130, .24), inset 0 1px 0 rgba(255,255,255,.22) !important;
+      isolation: isolate !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+    #app .calendar-screen > .calendar-simple-header .calendar-header-actions {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      width: 100% !important;
+      gap: 10px !important;
+    }
+    #app .calendar-screen > .calendar-simple-header .calendar-simple-back,
+    #app .calendar-screen > .calendar-simple-header .calendar-brand-back {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex: 0 0 36px !important;
+      width: 36px !important;
+      height: 36px !important;
+      min-width: 36px !important;
+      margin: 0 !important;
+    }
+    #app .calendar-screen > .calendar-simple-header .calendar-today-button {
+      margin-left: auto !important;
+      flex: 0 0 auto !important;
+    }
+    #app .calendar-screen > .calendar-simple-header button {
+      pointer-events: auto !important;
+    }
+    @media (max-width: 360px) {
+      #app .calendar-screen > .calendar-simple-header {
+        width: calc(100vw - 24px) !important;
+        min-height: 46px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function applySharedPageBackButton() {
+  const app = document.getElementById('app');
+  // Calendar already renders its own Back button. Do not create a generic
+  // shared-page header or inject a second Back button on this page.
+  if (state.view === 'calendar') {
+    app?.querySelectorAll('[data-action="shared-page-back"]').forEach((button) => button.remove());
+    ensureCalendarHeaderStyles();
+    return;
+  }
   // Home, Assistant and the main feature menu intentionally have no shared page-back control.
   if (['home', 'assistant', 'menu'].includes(state.view)) return;
   // Finance subpages render their own context-specific back button. Do not inject a second one.
   if (state.view === 'finance' && ['transactions', 'add-choice', 'add-expense'].includes(state.financeView)) return;
-  const app = document.getElementById('app');
   if (!app) return;
   const selectors = {
     tasks: '.todo-header', vault: '.notepad-page-header',
-    finance: '.finance-dashboard-header, .finance-transactions-header', calendar: '.page-header', mood: '.page-header',
+    finance: '.finance-dashboard-header, .finance-transactions-header', mood: '.page-header',
     habits: '.page-header', goals: '.page-header', progress: '.dashboard-topbar',
     focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header', 'goal-create': '.ga-header', 'goal-edit': '.ga-header',
     'reset-options': '.daysync-reset-header',

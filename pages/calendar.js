@@ -435,6 +435,16 @@ export function renderCalendarPage(state) {
     '😍': '😍',
   };
 
+  const moodNames = {
+    '😊': 'Happy',
+    '😐': 'Neutral',
+    '😢': 'Sad',
+    '😡': 'Angry',
+    '😴': 'Sleepy',
+    '🔥': 'Energetic',
+    '😍': 'Loved',
+  };
+
 
   const moodOptions = [
     '😊',
@@ -467,10 +477,14 @@ export function renderCalendarPage(state) {
     );
 
 
-  const mood =
-    state.data.moods.find(
-      (entry) => entry.date === state.selectedDate
-    )?.mood || '😊';
+  const selectedMoodEntry = state.data.moods.find(
+    (entry) => entry.date === state.selectedDate
+  );
+  const mood = selectedMoodEntry?.mood || '';
+  const isSelectedToday = state.selectedDate === formatDateKey(new Date());
+  const selectedMoodLabel = mood
+    ? (isSelectedToday ? "Today's mood" : "Mood for this day")
+    : (isSelectedToday ? "Pick today's mood" : 'Pick a mood for this day');
 
 
   /* -------------------------------------------------------
@@ -556,45 +570,10 @@ export function renderCalendarPage(state) {
 
       <!-- HEADER -->
 
-      <div
-        class="page-header"
-        style="
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        "
-      >
-
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          "
-        >
-
-          <button
-            class="back-button"
-            type="button"
-            data-action="back-home"
-          >
-            ← Back
-          </button>
-
-          <h2>Calendar</h2>
-
-        </div>
-
-
-        <button
-          class="ghost-btn"
-          type="button"
-          data-action="today"
-        >
-          Today
-        </button>
-
-      </div>
+      <header class="calendar-simple-header" aria-label="Calendar navigation">
+        <button class="calendar-simple-back" type="button" data-action="back-home" aria-label="Back to Home" title="Back to Home">‹</button>
+        <button class="calendar-today-button" type="button" data-action="today">Today</button>
+      </header>
 
 
 
@@ -757,32 +736,34 @@ export function renderCalendarPage(state) {
 
       <div class="glass-card layout-card">
 
-        <div class="card-header">
+        <div class="card-header calendar-selected-day-header">
 
-          <h3>
-
-            ${selectedDate.toLocaleDateString(
-              'en-IN',
-              {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              }
-            )}
-
-          </h3>
-
+          <div class="calendar-selected-date-copy">
+            <h3>
+              ${selectedDate.toLocaleDateString(
+                'en-IN',
+                {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                }
+              )}
+            </h3>
+            <span class="calendar-mood-caption">${escapeHtml(selectedMoodLabel)}</span>
+          </div>
 
           <div class="mood-selector-wrap">
 
             <button
-              class="mood-selector-toggle"
+              class="mood-selector-toggle ${mood ? 'has-mood' : 'needs-mood'}"
               type="button"
               data-action="toggle-mood-picker"
-              aria-label="Select mood"
+              aria-label="${escapeHtml(selectedMoodLabel)}"
+              title="${escapeHtml(selectedMoodLabel)}"
             >
-              ${moodMap[mood] || mood}
+              <span class="calendar-mood-emoji">${moodMap[mood] || '＋'}</span>
+              <span class="calendar-mood-name">${mood ? moodNames[mood] : 'Pick mood'}</span>
             </button>
 
 
@@ -827,11 +808,12 @@ export function renderCalendarPage(state) {
 
         <!-- EVENTS -->
 
-        <div class="life-card-section">
+        <div class="life-card-section calendar-list-section calendar-events-section">
 
-          <h4>
-            📅 Events
-          </h4>
+          <div class="calendar-list-heading">
+            <h4><span aria-hidden="true">📅</span> Events</h4>
+            <span class="calendar-list-count">${eventsForSelectedDay.length}</span>
+          </div>
 
 
           ${
@@ -858,10 +840,10 @@ export function renderCalendarPage(state) {
                           ${formatTime(event.startTime)}
                         </span>
 
-
-                        <strong class="calendar-entry-title">
-                          ${escapeHtml(event.title)}
-                        </strong>
+                        <span class="calendar-entry-copy">
+                          <strong class="calendar-entry-title">${escapeHtml(event.title || 'Untitled event')}</strong>
+                          <small>${escapeHtml(event.location || event.category || event.description || 'Scheduled event')}</small>
+                        </span>
 
 
                         <button
@@ -883,9 +865,10 @@ export function renderCalendarPage(state) {
                   .join('')
 
               : `
-                <p class="mini-empty">
-                  No events
-                </p>
+                <div class="calendar-empty-state">
+                  <span class="calendar-empty-icon" aria-hidden="true">📅</span>
+                  <div><strong>No events scheduled</strong><p>Events for this date will appear here.</p></div>
+                </div>
               `
           }
 
@@ -895,11 +878,12 @@ export function renderCalendarPage(state) {
 
         <!-- TASKS -->
 
-        <div class="life-card-section">
+        <div class="life-card-section calendar-list-section calendar-tasks-section">
 
-          <h4>
-            ✅ Tasks
-          </h4>
+          <div class="calendar-list-heading">
+            <h4><span aria-hidden="true">✅</span> Tasks</h4>
+            <span class="calendar-list-count">${tasksForSelectedDay.length}</span>
+          </div>
 
 
           ${
@@ -931,19 +915,18 @@ export function renderCalendarPage(state) {
                         data-task-id="${escapeHtml(taskId || '')}"
                       >
 
-                        <span class="calendar-entry-time">
+                        <span class="calendar-entry-time task-status-label ${completed ? 'is-complete' : 'is-pending'}">
                           ${escapeHtml(
-                            task.status ||
-                            (completed
+                            completed
                               ? 'Completed'
-                              : 'Pending')
+                              : (task.status || 'Pending')
                           )}
                         </span>
 
-
-                        <strong class="calendar-entry-title">
-                          ${escapeHtml(task.title)}
-                        </strong>
+                        <span class="calendar-entry-copy">
+                          <strong class="calendar-entry-title">${escapeHtml(task.title || 'Untitled task')}</strong>
+                          <small>${escapeHtml(task.category || task.priority || 'Task')}</small>
+                        </span>
 
 
                         <button
@@ -965,9 +948,10 @@ export function renderCalendarPage(state) {
                   .join('')
 
               : `
-                <p class="mini-empty">
-                  No tasks
-                </p>
+                <div class="calendar-empty-state">
+                  <span class="calendar-empty-icon" aria-hidden="true">✓</span>
+                  <div><strong>No tasks planned</strong><p>Tasks assigned to this date will appear here.</p></div>
+                </div>
               `
           }
 

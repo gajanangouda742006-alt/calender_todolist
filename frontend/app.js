@@ -739,37 +739,6 @@ function renderGoalAchievementsPage() {
 }
 
 
-function renderGoalDeleteConfirmPage() {
-  const goals = Array.isArray(state.goalAchievementItems) ? state.goalAchievementItems : [];
-  const goal = goals.find((item) => String(item.id) === String(state.goalAchievementDeletingId));
-  if (!goal) return '';
-  const logs = Array.isArray(goal.logs) ? goal.logs : [];
-  return `<section class="screen ga-screen ga-delete-confirm-screen" aria-label="Confirm goal deletion">
-    <header class="ga-header daysync-common-header">
-      <button type="button" class="daysync-page-back-button" data-action="ga-delete-cancel" aria-label="Back" title="Back">‹</button>
-      <div class="ga-heading"><p class="ga-eyebrow">PLAN · PROGRESS · ACHIEVE</p><h1>Delete Goal</h1><p>Review this action before continuing.</p></div>
-      <span class="ga-header-icon ga-delete-icon" aria-hidden="true">!</span>
-    </header>
-    <section class="ga-panel ga-delete-confirm-panel">
-      <div class="ga-delete-symbol" aria-hidden="true">🗑️</div>
-      <p class="ga-delete-eyebrow">PERMANENT ACTION</p>
-      <h2>Delete “${escapeHtml(goal.title)}”?</h2>
-      <p class="ga-delete-description">Are you sure you want to delete this goal and its progress history?</p>
-      <div class="ga-delete-detail">
-        <div><span>Goal</span><strong>${escapeHtml(goal.title)}</strong></div>
-        <div><span>Recorded progress entries</span><strong>${logs.length}</strong></div>
-        <div><span>XP earned</span><strong>${Number(goal.xp)||0} XP</strong></div>
-      </div>
-      <p class="ga-delete-warning">This action cannot be undone. The goal and all its recorded progress will be removed.</p>
-      <div class="ga-delete-actions">
-        <button type="button" class="ga-button ga-button-quiet" data-action="ga-delete-cancel">Cancel</button>
-        <button type="button" class="ga-button ga-delete-danger" data-action="ga-delete-confirm" data-goal-id="${escapeHtml(goal.id)}">Delete Goal</button>
-      </div>
-    </section>
-  </section>`;
-}
-
-
 function renderGoalCreatePage() {
   const today = formatDateKey(new Date());
   const defaultTargetDate = formatDateKey(new Date(Date.now() + 30 * 86400000));
@@ -1455,13 +1424,25 @@ state.calendarCache.add(dateString);
   }
 }
 
-async function setSelectedDate(dateString) {
+function setSelectedDate(dateString) {
+  if (!dateString || dateString === state.selectedDate) return;
+
+  // Paint the selected date immediately; never block calendar interaction on the API.
   state.selectedDate = dateString;
-  const [year, month, day] = dateString.split('-').map(Number);
+  const [year, month] = dateString.split('-').map(Number);
   state.currentYear = year;
   state.currentMonth = month - 1;
-  await loadSelectedDateData(dateString);
   renderLayout();
+
+  // Load the selected day's records in the background. Only refresh the view
+  // if the user is still looking at this same date when the request completes.
+  loadSelectedDateData(dateString).then(() => {
+    if (state.selectedDate === dateString && state.view === 'calendar') {
+      renderLayout();
+    }
+  }).catch((error) => {
+    console.warn('Selected date background refresh failed:', error);
+  });
 }
 
 function shiftMonth(offset) {
@@ -1578,11 +1559,13 @@ function setView(nextView) {
 }
 
 function goBackFromView() {
-  if (state.view === 'goal-delete-confirm') {
-    state.goalAchievementDeletingId = null;
-    const history = state.navigationHistory || [];
-    if (history[history.length - 1] === 'goal-achievements') history.pop();
-    state.view = 'goal-achievements';
+  if (state.view === 'reset-options') {
+    state.resetConfirmOpen = false;
+    const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
+    // Reset Options is opened from Settings via setView(), which pushes Settings.
+    // Consume that entry while returning so Back from Settings goes to its real parent.
+    if (history[history.length - 1] === 'settings') history.pop();
+    state.view = 'settings';
     renderLayout();
     return;
   }
@@ -3738,7 +3721,40 @@ let isRendering = false;
 let lastAssistantMessageCount = null;
 let lastAssistantLoadingState = null;
 
+function ensureCalendarHeaderStyles() {
+  if (document.getElementById('daysync-calendar-fixed-header-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'daysync-calendar-fixed-header-styles';
+  style.textContent = `
+    #app .calendar-screen .calendar-simple-header {
+      position: sticky !important;
+      top: max(4px, env(safe-area-inset-top, 0px)) !important;
+      z-index: 1200 !important;
+      flex: 0 0 auto !important;
+      width: calc(100% - 20px) !important;
+      margin: 4px auto 12px !important;
+      isolation: isolate;
+      transform: translateZ(0);
+    }
+    #app .calendar-screen .calendar-simple-header .calendar-simple-back {
+      margin-inline-start: 0 !important;
+    }
+    #app .calendar-screen .calendar-simple-header .calendar-today-button {
+      margin-inline-start: auto !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function applySharedPageBackButton() {
+  // Calendar owns its own Back button inside .calendar-simple-header.
+  // Never inject the generic shared-page-back button on this page.
+  if (state.view === 'calendar') {
+    const app = document.getElementById('app');
+    app?.querySelectorAll('[data-action="shared-page-back"]').forEach((button) => button.remove());
+    ensureCalendarHeaderStyles();
+    return;
+  }
   // Home, Assistant and the main feature menu intentionally have no shared page-back control.
   if (['home', 'assistant', 'menu'].includes(state.view)) return;
   // Finance subpages render their own context-specific back button. Do not inject a second one.
@@ -3749,7 +3765,7 @@ function applySharedPageBackButton() {
     tasks: '.todo-header', vault: '.notepad-page-header',
     finance: '.finance-dashboard-header, .finance-transactions-header', calendar: '.page-header', mood: '.page-header',
     habits: '.page-header', goals: '.page-header', progress: '.dashboard-topbar',
-    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header', 'goal-create': '.ga-header', 'goal-edit': '.ga-header', 'goal-delete-confirm': '.ga-header',
+    focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header', 'goal-create': '.ga-header', 'goal-edit': '.ga-header',
     'reset-options': '.daysync-reset-header',
   };
   let header = app.querySelector(selectors[state.view] || '.screen > header, .screen > .page-header');
@@ -3825,16 +3841,6 @@ function renderLayout() {
 
 } else if (state.view === 'goal-create') {
   content = renderGoalCreatePage();
-
-} else if (state.view === 'goal-delete-confirm') {
-  const deletingGoalExists = (state.goalAchievementItems || []).some((goal) => String(goal.id) === String(state.goalAchievementDeletingId));
-  if (!deletingGoalExists) {
-    state.goalAchievementDeletingId = null;
-    state.view = 'goal-achievements';
-    content = renderGoalAchievementsPage();
-  } else {
-    content = renderGoalDeleteConfirmPage();
-  }
 
 } else if (state.view === 'goal-edit') {
   const editingGoalExists = (state.goalAchievementItems || []).some((goal) => String(goal.id) === String(state.goalAchievementEditingId));
@@ -3921,7 +3927,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'goal-create', 'goal-edit', 'goal-delete-confirm', 'focus', 'weather', 'settings', 'reset-options'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'goal-create', 'goal-edit', 'focus', 'weather', 'settings', 'reset-options'];
 
 
 
@@ -5959,45 +5965,22 @@ function bindGlobalListeners() {
         return;
       }
       if (action === 'ga-delete') {
-        const goal = (state.goalAchievementItems || []).find(g => String(g.id) === String(gaAction.dataset.goalId));
+        const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
         if (!goal) return;
-        state.goalAchievementDeletingId = goal.id;
-        if (state.view !== 'goal-delete-confirm') {
-          state.navigationHistory = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
-          state.navigationHistory.push(state.view || 'goal-achievements');
-          state.view = 'goal-delete-confirm';
-        }
-        renderLayout();
-        return;
-      }
-      if (action === 'ga-delete-cancel') {
-        state.goalAchievementDeletingId = null;
-        const history = state.navigationHistory || [];
-        if (history[history.length - 1] === 'goal-achievements') history.pop();
-        state.view = 'goal-achievements';
-        renderLayout();
-        return;
-      }
-      if (action === 'ga-delete-confirm') {
-        const goal = (state.goalAchievementItems || []).find(g => String(g.id) === String(state.goalAchievementDeletingId));
-        if (!goal) {
-          state.goalAchievementDeletingId = null;
-          state.view = 'goal-achievements';
-          renderLayout();
-          showToast('This goal is no longer available.');
-          return;
-        }
-        saveGoalAchievements((state.goalAchievementItems || []).filter((item) => String(item.id) !== String(goal.id)));
-        if (window.Capacitor?.isNativePlatform?.() && LocalNotifications?.cancel) {
-          void LocalNotifications.cancel({ notifications: [{ id: goalReminderId(goal.id) }] }).catch(() => {});
-        }
-        state.goalAchievementEditingId = null;
-        state.goalAchievementDeletingId = null;
-        const history = state.navigationHistory || [];
-        if (history[history.length - 1] === 'goal-achievements') history.pop();
-        state.view = 'goal-achievements';
-        showToast('Goal deleted');
-        renderLayout();
+        showAppConfirm(
+          `Delete the goal “${goal.title}” and its progress history?`,
+          async () => {
+            // Keep the existing persistence/sync path; only remove the goal after explicit confirmation.
+            saveGoalAchievements((state.goalAchievementItems || []).filter((item) => String(item.id) !== String(goal.id)));
+            if (window.Capacitor?.isNativePlatform?.() && LocalNotifications?.cancel) {
+              void LocalNotifications.cancel({ notifications: [{ id: goalReminderId(goal.id) }] }).catch(() => {});
+            }
+            state.goalAchievementEditingId = null;
+            showToast('Goal deleted');
+            renderLayout();
+          },
+          'Delete'
+        );
         return;
       }
     }
@@ -6011,7 +5994,15 @@ function bindGlobalListeners() {
       return;
     }
     const resetBack = event.target.closest('[data-action="reset-back-settings"]');
-    if (resetBack) { state.resetConfirmOpen = false; state.view = 'settings'; renderLayout(); return; }
+    if (resetBack) {
+      state.resetConfirmOpen = false;
+      const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
+      // Remove the Settings entry that setView('reset-options') added.
+      if (history[history.length - 1] === 'settings') history.pop();
+      state.view = 'settings';
+      renderLayout();
+      return;
+    }
     const toggleResetCategory = event.target.closest('[data-action="reset-toggle-category"]');
     if (toggleResetCategory) {
       const category = toggleResetCategory.dataset.category;
