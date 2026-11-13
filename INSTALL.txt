@@ -1,0 +1,15 @@
+DaySync Smooth Keyboard Fix
+
+Files and exact destinations:
+1. app.js -> P:\MyProjects\calender_todolist\app.js
+2. style.css -> P:\MyProjects\calender_todolist\style.css
+3. android/app/src/main/AndroidManifest.xml -> P:\MyProjects\calender_todolist\android\app\src\main\AndroidManifest.xml
+
+This removes the focus-is-keyboard-open false positive and repeated 100/320/520ms scroll jumps. It waits for the visual viewport resize and performs at most one gentle visibility adjustment. Android uses adjustResize so the WebView receives the resized viewport.
+
+After extracting and overwriting these three files, run:
+  node --check .\app.js
+  node .\scripts\build-web.js
+  npx cap sync android
+
+Then rebuild/reinstall the Android app to apply the native manifest setting. Do not extract this ZIP into a separate nested folder. Extract its contents directly into the project root, preserving folders.

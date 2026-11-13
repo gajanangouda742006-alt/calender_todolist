@@ -2217,7 +2217,7 @@ function renderWeatherPage() {
   const statusContent = weather.status === 'loading'
     ? `<div class="weather-status-panel is-loading"><span class="weather-spinner"></span><div><strong>Getting real weather…</strong><p>Fetching current conditions and the forecast.</p></div></div>`
     : weather.status === 'error'
-      ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>Weather unavailable</strong><p>${escapeHtml(weather.error || 'Could not fetch weather data.')}</p><p>Allow location access or search for a city below.</p>${window.Capacitor?.isNativePlatform?.() && /location|permission|gps|services|denied/i.test(weather.error || '') ? `<div class="weather-permission-actions"><button type="button" data-action="open-location-permission-settings">App permissions</button><button type="button" data-action="open-device-location-settings">Device location</button></div>` : ''}</div></div>`
+      ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>${weather.errorType === 'offline' ? 'No internet connection' : weather.errorType === 'location-disabled' ? 'Device location is off' : weather.errorType === 'permission-denied' ? 'Location permission needed' : 'Weather unavailable'}</strong><p>${escapeHtml(weather.error || 'Could not fetch weather data.')}</p>${weather.errorType === 'offline' ? '<p>Please connect to the internet and try again.</p>' : ''}${weather.errorType === 'location-disabled' && window.Capacitor?.isNativePlatform?.() ? '<div class="weather-permission-actions"><button type="button" data-action="open-device-location-settings">Device location</button></div>' : ''}${weather.errorType === 'permission-denied' && window.Capacitor?.isNativePlatform?.() ? '<div class="weather-permission-actions"><button type="button" data-action="open-location-permission-settings">App permissions</button></div>' : ''}</div></div>`
       : !current
         ? `<div class="weather-status-panel"><span class="weather-status-symbol">☁</span><div><strong>Live weather, not estimates</strong><p>Use your device location or search a city to load current weather from the forecast service.</p></div></div>`
         : '';
@@ -2274,18 +2274,50 @@ async function geocodeWeatherCity(city) {
   return { latitude: place.latitude, longitude: place.longitude, label: [place.name, place.admin1, place.country].filter(Boolean).filter((x, i, arr) => arr.indexOf(x) === i).join(', ') };
 }
 
+function createWeatherError(message, type = 'general') {
+  const error = new Error(message);
+  error.weatherType = type;
+  return error;
+}
+
+function isDeviceLocationDisabled(error) {
+  const message = String(error?.message || error || '');
+  return /location services (?:are )?(?:disabled|off)|location provider (?:is )?disabled|gps (?:is )?disabled|location is turned off|location settings are off|location unavailable.*(?:disabled|off)/i.test(message);
+}
+
 async function getBrowserCoordinates() {
   const isNative = Boolean(window.Capacitor?.isNativePlatform?.());
+
   if (isNative) {
+    let permissions;
     try {
-      let permissions = await Geolocation.checkPermissions();
-      const allowed = () => permissions.location === 'granted' || permissions.coarseLocation === 'granted';
-      if (!allowed()) {
+      permissions = await Geolocation.checkPermissions();
+    } catch (error) {
+      throw createWeatherError('Could not check location permission. Please check DaySync permissions in Android Settings.', 'permission-denied');
+    }
+
+    const allowed = () => permissions?.location === 'granted' || permissions?.coarseLocation === 'granted';
+    const needsFirstRequest = permissions?.location === 'prompt' ||
+      permissions?.coarseLocation === 'prompt' ||
+      permissions?.location === 'prompt-with-rationale' ||
+      permissions?.coarseLocation === 'prompt-with-rationale';
+
+    // Android permission prompt is shown only while the OS reports a prompt state.
+    // If the user has already denied it, direct them to App permissions instead
+    // of repeatedly opening the system permission dialog.
+    if (!allowed() && needsFirstRequest) {
+      try {
         permissions = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] });
+      } catch (error) {
+        throw createWeatherError('Allow DaySync location access in App permissions to get local weather.', 'permission-denied');
       }
-      if (!allowed()) {
-        throw new Error('Location permission was denied. Allow DaySync location access in Android Settings, or search for a city below.');
-      }
+    }
+
+    if (!allowed()) {
+      throw createWeatherError('Location access for DaySync is denied. Enable it in App permissions, or search for a city below.', 'permission-denied');
+    }
+
+    try {
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: permissions.location === 'granted',
         timeout: 15000,
@@ -2297,26 +2329,28 @@ async function getBrowserCoordinates() {
         label: 'Your current location',
       };
     } catch (error) {
-      const message = String(error?.message || '');
-      if (/denied|permission/i.test(message)) {
-        throw new Error('Location permission is unavailable. Enable location for DaySync in Android Settings, or search for a city below.');
+      if (isDeviceLocationDisabled(error) || /location unavailable|position unavailable|code\\s*2/i.test(String(error?.message || error))) {
+        throw createWeatherError('Turn on your phone location services and try again, or search for a city below.', 'location-disabled');
       }
-      if (/disabled|services|location provider/i.test(message)) {
-        throw new Error('Turn on device location services and try again, or search for a city below.');
+      if (/denied|permission/i.test(String(error?.message || error))) {
+        throw createWeatherError('Location access for DaySync is denied. Enable it in App permissions, or search for a city below.', 'permission-denied');
       }
-      throw new Error(`${message || 'Could not determine your device location.'} You can also search for a city below.`);
+      throw createWeatherError(`${error?.message || 'Could not determine your device location.'} You can also search for a city below.`, 'general');
     }
   }
 
-  if (!navigator.geolocation) throw new Error('This browser does not support location access. Search for a city below.');
+  if (!navigator.geolocation) throw createWeatherError('This browser does not support location access. Search for a city below.');
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: 'Your current location' }),
-      (error) => reject(new Error(error.code === 1
-        ? 'Location permission was denied. Allow location access in browser settings, or search for a city below.'
-        : error.code === 2
-          ? 'Your location is unavailable. Turn on location services or search for a city below.'
-          : 'Location lookup timed out. Try again or search for a city below.')),
+      (error) => reject(createWeatherError(
+        error.code === 1
+          ? 'Location permission was denied. Allow location access in browser settings, or search for a city below.'
+          : error.code === 2
+            ? 'Your location is unavailable. Turn on location services or search for a city below.'
+            : 'Location lookup timed out. Try again or search for a city below.',
+        error.code === 1 ? 'permission-denied' : error.code === 2 ? 'location-disabled' : 'general'
+      )),
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 },
     );
   });
@@ -2340,9 +2374,12 @@ async function fetchLiveWeather(location, requestId) {
 
 async function loadWeatherForCurrentLocation(city = '') {
   const requestId = Number(state.weather.requestId || 0) + 1;
-  state.weather = { ...state.weather, requestId, status: 'loading', error: '', data: null, locationLabel: city ? '' : 'Your current location' };
+  state.weather = { ...state.weather, requestId, status: 'loading', error: '', errorType: '', data: null, locationLabel: city ? '' : 'Your current location' };
   if (state.view === 'weather') renderLayout();
   try {
+    if (!navigator.onLine) {
+      throw createWeatherError('Please connect to the internet to load live weather.', 'offline');
+    }
     let location;
     if (city) {
       location = await geocodeWeatherCity(city);
@@ -2354,7 +2391,13 @@ async function loadWeatherForCurrentLocation(city = '') {
     await fetchLiveWeather(location, requestId);
   } catch (error) {
     if (state.weather.requestId === requestId) {
-      state.weather = { ...state.weather, status: 'error', error: error.message || 'Unable to load weather data.' };
+      const offline = !navigator.onLine || error?.name === 'TypeError' || /failed to fetch|network request failed|load failed/i.test(String(error?.message || ''));
+      state.weather = {
+        ...state.weather,
+        status: 'error',
+        error: offline ? 'Please connect to the internet and try again.' : (error.message || 'Unable to load weather data.'),
+        errorType: offline ? 'offline' : (error.weatherType || 'general'),
+      };
     }
   } finally {
     if (state.view === 'weather' && state.weather.requestId === requestId) renderLayout();
@@ -5616,34 +5659,53 @@ function isEditableControl(element) {
   return Boolean(element?.matches?.('input:not([type="button"]):not([type="submit"]), textarea, select, [contenteditable="true"]'));
 }
 
+let keyboardRevealTimer = 0;
+let keyboardRevealTarget = null;
+let keyboardViewportFrame = 0;
+
 function syncKeyboardViewport() {
   const viewport = window.visualViewport;
   const activeEditable = isEditableControl(document.activeElement);
   const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
-  const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
-  const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
+  // Focus alone does not mean the software keyboard is open. Wait for the
+  // visual viewport to shrink before changing the app's keyboard layout.
+  const viewportHeight = viewport?.height || window.innerHeight;
+  const viewportReduced = Boolean(
+    viewport && (
+      window.innerHeight - viewport.height > 110 ||
+      viewport.height < window.innerHeight * 0.82 ||
+      (window.screen?.height && viewport.height < window.screen.height * 0.72)
+    )
+  );
+  const keyboardOpen = Boolean(isSmallScreen && activeEditable && viewportReduced);
   document.body.classList.toggle('keyboard-open', keyboardOpen);
   document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
   document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
   if (viewport) {
-    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
+    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewportHeight)}px`);
+  }
+  if (keyboardOpen && keyboardRevealTarget && keyboardRevealTarget === document.activeElement) {
+    revealFocusedControl(keyboardRevealTarget, true);
   }
 }
 
-function revealFocusedControl(element) {
+function revealFocusedControl(element, afterKeyboardResize = false) {
   if (!isEditableControl(element)) return;
-  const target = element;
-  [100, 320, 520].forEach((delay) => {
-    window.setTimeout(() => {
-      if (!target.isConnected || document.activeElement !== target) return;
-      syncKeyboardViewport();
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      const rect = target.getBoundingClientRect();
-      if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
-        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
-      }
-    }, delay);
-  });
+  keyboardRevealTarget = element;
+  if (keyboardRevealTimer) window.clearTimeout(keyboardRevealTimer);
+  // One adjustment after the keyboard animation starts/finishes, instead of
+  // three competing scrollIntoView calls that make the page jump.
+  keyboardRevealTimer = window.setTimeout(() => {
+    keyboardRevealTimer = 0;
+    const target = keyboardRevealTarget;
+    if (!target?.isConnected || document.activeElement !== target) return;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const rect = target.getBoundingClientRect();
+    const keyboardOpen = document.body.classList.contains('keyboard-open');
+    if (keyboardOpen && (rect.bottom > viewportHeight - 20 || rect.top < 8)) {
+      target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+  }, afterKeyboardResize ? 90 : 260);
 }
 
 function bindSmartNavigationAndKeyboard() {
@@ -5765,20 +5827,29 @@ function bindSmartNavigationAndKeyboard() {
 
   document.addEventListener('focusin', (event) => {
     if (!isEditableControl(event.target)) return;
+    keyboardRevealTarget = event.target;
     syncKeyboardViewport();
     revealFocusedControl(event.target);
   });
   document.addEventListener('focusout', () => {
+    keyboardRevealTarget = null;
+    if (keyboardRevealTimer) window.clearTimeout(keyboardRevealTimer);
+    keyboardRevealTimer = 0;
     window.setTimeout(() => {
       syncKeyboardViewport();
       if (!document.body.classList.contains('keyboard-open')) {
         document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
       }
-    }, 180);
+    }, 120);
   });
   window.addEventListener('resize', syncKeyboardViewport, { passive: true });
-  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
-  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', () => {
+    if (keyboardViewportFrame) cancelAnimationFrame(keyboardViewportFrame);
+    keyboardViewportFrame = requestAnimationFrame(() => {
+      keyboardViewportFrame = 0;
+      syncKeyboardViewport();
+    });
+  }, { passive: true });
 }
 
 async function clearResetCategoryLocalCache(token, category) {

@@ -12271,24 +12271,26 @@ body[data-theme="light"] #app .home-screen .calendar-day.selected {
    CALENDAR NAVIGATION — FIXED AT TOP, COMPACT BLUE BAR
    ========================================================= */
 #app .calendar-screen > .calendar-simple-header {
-  position: sticky !important;
-  top: max(5px, env(safe-area-inset-top, 0px)) !important;
-  z-index: 120 !important;
-  flex: 0 0 auto;
-  width: calc(100% - 24px);
-  min-height: 50px;
-  margin: 5px auto 12px;
-  padding: 6px 10px;
-  display: flex !important;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid rgba(151, 190, 255, .38);
-  border-radius: 16px;
-  background: linear-gradient(110deg, #315fba 0%, #2368bd 56%, #147da6 100%);
-  box-shadow: 0 4px 0 rgba(2, 9, 24, .65), 0 8px 18px rgba(18, 61, 130, .24),
-              inset 0 1px 0 rgba(255,255,255,.22);
-  isolation: isolate;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+
+    width: 90%;
+    margin: 0 auto;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    flex-shrink: 0;
+    padding: 8px 12px;
+
+    border-radius: 16px;
+    background: linear-gradient(110deg, #2465b5, #087d9e);
+
+    /* Keep header visible while scrolling */
+    isolation: isolate;
 }
 #app .calendar-screen > .calendar-simple-header .calendar-simple-back {
   display: inline-flex;
@@ -12447,5 +12449,35 @@ html[data-theme="light"] #app .calendar-screen .mood-picker-emoji {
     width: 34px;
     height: 34px;
     min-width: 34px;
+  }
+}
+
+
+/* Smooth mobile keyboard behaviour: let Android resize the WebView naturally. */
+@media (max-width: 760px) {
+  html.keyboard-open,
+  body.keyboard-open {
+    height: var(--sahra-visual-height, 100dvh) !important;
+    min-height: 0 !important;
+    overscroll-behavior-y: contain;
+  }
+
+  body.keyboard-open #app {
+    min-height: 0 !important;
+    scroll-padding-top: 14px !important;
+    scroll-padding-bottom: 18px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.keyboard-open input,
+  body.keyboard-open textarea,
+  body.keyboard-open select,
+  body.keyboard-open [contenteditable="true"] {
+    scroll-margin-top: 16px !important;
+    scroll-margin-bottom: 20px !important;
+  }
+
+  body.keyboard-open .bottom-nav {
+    transition: transform 180ms ease-out, opacity 140ms ease-out !important;
   }
 }
