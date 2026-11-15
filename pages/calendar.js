@@ -571,7 +571,7 @@ export function renderCalendarPage(state) {
       <!-- HEADER -->
 
       <header class="calendar-simple-header" aria-label="Calendar navigation">
-        <button class="calendar-simple-back" type="button" data-action="back-home" aria-label="Back to Home" title="Back to Home">‹</button>
+        <button class="daysync-page-back-button calendar-header-back" type="button" data-action="back-home" aria-label="Back" title="Back">‹</button>
         <button class="calendar-today-button" type="button" data-action="today">Today</button>
       </header>
 

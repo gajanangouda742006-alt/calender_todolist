@@ -1,15 +1,21 @@
-DaySync Alarm Clock patch (based on uploaded source ZIP)
+DaySync focused patch — based on DaySync-Latest-Source.zip
 
-Files: app.js and style.css. Replace the matching root files in your project.
+Files:
+- app.js
+- style.css
+- calendar.js
+- mobile-notifications.js
 
-Then run from P:\MyProjects\calender_todolist:
-  npm run mobile:stage
-  npx cap sync android
-  cd android
-  .\gradlew.bat assembleDebug
+Changes:
+- Calendar header is sticky; Today button has a blue 3D treatment.
+- Selected calendar day has a stronger blue highlight.
+- Light-mode Calendar event heading/count are purple; task heading/count are green; card text is dark and readable.
+- Dashboard To-Do progress now derives from the current monthly task records instead of potentially stale cached progress API values.
+- Alarm Clock notification channel requests the bundled daysync_alarm.wav sound. Focus Timer already uses that sound channel in the uploaded source.
+- Existing alarm deletion confirmation remains unchanged if no app-level confirmation helper exists.
 
-This patch adds a separate Alarm Clock page, menu item immediately above Progress & Stats, local alarm storage, daily-repeat scheduling for the next 14 days through the existing Capacitor Local Notifications plugin, and delete/cancel controls. It is separate from Focus Timer.
-
-IMPORTANT LIMITATION: this is NOT a native full-screen Android alarm implementation. Android may show a heads-up notification depending on device settings and Android policy. A native AlarmManager + BroadcastReceiver + full-screen Activity, boot rescheduling, ringtone playback and permission handling still need to be implemented and tested in Android Studio before claiming incoming-call-style full-screen alarms. Browser/web builds save alarms locally but cannot guarantee background delivery.
-
-The patch uses the existing daysync-clock-alarm channel. Notification IDs are based on the alarm timestamp; do not create alarms within the same millisecond (normal UI use avoids this).
+Important:
+- The source bundle has no native full-screen alarm Activity/receiver or boot-reschedule receiver. This patch does not claim that a notification is a guaranteed full-screen alarm.
+- Android can deliver scheduled notifications while the app is closed/screen is off subject to permissions, battery policy and notification channel settings. If the device is powered OFF, apps cannot play an alarm. iOS also does not permit arbitrary continuous background alarm playback; local notification sound is subject to iOS notification rules.
+- Android notification channels are effectively immutable after creation. To change the sound of an already-created channel, the user may need to change it in Android notification settings or uninstall/reinstall for a clean test.
+- Alarm reset category is not added in this patch because the existing reset executor in the supplied source needs a coordinated storage-clear flow; no destructive reset behavior was guessed.

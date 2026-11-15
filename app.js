@@ -807,25 +807,31 @@ function renderMenuPage() {
 function renderAlarmClockPage() {
   const alarms = Array.isArray(state.alarmItems) ? state.alarmItems : [];
   const escAlarm = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const formatAlarm12 = (value) => { const [h,m] = String(value || '07:00').split(':').map(Number); return `${String((h % 12) || 12).padStart(2,'0')}:${String(m || 0).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`; };
   return `
     <section class="screen daysync-alarm-screen" aria-label="Alarm Clock">
       <header class="daysync-alarm-header daysync-common-header">
         <button type="button" class="daysync-page-back-button" data-action="alarm-back" aria-label="Back">‹</button>
-        <div><p class="daysync-eyebrow">WAKE UP · STAY ON TIME</p><h1>Alarm Clock</h1><p>Independent from Focus Timer</p></div><span aria-hidden="true">⏰</span>
+        <div><p class="daysync-eyebrow">WAKE UP · STAY ON TIME</p><h1>Alarm Clock</h1></div><span aria-hidden="true">⏰</span>
       </header>
       <section class="daysync-alarm-panel">
         <h2>Create an alarm</h2>
         <form id="daysync-alarm-form" class="daysync-alarm-form">
-          <label>Alarm time<input name="time" type="time" required value="07:00"></label>
+          <fieldset class="daysync-alarm-time-picker">
+            <legend>Alarm time</legend>
+            <label><span>Hour</span><select name="hour12" required>${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i===6?'selected':''}>${String(i+1).padStart(2,'0')}</option>`).join('')}</select></label>
+            <span class="daysync-alarm-time-colon">:</span>
+            <label><span>Minute</span><select name="minute" required>${Array.from({length:60},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}</option>`).join('')}</select></label>
+            <label><span>AM / PM</span><select name="ampm"><option value="AM">AM</option><option value="PM">PM</option></select></label>
+          </fieldset>
           <label>Label<input name="label" type="text" maxlength="48" placeholder="Wake up" value="Wake up"></label>
           <label class="daysync-alarm-repeat"><input name="daily" type="checkbox"> Repeat every day</label>
           <button class="daysync-alarm-save" type="submit">＋ Save alarm</button>
         </form>
       </section>
       <section class="daysync-alarm-panel"><div class="daysync-alarm-list-heading"><h2>Your alarms</h2><span>${alarms.length} saved</span></div>
-        ${alarms.length ? `<div class="daysync-alarm-list">${alarms.map((a) => `<article class="daysync-alarm-row"><div><strong>${escAlarm(a.time)}</strong><span>${escAlarm(a.label || 'Alarm')} · ${a.daily ? 'Every day' : 'Once'}</span></div><button type="button" data-action="alarm-delete" data-alarm-id="${escAlarm(a.id)}" aria-label="Delete alarm">Delete</button></article>`).join('')}</div>` : '<p class="daysync-alarm-empty">No alarms yet. Create one above.</p>'}
+        ${alarms.length ? `<div class="daysync-alarm-list">${alarms.map((a) => `<article class="daysync-alarm-row"><div><strong>${escAlarm(formatAlarm12(a.time))}</strong><span>${escAlarm(a.label || 'Alarm')} · ${a.daily ? 'Every day' : 'Once'}</span></div><button type="button" data-action="alarm-delete" data-alarm-id="${escAlarm(a.id)}" aria-label="Delete alarm">Delete</button></article>`).join('')}</div>` : '<p class="daysync-alarm-empty">No alarms yet. Create one above.</p>'}
       </section>
-      <p class="daysync-alarm-note">Allow notifications and exact alarms in Android settings for the most reliable delivery. Android may show a heads-up notification rather than a full-screen alarm depending on device settings.</p>
     </section>`;
 }
 
@@ -898,6 +904,7 @@ const RESET_CATEGORY_META = {
   progress: { title: 'Progress Tracker', icon: '📈', description: 'Goals, habits, mood entries and habit logs', collections: ['goals', 'habits', 'habitLogs', 'moods'] },
   goalAchievements: { title: 'Goal & Achievements', icon: '🏆', description: 'Your personal goals, progress logs, XP and achievement history', collections: ['goalAchievements'] },
   focus: { title: 'Focus Timer', icon: '⏱️', description: 'Saved focus sessions and timer history', collections: [] },
+  alarms: { title: 'Alarm Clock', icon: '⏰', description: 'Saved alarms and repeat schedules', collections: [] },
 };
 
 function getGoalAchievementRecordsForReset() {
@@ -930,6 +937,7 @@ function getResetCategoryRecords(category) {
   ];
   if (category === 'goalAchievements') return tag(getGoalAchievementRecordsForReset(), 'Goal & achievement');
   if (category === 'focus') return tag(state.focusSessions, 'Focus session');
+  if (category === 'alarms') return tag(state.alarmItems, 'Alarm');
   return [];
 }
 
@@ -1827,6 +1835,24 @@ function renderEntryModal() {
               </label>
             </div>
             <label class="entry-field">
+              <span>Repeat</span>
+              <select data-entry-field="repeat">
+                <option value="none" ${draft.repeat !== 'daily' ? 'selected' : ''}>Does not repeat</option>
+                <option value="daily" ${draft.repeat === 'daily' ? 'selected' : ''}>Every day</option>
+              </select>
+            </label>
+            <label class="entry-field">
+              <span>Repeat</span>
+              <select data-entry-field="repeat">
+                <option value="none" ${draft.repeat !== 'daily' ? 'selected' : ''}>Does not repeat</option>
+                <option value="daily" ${draft.repeat === 'daily' ? 'selected' : ''}>Every day</option>
+              </select>
+            </label>
+            <label class="entry-field">
+              <span>Repeat until (optional)</span>
+              <input type="date" data-entry-field="repeatUntil" min="${draft.date || state.selectedDate}" value="${draft.repeatUntil || ''}" />
+            </label>
+            <label class="entry-field">
               <span>Reminder</span>
               <select data-entry-field="reminder">
                 <option value="" ${!draft.reminder ? 'selected' : ''}>No reminder</option>
@@ -1862,6 +1888,10 @@ function renderEntryModal() {
             <label class="entry-field">
               <span>Category</span>
               <input type="text" data-entry-field="category" value="${(draft.category || 'General').replace(/"/g, '&quot;')}" placeholder="General" />
+            </label>
+            <label class="entry-field">
+              <span>Repeat until (optional)</span>
+              <input type="date" data-entry-field="repeatUntil" min="${draft.date || state.selectedDate}" value="${draft.repeatUntil || ''}" />
             </label>
             <label class="entry-field">
               <span>Reminder</span>
@@ -2970,18 +3000,16 @@ function renderProgressPage() {
       ? state.progressData
       : null;
 
-  const stats = selectedProgress?.stats || {
+  // Use the current task records as the source of truth so completing a task
+  // immediately updates the dashboard, even if cached progress API data is stale.
+  const stats = {
     totalTasks: fallbackTotalTasks,
     completedTasks: fallbackCompletedTasks,
     pendingTasks: fallbackPendingTasks,
     overdueTasks: fallbackOverdueTasks,
-
-    completionPercent:
-      fallbackTotalTasks > 0
-        ? Math.round(
-            (fallbackCompletedTasks / fallbackTotalTasks) * 100
-          )
-        : 0
+    completionPercent: fallbackTotalTasks
+      ? Math.round((fallbackCompletedTasks / fallbackTotalTasks) * 100)
+      : 0
   };
 
   const totalTasks = Math.max(0, Number(stats.totalTasks ?? monthTasks.length) || 0);
@@ -4838,6 +4866,8 @@ document.addEventListener('input', (e) => {
           endTime: draft.endTime || '10:00',
           category: draft.category || 'General',
           reminder: draft.reminder || '',
+          repeat: draft.repeat || 'none',
+          repeatUntil: draft.repeat === 'daily' ? (draft.repeatUntil || '') : '',
         });
 
       // ==========================================
@@ -4860,6 +4890,8 @@ document.addEventListener('input', (e) => {
           completed: draft.completed || false,
           reminder: draft.reminder || '',
           category: draft.category || 'General',
+          repeat: draft.repeat || 'none',
+          repeatUntil: draft.repeat === 'daily' ? (draft.repeatUntil || '') : '',
         };
 
         if (draft.id) {
@@ -6598,8 +6630,13 @@ document.addEventListener('submit', async (event) => {
   const form = event.target.closest?.('#daysync-alarm-form');
   if (!form) return;
   event.preventDefault();
-  const data = new FormData(form); const time = String(data.get('time') || '');
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { showToast('Choose a valid alarm time.'); return; }
+  const data = new FormData(form);
+  const hour12 = Number(data.get('hour12'));
+  const minute = String(data.get('minute') || '00');
+  const ampm = String(data.get('ampm') || 'AM');
+  if (!(hour12 >= 1 && hour12 <= 12) || !/^[0-5]\d$/.test(minute) || !['AM','PM'].includes(ampm)) { showToast('Choose a valid alarm time.'); return; }
+  const hour24 = (hour12 % 12) + (ampm === 'PM' ? 12 : 0);
+  const time = `${String(hour24).padStart(2,'0')}:${minute}`;
   const alarm = { id: Date.now(), time, label: String(data.get('label') || 'Alarm').trim() || 'Alarm', daily: data.get('daily') === 'on' };
   state.alarmItems = [...(state.alarmItems || []), alarm];
   localStorage.setItem('daysyncAlarmItems', JSON.stringify(state.alarmItems));
