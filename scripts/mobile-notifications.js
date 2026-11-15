@@ -160,6 +160,18 @@ async function configureNotificationTapHandling() {
     } catch (error) { console.warn('Could not create DaySync reminders channel:', error.message); }
     try {
       await LocalNotifications.createChannel({
+        id: 'daysync-clock-alarm',
+        name: 'DaySync Alarm Clock',
+        description: 'Wake-up and scheduled alarms from DaySync',
+        importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+      });
+    } catch (error) { console.warn('Could not create Alarm Clock channel:', error.message); }
+    try {
+      await LocalNotifications.createChannel({
         id: 'daysync-focus-alarm',
         name: 'DaySync Focus Timer',
         description: 'Focus session completion alarm',
@@ -181,6 +193,11 @@ async function configureNotificationTapHandling() {
       processFocusActionWhenReady({ actionId: focusAction, sessionId: String(extra.sessionId || '') });
       void LocalNotifications.cancel({ notifications: [{ id: notification.id }] }).catch(() => {});
       void LocalNotifications.removeDeliveredNotifications({ notifications: [{ id: notification.id }] }).catch(() => {});
+      return;
+    }
+    if (extra.type === 'daysync-alarm') {
+      try { localStorage.setItem('daysyncPendingAlarmOpen', '1'); } catch (_) {}
+      window.location.href = '/index.html?view=alarm';
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(extra.date || '')) return;

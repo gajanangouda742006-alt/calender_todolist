@@ -133,6 +133,7 @@ const state = {
   goalAchievementItems: [],
   goalAchievementFilter: 'All',
   goalAchievementEditingId: null,
+  alarmItems: (() => { try { const v = JSON.parse(localStorage.getItem('daysyncAlarmItems') || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } })(),
   focusSeconds: 25 * 60,
   focusInitialSeconds: 25 * 60,
   focusRunning: false,
@@ -795,11 +796,37 @@ function renderMenuPage() {
         <button class="menu-item" type="button" data-view="vault">📝 Notepad (Vault)</button>
         <button class="menu-item" type="button" data-view="finance">💰 Expense Tracker</button>
         <button class="menu-item" type="button" data-view="focus">⏱️ Focus Timer</button>
+        <button class="menu-item" type="button" data-view="alarm">⏰ Alarm Clock</button>
         <button class="menu-item" type="button" data-view="progress">📈 Progress &amp; Stats</button>
         <button class="menu-item" type="button" data-view="settings">⚙️ Settings</button>
       </div>
     </section>
   `;
+}
+
+function renderAlarmClockPage() {
+  const alarms = Array.isArray(state.alarmItems) ? state.alarmItems : [];
+  const escAlarm = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return `
+    <section class="screen daysync-alarm-screen" aria-label="Alarm Clock">
+      <header class="daysync-alarm-header daysync-common-header">
+        <button type="button" class="daysync-page-back-button" data-action="alarm-back" aria-label="Back">‹</button>
+        <div><p class="daysync-eyebrow">WAKE UP · STAY ON TIME</p><h1>Alarm Clock</h1><p>Independent from Focus Timer</p></div><span aria-hidden="true">⏰</span>
+      </header>
+      <section class="daysync-alarm-panel">
+        <h2>Create an alarm</h2>
+        <form id="daysync-alarm-form" class="daysync-alarm-form">
+          <label>Alarm time<input name="time" type="time" required value="07:00"></label>
+          <label>Label<input name="label" type="text" maxlength="48" placeholder="Wake up" value="Wake up"></label>
+          <label class="daysync-alarm-repeat"><input name="daily" type="checkbox"> Repeat every day</label>
+          <button class="daysync-alarm-save" type="submit">＋ Save alarm</button>
+        </form>
+      </section>
+      <section class="daysync-alarm-panel"><div class="daysync-alarm-list-heading"><h2>Your alarms</h2><span>${alarms.length} saved</span></div>
+        ${alarms.length ? `<div class="daysync-alarm-list">${alarms.map((a) => `<article class="daysync-alarm-row"><div><strong>${escAlarm(a.time)}</strong><span>${escAlarm(a.label || 'Alarm')} · ${a.daily ? 'Every day' : 'Once'}</span></div><button type="button" data-action="alarm-delete" data-alarm-id="${escAlarm(a.id)}" aria-label="Delete alarm">Delete</button></article>`).join('')}</div>` : '<p class="daysync-alarm-empty">No alarms yet. Create one above.</p>'}
+      </section>
+      <p class="daysync-alarm-note">Allow notifications and exact alarms in Android settings for the most reliable delivery. Android may show a heads-up notification rather than a full-screen alarm depending on device settings.</p>
+    </section>`;
 }
 
 function renderSettingsPage() {
@@ -1424,25 +1451,13 @@ state.calendarCache.add(dateString);
   }
 }
 
-function setSelectedDate(dateString) {
-  if (!dateString || dateString === state.selectedDate) return;
-
-  // Paint the selected date immediately; never block calendar interaction on the API.
+async function setSelectedDate(dateString) {
   state.selectedDate = dateString;
-  const [year, month] = dateString.split('-').map(Number);
+  const [year, month, day] = dateString.split('-').map(Number);
   state.currentYear = year;
   state.currentMonth = month - 1;
+  await loadSelectedDateData(dateString);
   renderLayout();
-
-  // Load the selected day's records in the background. Only refresh the view
-  // if the user is still looking at this same date when the request completes.
-  loadSelectedDateData(dateString).then(() => {
-    if (state.selectedDate === dateString && state.view === 'calendar') {
-      renderLayout();
-    }
-  }).catch((error) => {
-    console.warn('Selected date background refresh failed:', error);
-  });
 }
 
 function shiftMonth(offset) {
@@ -1519,6 +1534,7 @@ function openEntryModal(type = 'event') {
     return;
   }
 
+  const previousPageScrollTop = document.getElementById('app')?.scrollTop || 0;
   state.entryModalOpen = true;
   state.entryDraft = {
     type,
@@ -1545,6 +1561,13 @@ function openEntryModal(type = 'event') {
     tags: '',
   };
   renderLayout();
+  requestAnimationFrame(() => {
+    const appRoot = document.getElementById('app');
+    if (appRoot) appRoot.scrollTop = previousPageScrollTop;
+    const backdrop = document.querySelector('.entry-modal-backdrop');
+    const modal = backdrop?.querySelector('.entry-modal');
+    if (modal) modal.scrollTop = 0;
+  });
 }
 
 function setView(nextView) {
@@ -1559,16 +1582,6 @@ function setView(nextView) {
 }
 
 function goBackFromView() {
-  if (state.view === 'reset-options') {
-    state.resetConfirmOpen = false;
-    const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
-    // Reset Options is opened from Settings via setView(), which pushes Settings.
-    // Consume that entry while returning so Back from Settings goes to its real parent.
-    if (history[history.length - 1] === 'settings') history.pop();
-    state.view = 'settings';
-    renderLayout();
-    return;
-  }
   if (state.view === 'goal-create') {
     const history = state.navigationHistory || [];
     if (history[history.length - 1] === 'goal-achievements') history.pop();
@@ -2217,7 +2230,7 @@ function renderWeatherPage() {
   const statusContent = weather.status === 'loading'
     ? `<div class="weather-status-panel is-loading"><span class="weather-spinner"></span><div><strong>Getting real weather…</strong><p>Fetching current conditions and the forecast.</p></div></div>`
     : weather.status === 'error'
-      ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>${weather.errorType === 'offline' ? 'No internet connection' : weather.errorType === 'location-disabled' ? 'Device location is off' : weather.errorType === 'permission-denied' ? 'Location permission needed' : 'Weather unavailable'}</strong><p>${escapeHtml(weather.error || 'Could not fetch weather data.')}</p>${weather.errorType === 'offline' ? '<p>Please connect to the internet and try again.</p>' : ''}${weather.errorType === 'location-disabled' && window.Capacitor?.isNativePlatform?.() ? '<div class="weather-permission-actions"><button type="button" data-action="open-device-location-settings">Device location</button></div>' : ''}${weather.errorType === 'permission-denied' && window.Capacitor?.isNativePlatform?.() ? '<div class="weather-permission-actions"><button type="button" data-action="open-location-permission-settings">App permissions</button></div>' : ''}</div></div>`
+      ? `<div class="weather-status-panel is-error"><span class="weather-status-symbol">!</span><div><strong>Weather unavailable</strong><p>${escapeHtml(weather.error || 'Could not fetch weather data.')}</p><p>Allow location access or search for a city below.</p>${window.Capacitor?.isNativePlatform?.() && /location|permission|gps|services|denied/i.test(weather.error || '') ? `<div class="weather-permission-actions">${/device location is turned off|location services|provider disabled/i.test(weather.error || '') ? `<button type="button" data-action="open-device-location-settings">Enable device location</button>` : `<button type="button" data-action="open-location-permission-settings">Enable DaySync location permission</button>`}</div>` : ''}</div></div>`
       : !current
         ? `<div class="weather-status-panel"><span class="weather-status-symbol">☁</span><div><strong>Live weather, not estimates</strong><p>Use your device location or search a city to load current weather from the forecast service.</p></div></div>`
         : '';
@@ -2274,50 +2287,18 @@ async function geocodeWeatherCity(city) {
   return { latitude: place.latitude, longitude: place.longitude, label: [place.name, place.admin1, place.country].filter(Boolean).filter((x, i, arr) => arr.indexOf(x) === i).join(', ') };
 }
 
-function createWeatherError(message, type = 'general') {
-  const error = new Error(message);
-  error.weatherType = type;
-  return error;
-}
-
-function isDeviceLocationDisabled(error) {
-  const message = String(error?.message || error || '');
-  return /location services (?:are )?(?:disabled|off)|location provider (?:is )?disabled|gps (?:is )?disabled|location is turned off|location settings are off|location unavailable.*(?:disabled|off)/i.test(message);
-}
-
 async function getBrowserCoordinates() {
   const isNative = Boolean(window.Capacitor?.isNativePlatform?.());
-
   if (isNative) {
-    let permissions;
     try {
-      permissions = await Geolocation.checkPermissions();
-    } catch (error) {
-      throw createWeatherError('Could not check location permission. Please check DaySync permissions in Android Settings.', 'permission-denied');
-    }
-
-    const allowed = () => permissions?.location === 'granted' || permissions?.coarseLocation === 'granted';
-    const needsFirstRequest = permissions?.location === 'prompt' ||
-      permissions?.coarseLocation === 'prompt' ||
-      permissions?.location === 'prompt-with-rationale' ||
-      permissions?.coarseLocation === 'prompt-with-rationale';
-
-    // Android permission prompt is shown only while the OS reports a prompt state.
-    // If the user has already denied it, direct them to App permissions instead
-    // of repeatedly opening the system permission dialog.
-    if (!allowed() && needsFirstRequest) {
-      try {
+      let permissions = await Geolocation.checkPermissions();
+      const allowed = () => permissions.location === 'granted' || permissions.coarseLocation === 'granted';
+      if (!allowed()) {
         permissions = await Geolocation.requestPermissions({ permissions: ['location', 'coarseLocation'] });
-      } catch (error) {
-        throw createWeatherError('Allow DaySync location access in App permissions to get local weather.', 'permission-denied');
       }
-    }
-
-    if (!allowed()) {
-      throw createWeatherError('Location access for DaySync is denied. Enable it in App permissions, or search for a city below.', 'permission-denied');
-    }
-
-    try {
+      if (!allowed()) {
+        throw new Error('DaySync does not have location permission. Enable Location permission for DaySync in App settings, or search for a city below.');
+      }
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: permissions.location === 'granted',
         timeout: 15000,
@@ -2329,28 +2310,26 @@ async function getBrowserCoordinates() {
         label: 'Your current location',
       };
     } catch (error) {
-      if (isDeviceLocationDisabled(error) || /location unavailable|position unavailable|code\\s*2/i.test(String(error?.message || error))) {
-        throw createWeatherError('Turn on your phone location services and try again, or search for a city below.', 'location-disabled');
+      const message = String(error?.message || '');
+      if (/denied|permission/i.test(message)) {
+        throw new Error('DaySync location permission is off. Enable Location permission for DaySync in App settings, or search for a city below.');
       }
-      if (/denied|permission/i.test(String(error?.message || error))) {
-        throw createWeatherError('Location access for DaySync is denied. Enable it in App permissions, or search for a city below.', 'permission-denied');
+      if (/disabled|services|location provider/i.test(message)) {
+        throw new Error('Device location is turned off. Turn on Location in your phone quick settings, then try again.');
       }
-      throw createWeatherError(`${error?.message || 'Could not determine your device location.'} You can also search for a city below.`, 'general');
+      throw new Error(`${message || 'Could not determine your device location.'} You can also search for a city below.`);
     }
   }
 
-  if (!navigator.geolocation) throw createWeatherError('This browser does not support location access. Search for a city below.');
+  if (!navigator.geolocation) throw new Error('This browser does not support location access. Search for a city below.');
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: 'Your current location' }),
-      (error) => reject(createWeatherError(
-        error.code === 1
-          ? 'Location permission was denied. Allow location access in browser settings, or search for a city below.'
-          : error.code === 2
-            ? 'Your location is unavailable. Turn on location services or search for a city below.'
-            : 'Location lookup timed out. Try again or search for a city below.',
-        error.code === 1 ? 'permission-denied' : error.code === 2 ? 'location-disabled' : 'general'
-      )),
+      (error) => reject(new Error(error.code === 1
+        ? 'Location permission was denied. Allow location access in browser settings, or search for a city below.'
+        : error.code === 2
+          ? 'Your location is unavailable. Turn on location services or search for a city below.'
+          : 'Location lookup timed out. Try again or search for a city below.')),
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 },
     );
   });
@@ -2374,12 +2353,9 @@ async function fetchLiveWeather(location, requestId) {
 
 async function loadWeatherForCurrentLocation(city = '') {
   const requestId = Number(state.weather.requestId || 0) + 1;
-  state.weather = { ...state.weather, requestId, status: 'loading', error: '', errorType: '', data: null, locationLabel: city ? '' : 'Your current location' };
+  state.weather = { ...state.weather, requestId, status: 'loading', error: '', data: null, locationLabel: city ? '' : 'Your current location' };
   if (state.view === 'weather') renderLayout();
   try {
-    if (!navigator.onLine) {
-      throw createWeatherError('Please connect to the internet to load live weather.', 'offline');
-    }
     let location;
     if (city) {
       location = await geocodeWeatherCity(city);
@@ -2391,13 +2367,7 @@ async function loadWeatherForCurrentLocation(city = '') {
     await fetchLiveWeather(location, requestId);
   } catch (error) {
     if (state.weather.requestId === requestId) {
-      const offline = !navigator.onLine || error?.name === 'TypeError' || /failed to fetch|network request failed|load failed/i.test(String(error?.message || ''));
-      state.weather = {
-        ...state.weather,
-        status: 'error',
-        error: offline ? 'Please connect to the internet and try again.' : (error.message || 'Unable to load weather data.'),
-        errorType: offline ? 'offline' : (error.weatherType || 'general'),
-      };
+      state.weather = { ...state.weather, status: 'error', error: error.message || 'Unable to load weather data.' };
     }
   } finally {
     if (state.view === 'weather' && state.weather.requestId === requestId) renderLayout();
@@ -3764,92 +3734,16 @@ let isRendering = false;
 let lastAssistantMessageCount = null;
 let lastAssistantLoadingState = null;
 
-function ensureCalendarHeaderStyles() {
-  // The Calendar page is rendered inside #app, which is the app's scroll
-  // container. Use a fixed header so it never moves with the calendar content.
-  if (document.getElementById('daysync-calendar-fixed-header-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'daysync-calendar-fixed-header-styles';
-  style.textContent = `
-    #app > .calendar-screen {
-      box-sizing: border-box !important;
-      padding-top: 66px !important;
-    }
-    #app .calendar-screen > .calendar-simple-header {
-      position: fixed !important;
-      top: max(6px, env(safe-area-inset-top, 0px)) !important;
-      left: 50% !important;
-      right: auto !important;
-      transform: translateX(-50%) translateZ(0) !important;
-      z-index: 9999 !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: space-between !important;
-      box-sizing: border-box !important;
-      width: min(calc(100vw - 32px), 418px) !important;
-      min-height: 48px !important;
-      margin: 0 !important;
-      padding: 6px 10px !important;
-      border-radius: 15px !important;
-      background: linear-gradient(110deg, #315fba 0%, #2368bd 56%, #147da6 100%) !important;
-      border: 1px solid rgba(151, 190, 255, .42) !important;
-      box-shadow: 0 4px 0 rgba(2, 9, 24, .68), 0 8px 18px rgba(18, 61, 130, .24), inset 0 1px 0 rgba(255,255,255,.22) !important;
-      isolation: isolate !important;
-      opacity: 1 !important;
-      visibility: visible !important;
-    }
-    #app .calendar-screen > .calendar-simple-header .calendar-header-actions {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: space-between !important;
-      width: 100% !important;
-      gap: 10px !important;
-    }
-    #app .calendar-screen > .calendar-simple-header .calendar-simple-back,
-    #app .calendar-screen > .calendar-simple-header .calendar-brand-back {
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      flex: 0 0 36px !important;
-      width: 36px !important;
-      height: 36px !important;
-      min-width: 36px !important;
-      margin: 0 !important;
-    }
-    #app .calendar-screen > .calendar-simple-header .calendar-today-button {
-      margin-left: auto !important;
-      flex: 0 0 auto !important;
-    }
-    #app .calendar-screen > .calendar-simple-header button {
-      pointer-events: auto !important;
-    }
-    @media (max-width: 360px) {
-      #app .calendar-screen > .calendar-simple-header {
-        width: calc(100vw - 24px) !important;
-        min-height: 46px !important;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 function applySharedPageBackButton() {
-  const app = document.getElementById('app');
-  // Calendar already renders its own Back button. Do not create a generic
-  // shared-page header or inject a second Back button on this page.
-  if (state.view === 'calendar') {
-    app?.querySelectorAll('[data-action="shared-page-back"]').forEach((button) => button.remove());
-    ensureCalendarHeaderStyles();
-    return;
-  }
   // Home, Assistant and the main feature menu intentionally have no shared page-back control.
   if (['home', 'assistant', 'menu'].includes(state.view)) return;
   // Finance subpages render their own context-specific back button. Do not inject a second one.
   if (state.view === 'finance' && ['transactions', 'add-choice', 'add-expense'].includes(state.financeView)) return;
+  const app = document.getElementById('app');
   if (!app) return;
   const selectors = {
     tasks: '.todo-header', vault: '.notepad-page-header',
-    finance: '.finance-dashboard-header, .finance-transactions-header', mood: '.page-header',
+    finance: '.finance-dashboard-header, .finance-transactions-header', calendar: '.page-header', mood: '.page-header',
     habits: '.page-header', goals: '.page-header', progress: '.dashboard-topbar',
     focus: '.focus-header', weather: '.weather-page-header', settings: '.daysync-settings-header', 'goal-achievements': '.ga-header', 'goal-create': '.ga-header', 'goal-edit': '.ga-header',
     'reset-options': '.daysync-reset-header',
@@ -3881,6 +3775,45 @@ function applySharedPageBackButton() {
     if (button.classList.contains('back-button')) button.textContent = '‹';
   }
   if (header.classList.contains('menu-page-heading')) header.classList.add('daysync-menu-header');
+}
+
+function promoteFloatingActionsToViewport() {
+  const appRoot = document.getElementById('app');
+  if (!appRoot) return;
+  const selectors = [
+    '.task-create-action',
+    '.notepad-floating-add-wrap',
+    '.finance-floating-add-wrap'
+  ];
+  selectors.forEach((selector) => {
+    const wrapper = appRoot.querySelector(selector);
+    if (!wrapper) return;
+    wrapper.classList.add('daysync-viewport-floating-action');
+    document.body.appendChild(wrapper);
+  });
+}
+
+if (!window.__daysyncEntryFieldScrollBound) {
+  window.__daysyncEntryFieldScrollBound = true;
+  document.addEventListener('focusin', (event) => {
+    const field = event.target.closest('.entry-modal [data-entry-field]');
+    if (!field) return;
+    const modal = field.closest('.entry-modal');
+    if (!modal) return;
+    window.setTimeout(() => {
+      if (!field.isConnected || !modal.isConnected) return;
+      const fieldRect = field.getBoundingClientRect();
+      const modalRect = modal.getBoundingClientRect();
+      const keyboardInset = Math.max(0, window.innerHeight - (window.visualViewport?.height || window.innerHeight));
+      const visibleBottom = Math.min(modalRect.bottom, window.innerHeight - keyboardInset - 18);
+      const visibleTop = modalRect.top + 12;
+      if (fieldRect.bottom > visibleBottom) {
+        modal.scrollBy({ top: fieldRect.bottom - visibleBottom + 18, behavior: 'smooth' });
+      } else if (fieldRect.top < visibleTop) {
+        modal.scrollBy({ top: fieldRect.top - visibleTop - 12, behavior: 'smooth' });
+      }
+    }, 100);
+  }, true);
 }
 
 function renderLayout() {
@@ -3950,6 +3883,9 @@ function renderLayout() {
   content = renderSettingsPage();
 } else if (state.view === 'reset-options') {
   content = renderResetOptionsPage();
+} else if (state.view === 'alarm') {
+  content = renderAlarmClockPage();
+
 } else if (state.view === 'focus') {
   content = renderFocusPage();
 
@@ -3965,8 +3901,10 @@ function renderLayout() {
 }
 
   // Appends active modals and menus over the main content
+  document.querySelectorAll('.daysync-viewport-floating-action').forEach((node) => node.remove());
   app.innerHTML = content + renderEntryModal() + renderProfileModal();
   renderFocusAlarmOverlay();
+  promoteFloatingActionsToViewport();
   applySharedPageBackButton();
 
   // Follow the newest assistant conversation message after a chat update,
@@ -4013,7 +3951,7 @@ function renderLayout() {
   syncKeyboardViewport();
 
   // Highlight active bottom navigation button
-  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'goal-create', 'goal-edit', 'focus', 'weather', 'settings', 'reset-options'];
+  const menuSubPages = ['menu', 'tasks', 'vault', 'finance', 'progress', 'habits', 'goals', 'goal-achievements', 'goal-create', 'goal-edit', 'focus', 'alarm', 'weather', 'settings', 'reset-options'];
 
 
 
@@ -4041,7 +3979,7 @@ function renderLayout() {
   app.querySelectorAll('[data-view]').forEach((button) => {
     if (!button.dataset.view) return;
     button.addEventListener('click', () => {
-      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'goal-achievements', 'mood', 'finance', 'vault', 'focus', 'weather', 'settings', 'reset-options'].includes(button.dataset.view)) {
+      if (['home', 'calendar', 'assistant', 'more', 'progress', 'tasks', 'habits', 'goals', 'goal-achievements', 'mood', 'finance', 'vault', 'focus', 'alarm', 'weather', 'settings', 'reset-options'].includes(button.dataset.view)) {
         if (state.view !== button.dataset.view && state.view !== 'home' && state.view !== 'assistant') state.navigationHistory.push(state.view);
         state.view = button.dataset.view;
         state.entryModalOpen = false;
@@ -4625,6 +4563,14 @@ document.querySelectorAll(
 
   document.querySelectorAll('[data-action="open-add-entry"]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (button.dataset.type === 'task' && button.classList.contains('daily-add-button')) {
+        state.navigationHistory.push(state.view);
+        state.view = 'tasks';
+        state.entryModalOpen = false;
+        state.entryDraft = null;
+        renderLayout();
+        return;
+      }
       openEntryModal(button.dataset.type || 'event');
     });
   });
@@ -5659,53 +5605,34 @@ function isEditableControl(element) {
   return Boolean(element?.matches?.('input:not([type="button"]):not([type="submit"]), textarea, select, [contenteditable="true"]'));
 }
 
-let keyboardRevealTimer = 0;
-let keyboardRevealTarget = null;
-let keyboardViewportFrame = 0;
-
 function syncKeyboardViewport() {
   const viewport = window.visualViewport;
   const activeEditable = isEditableControl(document.activeElement);
   const isSmallScreen = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760;
-  // Focus alone does not mean the software keyboard is open. Wait for the
-  // visual viewport to shrink before changing the app's keyboard layout.
-  const viewportHeight = viewport?.height || window.innerHeight;
-  const viewportReduced = Boolean(
-    viewport && (
-      window.innerHeight - viewport.height > 110 ||
-      viewport.height < window.innerHeight * 0.82 ||
-      (window.screen?.height && viewport.height < window.screen.height * 0.72)
-    )
-  );
-  const keyboardOpen = Boolean(isSmallScreen && activeEditable && viewportReduced);
+  const viewportReduced = Boolean(viewport && (window.innerHeight - viewport.height > 120 || viewport.height < window.innerHeight * 0.76));
+  const keyboardOpen = Boolean(isSmallScreen && activeEditable && (viewportReduced || document.activeElement));
   document.body.classList.toggle('keyboard-open', keyboardOpen);
   document.documentElement.classList.toggle('keyboard-open', keyboardOpen);
   document.querySelector('.bottom-nav')?.classList.toggle('keyboard-hidden', keyboardOpen);
   if (viewport) {
-    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewportHeight)}px`);
-  }
-  if (keyboardOpen && keyboardRevealTarget && keyboardRevealTarget === document.activeElement) {
-    revealFocusedControl(keyboardRevealTarget, true);
+    document.documentElement.style.setProperty('--sahra-visual-height', `${Math.max(220, viewport.height)}px`);
   }
 }
 
-function revealFocusedControl(element, afterKeyboardResize = false) {
+function revealFocusedControl(element) {
   if (!isEditableControl(element)) return;
-  keyboardRevealTarget = element;
-  if (keyboardRevealTimer) window.clearTimeout(keyboardRevealTimer);
-  // One adjustment after the keyboard animation starts/finishes, instead of
-  // three competing scrollIntoView calls that make the page jump.
-  keyboardRevealTimer = window.setTimeout(() => {
-    keyboardRevealTimer = 0;
-    const target = keyboardRevealTarget;
-    if (!target?.isConnected || document.activeElement !== target) return;
-    const viewportHeight = window.visualViewport?.height || window.innerHeight;
-    const rect = target.getBoundingClientRect();
-    const keyboardOpen = document.body.classList.contains('keyboard-open');
-    if (keyboardOpen && (rect.bottom > viewportHeight - 20 || rect.top < 8)) {
-      target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-    }
-  }, afterKeyboardResize ? 90 : 260);
+  const target = element;
+  [100, 320, 520].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!target.isConnected || document.activeElement !== target) return;
+      syncKeyboardViewport();
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const rect = target.getBoundingClientRect();
+      if (rect.bottom > viewportHeight - 26 || rect.top < 10) {
+        target.scrollIntoView({ block: 'center', behavior: delay > 100 ? 'smooth' : 'auto' });
+      }
+    }, delay);
+  });
 }
 
 function bindSmartNavigationAndKeyboard() {
@@ -5827,29 +5754,20 @@ function bindSmartNavigationAndKeyboard() {
 
   document.addEventListener('focusin', (event) => {
     if (!isEditableControl(event.target)) return;
-    keyboardRevealTarget = event.target;
     syncKeyboardViewport();
     revealFocusedControl(event.target);
   });
   document.addEventListener('focusout', () => {
-    keyboardRevealTarget = null;
-    if (keyboardRevealTimer) window.clearTimeout(keyboardRevealTimer);
-    keyboardRevealTimer = 0;
     window.setTimeout(() => {
       syncKeyboardViewport();
       if (!document.body.classList.contains('keyboard-open')) {
         document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
       }
-    }, 120);
+    }, 180);
   });
   window.addEventListener('resize', syncKeyboardViewport, { passive: true });
-  window.visualViewport?.addEventListener('resize', () => {
-    if (keyboardViewportFrame) cancelAnimationFrame(keyboardViewportFrame);
-    keyboardViewportFrame = requestAnimationFrame(() => {
-      keyboardViewportFrame = 0;
-      syncKeyboardViewport();
-    });
-  }, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncKeyboardViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncKeyboardViewport, { passive: true });
 }
 
 async function clearResetCategoryLocalCache(token, category) {
@@ -6081,21 +5999,10 @@ function bindGlobalListeners() {
       if (action === 'ga-delete') {
         const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
         if (!goal) return;
-        showAppConfirm(
-          `Delete the goal “${goal.title}” and its progress history?`,
-          async () => {
-            // Keep the existing persistence/sync path; only remove the goal after explicit confirmation.
-            saveGoalAchievements((state.goalAchievementItems || []).filter((item) => String(item.id) !== String(goal.id)));
-            if (window.Capacitor?.isNativePlatform?.() && LocalNotifications?.cancel) {
-              void LocalNotifications.cancel({ notifications: [{ id: goalReminderId(goal.id) }] }).catch(() => {});
-            }
-            state.goalAchievementEditingId = null;
-            showToast('Goal deleted');
-            renderLayout();
-          },
-          'Delete'
-        );
-        return;
+        if (!window.confirm(`Delete the goal “${goal.title}” and its progress history?`)) return;
+        saveGoalAchievements((state.goalAchievementItems || []).filter(g => g.id !== goal.id));
+        if (window.Capacitor?.isNativePlatform?.()) void LocalNotifications.cancel({ notifications:[{id:goalReminderId(goal.id)}] }).catch(()=>{});
+        state.goalAchievementEditingId = null; showToast('Goal deleted'); renderLayout(); return;
       }
     }
     const sharedBack = event.target.closest('[data-action="shared-page-back"]');
@@ -6108,15 +6015,7 @@ function bindGlobalListeners() {
       return;
     }
     const resetBack = event.target.closest('[data-action="reset-back-settings"]');
-    if (resetBack) {
-      state.resetConfirmOpen = false;
-      const history = Array.isArray(state.navigationHistory) ? state.navigationHistory : [];
-      // Remove the Settings entry that setView('reset-options') added.
-      if (history[history.length - 1] === 'settings') history.pop();
-      state.view = 'settings';
-      renderLayout();
-      return;
-    }
+    if (resetBack) { state.resetConfirmOpen = false; state.view = 'settings'; renderLayout(); return; }
     const toggleResetCategory = event.target.closest('[data-action="reset-toggle-category"]');
     if (toggleResetCategory) {
       const category = toggleResetCategory.dataset.category;
@@ -6667,5 +6566,61 @@ async function initializeApp() {
 initializeApp().catch((error) => {
   console.error('App initialization failed:', error);
   showToast(error.message || 'Unable to initialize DaySync.');
+  renderLayout();
+});
+
+
+// DaySync Alarm Clock: independent saved alarms with native local-notification scheduling.
+function daysyncAlarmNextDate(time, dayOffset = 0) {
+  const [hours, minutes] = String(time || '07:00').split(':').map(Number);
+  const date = new Date(); date.setDate(date.getDate() + dayOffset); date.setHours(hours || 0, minutes || 0, 0, 0);
+  return date;
+}
+async function daysyncScheduleAlarm(alarm) {
+  const native = window.SAHRA_NOTIFICATIONS;
+  if (!native?.isNative?.()) return;
+  await native.ready;
+  const permission = await native.permissionStatus();
+  if (permission.display !== 'granted') {
+    const requested = await native.requestPermission();
+    if (requested?.display !== 'granted') { showToast('Enable notifications to receive alarms.'); return; }
+  }
+  const notifications = [];
+  const count = alarm.daily ? 14 : 1;
+  for (let i = 0; i < count; i++) {
+    const at = daysyncAlarmNextDate(alarm.time, i);
+    if (at.getTime() <= Date.now()) continue;
+    notifications.push({ id: Number(alarm.id) + i, title: alarm.label || 'DaySync Alarm', body: 'Your alarm is ringing.', schedule: { at }, channelId: 'daysync-clock-alarm', sound: 'daysync_alarm.wav', extra: { type: 'daysync-alarm', alarmId: String(alarm.id) } });
+  }
+  if (notifications.length) await window.Capacitor.Plugins.LocalNotifications.schedule({ notifications });
+}
+document.addEventListener('submit', async (event) => {
+  const form = event.target.closest?.('#daysync-alarm-form');
+  if (!form) return;
+  event.preventDefault();
+  const data = new FormData(form); const time = String(data.get('time') || '');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { showToast('Choose a valid alarm time.'); return; }
+  const alarm = { id: Date.now(), time, label: String(data.get('label') || 'Alarm').trim() || 'Alarm', daily: data.get('daily') === 'on' };
+  state.alarmItems = [...(state.alarmItems || []), alarm];
+  localStorage.setItem('daysyncAlarmItems', JSON.stringify(state.alarmItems));
+  try { await daysyncScheduleAlarm(alarm); showToast('Alarm saved.'); }
+  catch (error) { console.warn('Alarm notification scheduling failed:', error); showToast('Alarm saved, but notification scheduling failed. Check permissions.'); }
+  renderLayout();
+});
+document.addEventListener('click', async (event) => {
+  const back = event.target.closest?.('[data-action="alarm-back"]');
+  if (back) { state.view = 'menu'; renderLayout(); return; }
+  const remove = event.target.closest?.('[data-action="alarm-delete"]');
+  if (!remove) return;
+  const id = String(remove.dataset.alarmId || '');
+  const alarm = (state.alarmItems || []).find((item) => String(item.id) === id);
+  if (!alarm) return;
+  if (!window.confirm(`Delete the alarm “${alarm.label}”?`)) return;
+  if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
+    const ids = Array.from({length: alarm.daily ? 14 : 1}, (_, i) => ({ id: Number(alarm.id) + i }));
+    try { await window.Capacitor.Plugins.LocalNotifications.cancel({ notifications: ids }); } catch (error) { console.warn('Could not cancel alarm notifications:', error); }
+  }
+  state.alarmItems = (state.alarmItems || []).filter((item) => String(item.id) !== id);
+  localStorage.setItem('daysyncAlarmItems', JSON.stringify(state.alarmItems));
   renderLayout();
 });

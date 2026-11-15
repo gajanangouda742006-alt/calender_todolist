@@ -725,6 +725,7 @@ function renderDashboard(transactions, state) {
 
       <!-- FLOATING ADD BUTTON -->
       <div
+        class="daysync-floating-add-wrap finance-floating-add-wrap"
         style="
           position: fixed;
           bottom: 95px;

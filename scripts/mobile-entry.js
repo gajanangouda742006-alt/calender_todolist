@@ -67,12 +67,39 @@ async function configureNativeShell() {
     window.addEventListener('daysync:resume', () => {
       void applyNativeStatusBarTheme().catch((error) => console.warn('Status bar resume theme update failed:', error));
     });
+    // Re-apply after WebView page restoration as well; Android can restore a
+    // cached WebView without firing the appStateChange callback.
+    window.addEventListener('pageshow', () => {
+      void applyNativeStatusBarTheme().catch((error) => console.warn('Status bar pageshow theme update failed:', error));
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void applyNativeStatusBarTheme().catch((error) => console.warn('Status bar visibility theme update failed:', error));
+      }
+    });
   } catch (error) {
     console.warn('Native status-bar theme configuration failed:', error);
   }
 
   try {
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
+    await Keyboard.addListener('keyboardDidShow', (info = {}) => {
+      window.SAHRA_NATIVE_KEYBOARD_OPEN = true;
+      const height = Number(info.keyboardHeight) || 0;
+      if (height > 0) document.documentElement.style.setProperty('--sahra-keyboard-height', `${height}px`);
+      window.dispatchEvent(new Event('daysync:keyboard-change'));
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active?.matches?.('input, textarea, select, [contenteditable=\"true\"]')) {
+          active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        }
+      });
+    });
+    await Keyboard.addListener('keyboardDidHide', () => {
+      window.SAHRA_NATIVE_KEYBOARD_OPEN = false;
+      document.documentElement.style.removeProperty('--sahra-keyboard-height');
+      window.dispatchEvent(new Event('daysync:keyboard-change'));
+    });
   } catch (error) {
     console.warn('Native keyboard configuration failed:', error);
   }
