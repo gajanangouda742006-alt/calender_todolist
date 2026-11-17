@@ -1,26 +1,29 @@
-DaySync Expense Tracker Mobile Header Fix
-=========================================
+DaySync patch installation
+==========================
 
-Changed file:
+Files in this patch:
+- app.js
 - style.css
 
-What changed:
-- The Expense Tracker dashboard header now uses position: sticky inside the app's
-  main scrolling area, instead of viewport-fixed positioning that could move
-  unexpectedly inside the mobile frame.
-- Removed the extra reserved top padding that was only needed for the old fixed
-  header.
-- Scoped all overrides to the Expense Tracker dashboard so other pages are untouched.
-- Added safe-area-aware top spacing for mobile devices.
-
 Install:
-1. Back up P:\MyProjects\calender_todolist\style.css.
-2. Extract this ZIP into P:\MyProjects\calender_todolist and replace style.css.
-3. Rebuild the web bundle only if your normal build process copies CSS separately;
-   CSS itself is loaded directly from style.css by the app.
-4. Test by opening Expense Tracker and scrolling its content on a phone.
+1. Back up P:\MyProjects\calender_todolist\app.js and style.css.
+2. Extract this ZIP into P:\MyProjects\calender_todolist and replace only these two files.
+3. Open PowerShell and run:
 
-No JavaScript, database, alarm, calendar, assistant, or other page files were changed.
+   cd P:\MyProjects\calender_todolist
+   node --check .\app.js
+   node .\scripts\build-web.js
 
-Note:
-This is a source-level CSS fix. It has not been tested on a physical Android or iOS device.
+4. For Android, stage and sync the updated web bundle using your existing workflow:
+   npm run mobile:stage
+   npx cap sync android
+
+5. For iOS, on macOS with Xcode:
+   npm run mobile:stage
+   npx cap sync ios
+
+Notes:
+- Alarm hour/minute/AM-PM controls remain native HTML select elements for accessibility and platform picker behavior, but now have a raised 3D selector appearance.
+- Weather and Reset Options headers use a compact raised common-header style.
+- This patch does NOT implement a native full-screen lock-screen alarm activity. The current project uses Capacitor local notifications; a full-screen Android alarm needs native AlarmManager/Activity integration and full-screen-intent permission handling. iOS does not generally permit arbitrary third-party full-screen lock-screen UI. Do not treat this visual patch as completing that separate native alarm requirement.
+- Test on real Android/iOS devices after building.

@@ -819,10 +819,10 @@ function renderAlarmClockPage() {
         <form id="daysync-alarm-form" class="daysync-alarm-form">
           <fieldset class="daysync-alarm-time-picker">
             <legend>Alarm time</legend>
-            <label><span>Hour</span><select name="hour12" required>${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i===6?'selected':''}>${String(i+1).padStart(2,'0')}</option>`).join('')}</select></label>
-            <span class="daysync-alarm-time-colon">:</span>
-            <label><span>Minute</span><select name="minute" required>${Array.from({length:60},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}</option>`).join('')}</select></label>
-            <label><span>AM / PM</span><select name="ampm"><option value="AM">AM</option><option value="PM">PM</option></select></label>
+            <label class="daysync-alarm-time-field daysync-alarm-hour-field"><span>HOUR</span><select name="hour12" aria-label="Alarm hour" required>${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i===6?'selected':''}>${String(i+1).padStart(2,'0')}</option>`).join('')}</select></label>
+            <span class="daysync-alarm-time-colon" aria-hidden="true">:</span>
+            <label class="daysync-alarm-time-field daysync-alarm-minute-field"><span>MINUTE</span><select name="minute" aria-label="Alarm minute" required>${Array.from({length:60},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}</option>`).join('')}</select></label>
+            <label class="daysync-alarm-time-field daysync-alarm-period-field"><span>PERIOD</span><select name="ampm" aria-label="AM or PM"><option value="AM">AM</option><option value="PM">PM</option></select></label>
           </fieldset>
           <label>Label<input name="label" type="text" maxlength="48" placeholder="Wake up" value="Wake up"></label>
           <label class="daysync-alarm-repeat"><input name="daily" type="checkbox"> Repeat every day</label>
