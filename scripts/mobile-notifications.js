@@ -172,6 +172,18 @@ async function configureNotificationTapHandling() {
     } catch (error) { console.warn('Could not create Alarm Clock channel:', error.message); }
     try {
       await LocalNotifications.createChannel({
+        id: 'daysync-clock-alarm-v2',
+        name: 'DaySync Alarm Clock (sound)',
+        description: 'Scheduled DaySync alarm sound and vibration',
+        importance: 5,
+        visibility: 1,
+        sound: 'daysync_alarm.wav',
+        vibration: true,
+        lights: true,
+      });
+    } catch (error) { console.warn('Could not create sound-enabled Alarm Clock channel:', error.message); }
+    try {
+      await LocalNotifications.createChannel({
         id: 'daysync-focus-alarm',
         name: 'DaySync Focus Timer',
         description: 'Focus session completion alarm',

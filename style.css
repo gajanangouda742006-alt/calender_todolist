@@ -12512,3 +12512,64 @@ body:not(.theme-light) .daysync-alarm-row [data-action="alarm-delete"] {
   background:linear-gradient(145deg,#47283a,#321d30) !important;
   border-color:rgba(255,130,150,.3) !important;
 }
+
+/* Calendar: top-pinned navigation and strong selected-date state. */
+#app .calendar-screen > .calendar-simple-header {
+  position: sticky !important;
+  top: env(safe-area-inset-top, 0px) !important;
+  z-index: 1100 !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+}
+#app .calendar-screen > .calendar-simple-header .calendar-today-button {
+  margin-left: auto !important;
+}
+#app .calendar-screen .calendar-day.selected,
+body.theme-light #app .calendar-screen .calendar-day.selected {
+  background: linear-gradient(145deg, #69b4ff, #3479f2 58%, #2456ca) !important;
+  color: #fff !important;
+  border-color: #75aaff !important;
+  box-shadow: 0 0 0 2px rgba(71,145,255,.28), 0 6px 16px rgba(25,100,230,.36) !important;
+}
+
+
+/* Weather and Reset Options: match the shared header and keep light-mode
+   headings/subtitles legible against the pale glass header surface. */
+#app > .weather-page > .weather-page-header,
+#app > .daysync-reset-screen > .daysync-reset-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+#app > .weather-page > .weather-page-header .weather-page-heading,
+#app > .daysync-reset-screen > .daysync-reset-header .daysync-reset-header-copy {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+body.theme-light #app > .weather-page > .weather-page-header .weather-page-heading,
+body.theme-light #app > .weather-page > .weather-page-header .weather-page-heading h1,
+body.theme-light #app > .weather-page > .weather-page-header .weather-page-heading p,
+body.theme-light #app > .weather-page > .weather-page-header .weather-page-heading span,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header h1,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header p,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header .daysync-eyebrow {
+  color: #17233d !important;
+}
+body.theme-light #app > .weather-page > .weather-page-header .weather-page-heading p,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header .daysync-eyebrow {
+  color: #263f70 !important;
+}
+body.theme-light #app > .weather-page > .weather-page-header .daysync-page-back-button,
+body.theme-light #app > .daysync-reset-screen > .daysync-reset-header .daysync-page-back-button {
+  color: #ffffff !important;
+}
+
+/* Keep the selected calendar day unmistakably blue in both themes. */
+#app .calendar-screen .calendar-day.selected,
+body.theme-light #app .calendar-screen .calendar-day.selected {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #69b4ff 0%, #3479f2 58%, #2456ca 100%) !important;
+  border: 1px solid #75aaff !important;
+  box-shadow: 0 0 0 2px rgba(71,145,255,.28), 0 6px 16px rgba(25,100,230,.36) !important;
+}

@@ -179,7 +179,7 @@ noteSearchQuery: '',
   showFinanceResetConfirm: false,
   financeResetLoading: false,
   tempFinanceType: null,
-  resetOptionsSelected: { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false },
+  resetOptionsSelected: { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false, alarms: false },
   resetConfirmOpen: false,
   resetOptionsBusy: false,
   settingsInfoPanel: '',
@@ -805,7 +805,7 @@ function renderMenuPage() {
 }
 
 function renderAlarmClockPage() {
-  const alarms = Array.isArray(state.alarmItems) ? state.alarmItems : [];
+  const alarms = Array.isArray(state.alarmItems) ? [...state.alarmItems].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 10) : [];
   const escAlarm = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const formatAlarm12 = (value) => { const [h,m] = String(value || '07:00').split(':').map(Number); return `${String((h % 12) || 12).padStart(2,'0')}:${String(m || 0).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`; };
   return `
@@ -829,7 +829,7 @@ function renderAlarmClockPage() {
           <button class="daysync-alarm-save" type="submit">＋ Save alarm</button>
         </form>
       </section>
-      <section class="daysync-alarm-panel"><div class="daysync-alarm-list-heading"><h2>Your alarms</h2><span>${alarms.length} saved</span></div>
+      <section class="daysync-alarm-panel"><div class="daysync-alarm-list-heading"><h2>Your alarms</h2><span>Latest ${alarms.length} alarms</span></div>
         ${alarms.length ? `<div class="daysync-alarm-list">${alarms.map((a) => `<article class="daysync-alarm-row"><div><strong>${escAlarm(formatAlarm12(a.time))}</strong><span>${escAlarm(a.label || 'Alarm')} · ${a.daily ? 'Every day' : 'Once'}</span></div><button type="button" data-action="alarm-delete" data-alarm-id="${escAlarm(a.id)}" aria-label="Delete alarm">Delete</button></article>`).join('')}</div>` : '<p class="daysync-alarm-empty">No alarms yet. Create one above.</p>'}
       </section>
     </section>`;
@@ -2266,7 +2266,7 @@ function renderWeatherPage() {
         : '';
   return `
     <section class="screen weather-page" aria-label="Detailed weather">
-      <header class="weather-page-header daysync-common-header"><button type="button" class="weather-back-button" data-action="weather-back" aria-label="Back to home">‹</button><div class="weather-page-heading"><p>DAYSYNC • LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''} aria-label="Refresh weather">↻</button></header>
+      <header class="weather-page-header daysync-common-header"><button type="button" class="daysync-page-back-button weather-back-button" data-action="weather-back" aria-label="Back to home" title="Back to Home">‹</button><div class="weather-page-heading"><p>DAYSYNC • LIVE FORECAST</p><h1>Weather</h1><span>${safeLocation}</span></div><button type="button" class="weather-refresh-button" data-action="weather-refresh" ${weather.status === 'loading' ? 'disabled' : ''} aria-label="Refresh weather">↻</button></header>
       ${statusContent}
       ${current && data ? `
         <section class="weather-hero-panel">
@@ -3764,7 +3764,7 @@ let lastAssistantLoadingState = null;
 
 function applySharedPageBackButton() {
   // Home, Assistant and the main feature menu intentionally have no shared page-back control.
-  if (['home', 'assistant', 'menu'].includes(state.view)) return;
+  if (['home', 'assistant', 'menu', 'calendar'].includes(state.view)) return;
   // Finance subpages render their own context-specific back button. Do not inject a second one.
   if (state.view === 'finance' && ['transactions', 'add-choice', 'add-expense'].includes(state.financeView)) return;
   const app = document.getElementById('app');
@@ -5840,20 +5840,43 @@ async function clearResetCategoryLocalCache(token, category) {
 async function performSelectedDataReset() {
   const selected = Object.keys(RESET_CATEGORY_META).filter((key) => state.resetOptionsSelected?.[key]);
   if (!selected.length) { showToast('Select at least one data section to reset.'); return; }
-  const token = await getAuthToken();
-  if (!token) { showToast('Sign in again to reset saved data.'); return; }
-  if (!globalThis.navigator?.onLine) { showToast('Connect to the internet before resetting synced data.'); return; }
-  if (!state.localDatabaseReady) { showToast('Local storage is still initializing. Please try again in a moment.'); return; }
+  const requiresServerReset = selected.some((category) => category !== 'alarms');
+  const token = requiresServerReset ? await getAuthToken() : '';
+  if (requiresServerReset && !token) { showToast('Sign in again to reset synced data.'); return; }
+  if (requiresServerReset && !globalThis.navigator?.onLine) { showToast('Connect to the internet before resetting synced data.'); return; }
+  if (requiresServerReset && !state.localDatabaseReady) { showToast('Local storage is still initializing. Please try again in a moment.'); return; }
   state.resetOptionsBusy = true;
   renderLayout();
   try {
-    const syncStatus = await offlineSync.flush(token);
-    if (syncStatus?.pending) {
-      throw new Error('Some offline changes are still waiting to sync. Reconnect and try again before resetting so deleted data cannot return.');
+    if (requiresServerReset) {
+      const syncStatus = await offlineSync.flush(token);
+      if (syncStatus?.pending) {
+        throw new Error('Some offline changes are still waiting to sync. Reconnect and try again before resetting so deleted data cannot return.');
+      }
     }
     const results = [];
     for (const category of selected) {
       const visibleCountBeforeReset = getResetCategoryRecords(category).length;
+      if (category === 'alarms') {
+        const savedAlarms = Array.isArray(state.alarmItems) ? [...state.alarmItems] : [];
+        if (window.SAHRA_NOTIFICATIONS?.isNative?.() && savedAlarms.length) {
+          const notificationIds = [...new Set(savedAlarms.flatMap((alarm) => {
+            const currentId = daysyncAlarmNotificationId(alarm);
+            const legacyCount = alarm.daily ? 14 : 1;
+            return [currentId, ...Array.from({ length: legacyCount }, (_, index) => Number(alarm.id) + index)];
+          }).filter((id) => Number.isInteger(Number(id)) && Number(id) > 0 && Number(id) <= 2147483647))];
+          try {
+            await LocalNotifications.cancel({ notifications: notificationIds.map((id) => ({ id: Number(id) })) });
+          } catch (error) {
+            console.warn('Could not cancel every scheduled alarm notification during reset:', error);
+            throw new Error('DaySync could not cancel the scheduled alarm notifications. No saved alarms were deleted; please try again.');
+          }
+        }
+        state.alarmItems = [];
+        try { localStorage.removeItem('daysyncAlarmItems'); } catch (_) { localStorage.setItem('daysyncAlarmItems', '[]'); }
+        results.push({ category, count: visibleCountBeforeReset });
+        continue;
+      }
       const previousGoals = category === 'goalAchievements' ? getGoalAchievementRecordsForReset() : [];
       const apiCategory = category === 'goalAchievements' ? 'goal-achievements' : category;
       const response = await apiRequest(`/api/reset-data/${encodeURIComponent(apiCategory)}`, { method: 'DELETE' });
@@ -5886,10 +5909,12 @@ async function performSelectedDataReset() {
     if (selected.includes('calendar')) { state.data.events = []; state.data.reminders = []; state.calendarCache = new Set(); }
     if (selected.includes('progress')) { state.data.goals = []; state.data.habits = []; state.data.habitLogs = []; state.data.moods = []; state.progressData = null; }
     state.resetConfirmOpen = false;
-    state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false };
-    await loadDashboardData();
-    await fetchFinanceData();
-    await loadProgressData(false);
+    state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false, alarms: false };
+    if (requiresServerReset) {
+      await loadDashboardData();
+      await fetchFinanceData();
+      await loadProgressData(false);
+    }
     try { await reconcileNativeNotifications(); } catch (error) { console.warn('Notification reconciliation after reset failed:', error.message); }
     const summary = results.map((row) => `${RESET_CATEGORY_META[row.category].title}: ${row.count}`).join(' · ');
     showToast(`Selected data reset. ${summary}`);
@@ -5898,7 +5923,10 @@ async function performSelectedDataReset() {
   } catch (error) {
     console.error('DaySync reset operation failed:', error);
     showToast(error.message || 'The reset could not finish. Check your connection and review the selected data.');
-    try { await loadDashboardData(); await fetchFinanceData(); await loadProgressData(false); } catch (refreshError) { console.warn('Unable to refresh after a partial reset:', refreshError.message); }
+    if (requiresServerReset) {
+      try { await loadDashboardData(); await fetchFinanceData(); await loadProgressData(false); }
+      catch (refreshError) { console.warn('Unable to refresh after a partial reset:', refreshError.message); }
+    }
     state.resetConfirmOpen = true;
     renderLayout();
   } finally {
@@ -6041,7 +6069,7 @@ function bindGlobalListeners() {
     if (sharedBack) { goBackFromView(); return; }
     const openReset = event.target.closest('[data-action="open-reset-options"]');
     if (openReset) {
-      state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false };
+      state.resetOptionsSelected = { tasks: false, notepad: false, expenses: false, calendar: false, progress: false, goalAchievements: false, focus: false, alarms: false };
       state.resetConfirmOpen = false;
       setView('reset-options');
       return;
@@ -6603,28 +6631,41 @@ initializeApp().catch((error) => {
 
 
 // DaySync Alarm Clock: independent saved alarms with native local-notification scheduling.
-function daysyncAlarmNextDate(time, dayOffset = 0) {
+function daysyncAlarmNextDate(time) {
   const [hours, minutes] = String(time || '07:00').split(':').map(Number);
-  const date = new Date(); date.setDate(date.getDate() + dayOffset); date.setHours(hours || 0, minutes || 0, 0, 0);
+  const date = new Date();
+  date.setHours(hours || 0, minutes || 0, 0, 0);
+  if (date.getTime() <= Date.now()) date.setDate(date.getDate() + 1);
   return date;
+}
+// Capacitor notification IDs must fit signed 32-bit integers. A stable per-alarm
+// ID lets delete cancel exactly the notification that was scheduled.
+function daysyncAlarmNotificationId(alarm) {
+  return Number(alarm.notificationId) || (Number(alarm.id) % 2000000000) + 100000;
 }
 async function daysyncScheduleAlarm(alarm) {
   const native = window.SAHRA_NOTIFICATIONS;
-  if (!native?.isNative?.()) return;
+  if (!native?.isNative?.()) return false;
   await native.ready;
   const permission = await native.permissionStatus();
   if (permission.display !== 'granted') {
     const requested = await native.requestPermission();
-    if (requested?.display !== 'granted') { showToast('Enable notifications to receive alarms.'); return; }
+    if (requested?.display !== 'granted') throw new Error('Notifications are disabled. Enable them in device settings.');
   }
-  const notifications = [];
-  const count = alarm.daily ? 14 : 1;
-  for (let i = 0; i < count; i++) {
-    const at = daysyncAlarmNextDate(alarm.time, i);
-    if (at.getTime() <= Date.now()) continue;
-    notifications.push({ id: Number(alarm.id) + i, title: alarm.label || 'DaySync Alarm', body: 'Your alarm is ringing.', schedule: { at }, channelId: 'daysync-clock-alarm', sound: 'daysync_alarm.wav', extra: { type: 'daysync-alarm', alarmId: String(alarm.id) } });
-  }
-  if (notifications.length) await window.Capacitor.Plugins.LocalNotifications.schedule({ notifications });
+  const [hour, minute] = alarm.time.split(':').map(Number);
+  const schedule = alarm.daily
+    ? { on: { hour, minute }, repeats: true, allowWhileIdle: true }
+    : { at: daysyncAlarmNextDate(alarm.time), allowWhileIdle: true };
+  await window.Capacitor.Plugins.LocalNotifications.schedule({ notifications: [{
+    id: daysyncAlarmNotificationId(alarm),
+    title: alarm.label || 'DaySync Alarm',
+    body: 'Your alarm is ringing.',
+    schedule,
+    channelId: 'daysync-clock-alarm-v2',
+    sound: 'daysync_alarm.wav',
+    extra: { type: 'daysync-alarm', alarmId: String(alarm.id) },
+  }] });
+  return true;
 }
 document.addEventListener('submit', async (event) => {
   const form = event.target.closest?.('#daysync-alarm-form');
@@ -6637,11 +6678,11 @@ document.addEventListener('submit', async (event) => {
   if (!(hour12 >= 1 && hour12 <= 12) || !/^[0-5]\d$/.test(minute) || !['AM','PM'].includes(ampm)) { showToast('Choose a valid alarm time.'); return; }
   const hour24 = (hour12 % 12) + (ampm === 'PM' ? 12 : 0);
   const time = `${String(hour24).padStart(2,'0')}:${minute}`;
-  const alarm = { id: Date.now(), time, label: String(data.get('label') || 'Alarm').trim() || 'Alarm', daily: data.get('daily') === 'on' };
+  const alarm = { id: Date.now(), notificationId: Math.floor(Math.random() * 1900000000) + 100000, time, label: String(data.get('label') || 'Alarm').trim() || 'Alarm', daily: data.get('daily') === 'on' };
   state.alarmItems = [...(state.alarmItems || []), alarm];
   localStorage.setItem('daysyncAlarmItems', JSON.stringify(state.alarmItems));
-  try { await daysyncScheduleAlarm(alarm); showToast('Alarm saved.'); }
-  catch (error) { console.warn('Alarm notification scheduling failed:', error); showToast('Alarm saved, but notification scheduling failed. Check permissions.'); }
+  try { const scheduled = await daysyncScheduleAlarm(alarm); showToast(scheduled ? 'Alarm saved and notification scheduled.' : 'Alarm saved. Background alerts require the installed mobile app.'); }
+  catch (error) { console.warn('Alarm notification scheduling failed:', error); showToast(error.message || 'Alarm saved, but notification scheduling failed. Check permissions.'); }
   renderLayout();
 });
 document.addEventListener('click', async (event) => {
@@ -6652,9 +6693,8 @@ document.addEventListener('click', async (event) => {
   const id = String(remove.dataset.alarmId || '');
   const alarm = (state.alarmItems || []).find((item) => String(item.id) === id);
   if (!alarm) return;
-  if (!window.confirm(`Delete the alarm “${alarm.label}”?`)) return;
   if (window.SAHRA_NOTIFICATIONS?.isNative?.()) {
-    const ids = Array.from({length: alarm.daily ? 14 : 1}, (_, i) => ({ id: Number(alarm.id) + i }));
+    const ids = [{ id: daysyncAlarmNotificationId(alarm) }, ...Array.from({ length: alarm.daily ? 14 : 1 }, (_, i) => ({ id: Number(alarm.id) + i }))];
     try { await window.Capacitor.Plugins.LocalNotifications.cancel({ notifications: ids }); } catch (error) { console.warn('Could not cancel alarm notifications:', error); }
   }
   state.alarmItems = (state.alarmItems || []).filter((item) => String(item.id) !== id);
