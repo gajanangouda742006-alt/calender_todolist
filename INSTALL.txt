@@ -1,29 +1,35 @@
-DaySync patch installation
-==========================
+DaySync focused mobile UI and alarm interaction patch
+=====================================================
 
-Files in this patch:
+Included source files:
 - app.js
 - style.css
+- pages/notepad.js
+- mobile-notifications.js
 
-Install:
-1. Back up P:\MyProjects\calender_todolist\app.js and style.css.
-2. Extract this ZIP into P:\MyProjects\calender_todolist and replace only these two files.
-3. Open PowerShell and run:
-
-   cd P:\MyProjects\calender_todolist
+Install
+-------
+1. Back up your project.
+2. Extract these files into P:\MyProjects\calender_todolist, preserving folders.
+3. Replace only the included files.
+4. Run:
    node --check .\app.js
+   node --check .\pages\notepad.js
+   node --check .\mobile-notifications.js
    node .\scripts\build-web.js
-
-4. For Android, stage and sync the updated web bundle using your existing workflow:
+5. For Android:
    npm run mobile:stage
    npx cap sync android
+   cd android
+   .\gradlew.bat assembleDebug
 
-5. For iOS, on macOS with Xcode:
-   npm run mobile:stage
-   npx cap sync ios
-
-Notes:
-- Alarm hour/minute/AM-PM controls remain native HTML select elements for accessibility and platform picker behavior, but now have a raised 3D selector appearance.
-- Weather and Reset Options headers use a compact raised common-header style.
-- This patch does NOT implement a native full-screen lock-screen alarm activity. The current project uses Capacitor local notifications; a full-screen Android alarm needs native AlarmManager/Activity integration and full-screen-intent permission handling. iOS does not generally permit arbitrary third-party full-screen lock-screen UI. Do not treat this visual patch as completing that separate native alarm requirement.
-- Test on real Android/iOS devices after building.
+Notes and limitations
+---------------------
+- Notepad search now filters existing note cards in place. It does not replace the input element on every keystroke, preventing the keyboard focus loss/blink issue.
+- Goal deletion uses the existing DaySync confirmation dialog.
+- Calendar Add Event already uses the existing entry modal over the current page; that behavior is preserved.
+- Weather/reset headers, general page headers, calendar header, task filters, and finance headers receive mobile sticky/alignment overrides.
+- The alarm overlay with Dismiss and 5-minute Snooze is shown after the user taps the scheduled alarm notification and DaySync opens. This is NOT a native Android full-screen lock-screen activity. The Capacitor Local Notifications plugin used by this project does not by itself guarantee full-screen lock-screen presentation.
+- iOS does not guarantee arbitrary full-screen lock-screen UI for third-party apps. Alarm sound/notification delivery remains subject to OS permissions, focus/silent settings, sound resource limits, and platform policy.
+- Android status-bar time/battery/network icon contrast is controlled by the native OS status bar and Capacitor StatusBar configuration, not ordinary page CSS. Test on a real device; this patch does not claim to override OS status-bar appearance on every Android skin.
+- No database schema, user data, backend, or native Android project files are changed.

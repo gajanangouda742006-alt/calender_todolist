@@ -58,7 +58,7 @@ export function renderVaultPage(state) {
           const colorClass = noteColors[index % noteColors.length];
 
           return `
-            <div class="${colorClass}" style="border-radius: 16px; padding: 20px; position: relative;">
+            <div class="${colorClass}" data-notepad-note-card style="border-radius: 16px; padding: 20px; position: relative;">
               
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h3 style="font-weight: 800; font-size: 1.15rem; margin: 0; padding-right: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">

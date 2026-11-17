@@ -808,8 +808,12 @@ function renderAlarmClockPage() {
   const alarms = Array.isArray(state.alarmItems) ? [...state.alarmItems].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 10) : [];
   const escAlarm = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const formatAlarm12 = (value) => { const [h,m] = String(value || '07:00').split(':').map(Number); return `${String((h % 12) || 12).padStart(2,'0')}:${String(m || 0).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`; };
+  let ringingAlarm = null;
+  try { ringingAlarm = JSON.parse(localStorage.getItem('daysyncPendingAlarmOpen') || 'null'); } catch (_) {}
+  const ringingOverlay = ringingAlarm ? `<div class="daysync-alarm-ringing-backdrop" role="alertdialog" aria-modal="true" aria-label="Alarm ringing"><section class="daysync-alarm-ringing-card"><p class="daysync-alarm-ringing-brand">DAYSYNC ALARM</p><strong class="daysync-alarm-ringing-time">${escAlarm(formatAlarm12(ringingAlarm.time || '07:00'))}</strong><h2>${escAlarm(ringingAlarm.label || 'Alarm')}</h2><p>Your scheduled alarm is ringing</p><div class="daysync-alarm-ringing-actions"><button type="button" data-action="alarm-dismiss">×<span>Dismiss</span></button><button type="button" data-action="alarm-snooze">◷<span>Snooze</span></button></div></section></div>` : '';
   return `
     <section class="screen daysync-alarm-screen" aria-label="Alarm Clock">
+      ${ringingOverlay}
       <header class="daysync-alarm-header daysync-common-header">
         <button type="button" class="daysync-page-back-button" data-action="alarm-back" aria-label="Back">‹</button>
         <div><p class="daysync-eyebrow">WAKE UP · STAY ON TIME</p><h1>Alarm Clock</h1></div><span aria-hidden="true">⏰</span>
@@ -5204,50 +5208,36 @@ document.addEventListener('click', (e) => {
 });
 
 
-// 2. Search typing
+// Search notes in place instead of re-rendering the app on every keystroke.
+// Replacing the input node during typing causes Android/iOS keyboards to flicker.
 document.addEventListener('input', (e) => {
-  const input = e.target.closest(
-    '[data-action="notepad-search-input"]'
-  );
-
+  const input = e.target.closest('[data-action="notepad-search-input"]');
   if (!input) return;
 
-  const cursorPosition =
-    input.selectionStart ?? input.value.length;
-
-  // Save current scroll position
-  const app = document.querySelector('#app');
-  const currentScroll = app ? app.scrollTop : 0;
-
-  // Update search text
   state.noteSearchQuery = input.value;
+  const query = input.value.trim().toLocaleLowerCase();
+  const list = document.querySelector('.notepad-notes');
+  if (!list) return;
 
-  // Re-render filtered notes
-  renderLayout();
-
-  // Restore scroll + focus
-  requestAnimationFrame(() => {
-    const newApp = document.querySelector('#app');
-
-    if (newApp) {
-      newApp.scrollTop = currentScroll;
-    }
-
-    const newInput = document.querySelector(
-      '[data-action="notepad-search-input"]'
-    );
-
-    if (!newInput) return;
-
-    newInput.focus();
-
-    const position = Math.min(
-      cursorPosition,
-      newInput.value.length
-    );
-
-    newInput.setSelectionRange(position, position);
+  let visible = 0;
+  list.querySelectorAll('[data-notepad-note-card]').forEach((card) => {
+    const matches = !query || (card.textContent || '').toLocaleLowerCase().includes(query);
+    card.hidden = !matches;
+    if (matches) visible += 1;
   });
+
+  let empty = list.querySelector('[data-notepad-search-empty]');
+  if (!empty) {
+    empty = document.createElement('div');
+    empty.dataset.notepadSearchEmpty = 'true';
+    empty.className = 'notepad-search-empty';
+    empty.textContent = 'No notes found.';
+    list.appendChild(empty);
+  }
+  empty.hidden = visible > 0;
+  if (!list.querySelector('[data-notepad-note-card]')) {
+    empty.hidden = false;
+  }
 });
 
 // 2. Open Edit inside Native App Modal (Replaces prompt)
@@ -6061,10 +6051,14 @@ function bindGlobalListeners() {
       if (action === 'ga-delete') {
         const goal = (state.goalAchievementItems || []).find(g => g.id === gaAction.dataset.goalId);
         if (!goal) return;
-        if (!window.confirm(`Delete the goal “${goal.title}” and its progress history?`)) return;
-        saveGoalAchievements((state.goalAchievementItems || []).filter(g => g.id !== goal.id));
-        if (window.Capacitor?.isNativePlatform?.()) void LocalNotifications.cancel({ notifications:[{id:goalReminderId(goal.id)}] }).catch(()=>{});
-        state.goalAchievementEditingId = null; showToast('Goal deleted'); renderLayout(); return;
+        showAppConfirm(`Delete the goal “${goal.title}” and its progress history?`, () => {
+          saveGoalAchievements((state.goalAchievementItems || []).filter(g => g.id !== goal.id));
+          if (window.Capacitor?.isNativePlatform?.()) void LocalNotifications.cancel({ notifications:[{id:goalReminderId(goal.id)}] }).catch(()=>{});
+          state.goalAchievementEditingId = null;
+          showToast('Goal deleted');
+          renderLayout();
+        }, 'Delete');
+        return;
       }
     }
     const sharedBack = event.target.closest('[data-action="shared-page-back"]');
@@ -6690,6 +6684,32 @@ document.addEventListener('submit', async (event) => {
   renderLayout();
 });
 document.addEventListener('click', async (event) => {
+  const dismissAlarm = event.target.closest?.('[data-action="alarm-dismiss"]');
+  const snoozeAlarm = event.target.closest?.('[data-action="alarm-snooze"]');
+  if (dismissAlarm || snoozeAlarm) {
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem('daysyncPendingAlarmOpen') || 'null'); } catch (_) {}
+    if (pending?.notificationId && window.Capacitor?.Plugins?.LocalNotifications) {
+      try { await window.Capacitor.Plugins.LocalNotifications.cancel({ notifications: [{ id: Number(pending.notificationId) }] }); } catch (error) { console.warn('Could not dismiss alarm notification', error); }
+    }
+    if (snoozeAlarm && window.Capacitor?.Plugins?.LocalNotifications) {
+      try {
+        const platform = window.Capacitor?.getPlatform?.() || 'web';
+        await window.Capacitor.Plugins.LocalNotifications.schedule({ notifications: [{
+          id: Math.floor(Math.random() * 1900000000) + 100000,
+          title: pending?.label || 'DaySync Alarm',
+          body: 'Your snoozed alarm is ringing.',
+          schedule: { at: new Date(Date.now() + 5 * 60 * 1000), allowWhileIdle: true },
+          sound: platform === 'ios' ? 'daysync_alarm.caf' : 'daysync_alarm.wav',
+          channelId: platform === 'android' ? 'daysync-clock-alarm-v3' : undefined,
+          extra: { type: 'daysync-alarm', alarmId: String(pending?.id || '') }
+        }] });
+      } catch (error) { console.warn('Could not snooze alarm', error); showToast('Could not schedule snooze. Check notification permissions.'); }
+    }
+    try { localStorage.removeItem('daysyncPendingAlarmOpen'); } catch (_) {}
+    renderLayout();
+    return;
+  }
   const back = event.target.closest?.('[data-action="alarm-back"]');
   if (back) { state.view = 'menu'; renderLayout(); return; }
   const remove = event.target.closest?.('[data-action="alarm-delete"]');

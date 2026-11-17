@@ -1,0 +1,31 @@
+DaySync — Sahra Local Intelligence Upgrade
+
+Files in this patch:
+  backend/routes/dashboard.js
+  backend/services/sahra-local-intelligence.js
+
+What this does:
+- Uses the existing authenticated /api/assistant/chat endpoint and MongoDB records.
+- Adds account-scoped daily, weekly, monthly and all-time progress summaries.
+- Adds overdue-task, goal/achievement listing, saved-note listing and upcoming schedule answers.
+- Uses the existing deterministic DaySync intent/action handlers for supported create/update actions.
+- Removes the external Gemini/OpenAI-compatible provider implementation from the active dashboard assistant route. No external AI API key is required or called.
+- Does not change database schemas or migrate/delete existing user data.
+
+Important behavior:
+- Sahra is a deterministic in-app intent and data-analysis engine, not a general-purpose LLM. It supports known question patterns and can be expanded with additional intents. It cannot guarantee understanding of every arbitrary question.
+- Online use requires the DaySync app to reach its own backend and MongoDB. This is not an offline assistant.
+- Personal queries are scoped to the authenticated account. Answers are computed from records stored in DaySync; finance totals are not live bank balances.
+- Weather is only answered from a recent weather snapshot supplied by the client, not invented.
+
+Install:
+1. Back up P:\MyProjects\calender_todolist.
+2. Extract this ZIP into P:\MyProjects\calender_todolist, preserving folders and replacing the included backend/routes/dashboard.js.
+3. In PowerShell:
+   cd P:\MyProjects\calender_todolist
+   node --check .\backend\routes\dashboard.js
+   node --check .\backend\services\sahra-local-intelligence.js
+   npm start
+4. Test in the app while signed in and connected to the DaySync server.
+
+No web bundle rebuild is required because this patch changes backend code only. Restart the Node server after replacing the files.

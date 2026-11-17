@@ -196,7 +196,18 @@ async function configureNotificationTapHandling() {
       return;
     }
     if (extra.type === 'daysync-alarm') {
-      try { localStorage.setItem('daysyncPendingAlarmOpen', '1'); } catch (_) {}
+      try {
+        const alarmRecord = (JSON.parse(localStorage.getItem('daysyncAlarmItems') || '[]') || [])
+          .find((item) => String(item.id) === String(extra.alarmId || ''));
+        localStorage.setItem('daysyncPendingAlarmOpen', JSON.stringify({
+          id: String(extra.alarmId || ''),
+          notificationId: Number(notification.id) || 0,
+          time: alarmRecord?.time || '',
+          label: alarmRecord?.label || notification.title || 'DaySync Alarm'
+        }));
+      } catch (_) {
+        try { localStorage.setItem('daysyncPendingAlarmOpen', JSON.stringify({ notificationId: Number(notification.id) || 0, label: notification.title || 'DaySync Alarm' })); } catch (_) {}
+      }
       window.location.href = '/index.html?view=alarm';
       return;
     }

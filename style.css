@@ -12813,3 +12813,181 @@ body:not(.theme-light) #app .daysync-alarm-time-picker .daysync-alarm-time-field
   #app .daysync-alarm-time-picker { grid-template-columns: minmax(0,1fr) 8px minmax(0,1fr) minmax(58px,.85fr) !important; gap: 5px !important; }
   #app .daysync-alarm-time-picker .daysync-alarm-time-field { padding: 6px 4px !important; }
 }
+
+
+/* DaySync focused mobile consistency fixes (2026-11) */
+@media (max-width: 700px) {
+  #app .weather-page-header,
+  #app .daysync-reset-header {
+    position: sticky !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    z-index: 420 !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 66px;
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    align-items: center !important;
+    gap: 8px !important;
+    text-align: center !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 22px rgba(20, 38, 78, .18), inset 0 1px 0 rgba(255,255,255,.7) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  #app .weather-page-heading,
+  #app .daysync-reset-header-copy {
+    min-width: 0;
+    text-align: center !important;
+    justify-self: stretch;
+  }
+  #app .weather-page-heading h1,
+  #app .daysync-reset-header-copy h1,
+  #app .weather-page-heading p,
+  #app .daysync-reset-header-copy p {
+    text-align: center !important;
+  }
+  #app .weather-back-button,
+  #app .daysync-reset-header > .daysync-page-back-button {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    position: relative;
+    z-index: 2;
+  }
+  #app .weather-refresh-button {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+  #app .daysync-reset-header-copy { grid-column: 2; grid-row: 1; }
+  #app .weather-page-heading { grid-column: 2; grid-row: 1; }
+
+  /* Keep each page's header anchored within the page scroll region. */
+  #app .calendar-screen > .calendar-simple-header,
+  #app .todo-screen > .todo-header,
+  #app .daysync-settings-header,
+  #app .daysync-alarm-header,
+  #app .notepad-page-header {
+    position: sticky !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    z-index: 410 !important;
+  }
+
+  /* Todo filters remain visible while the task list moves underneath. */
+  #app .todo-screen .filter-row {
+    position: sticky !important;
+    top: calc(env(safe-area-inset-top, 0px) + 76px) !important;
+    z-index: 390 !important;
+    padding: 8px 0 10px;
+    margin: 0 0 10px !important;
+    background: var(--app-bg, #eef3ff);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  /* Finance header is part of the scroll page, not a transformed fixed child. */
+  #app .finance-dashboard-page,
+  #app .finance-transactions-page {
+    overflow: visible !important;
+    transform: none !important;
+  }
+  #app .finance-dashboard-header,
+  #app .finance-transactions-header {
+    position: sticky !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto 14px !important;
+    z-index: 430 !important;
+    box-sizing: border-box !important;
+  }
+
+  #app .calendar-simple-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+  #app .calendar-header-back { flex: 0 0 auto; }
+}
+
+body.theme-light #app .calendar-selected-date-copy,
+body.theme-light #app .calendar-selected-date-copy h3,
+body.theme-light #app .calendar-selected-date-copy .calendar-mood-caption,
+body.theme-light #app .calendar-empty-state,
+body.theme-light #app .calendar-empty-state strong,
+body.theme-light #app .calendar-empty-state p {
+  color: #17233d !important;
+}
+
+body.theme-light #app .weather-page-heading,
+body.theme-light #app .weather-page-heading h1,
+body.theme-light #app .weather-page-heading p,
+body.theme-light #app .weather-page-heading span,
+body.theme-light #app .daysync-reset-header-copy,
+body.theme-light #app .daysync-reset-header-copy h1,
+body.theme-light #app .daysync-reset-header-copy p {
+  color: #17233d !important;
+}
+
+body.theme-light #app .sahra-confirm-box .sahra-confirm-message {
+  color: #17233d !important;
+}
+.notepad-notes [data-notepad-note-card][hidden],
+.notepad-notes [data-notepad-search-empty][hidden] { display: none !important; }
+.notepad-search-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--muted, #64748b);
+}
+@media (prefers-reduced-motion: reduce) {
+  .notepad-notes [data-notepad-note-card] { animation: none !important; transition: none !important; }
+}
+
+
+/* Alarm ringing UI shown when the user opens/taps the scheduled alarm. */
+.daysync-alarm-ringing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  background: rgba(0,0,0,.94);
+}
+.daysync-alarm-ringing-card {
+  width: min(100%, 560px);
+  box-sizing: border-box;
+  padding: 20px 16px 16px;
+  border-radius: 24px;
+  background: #111d39;
+  color: #f8fbff;
+  box-shadow: 0 22px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14);
+  text-align: center;
+}
+.daysync-alarm-ringing-brand { text-align:left; color:#b8c9ee; font-weight:800; margin:0 0 24px; }
+.daysync-alarm-ringing-time { display:block; font-size:clamp(30px,8vw,44px); margin:0 0 12px; }
+.daysync-alarm-ringing-card h2 { margin:0 0 10px; color:#fff; }
+.daysync-alarm-ringing-card > p:not(.daysync-alarm-ringing-brand) { color:#b8c9e7; font-size:13px; }
+.daysync-alarm-ringing-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px; }
+.daysync-alarm-ringing-actions button {
+  min-height:82px; border:0; border-radius:999px; color:#fff; font-weight:800;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  font-size:22px; touch-action:manipulation;
+}
+.daysync-alarm-ringing-actions button span { font-size:15px; }
+.daysync-alarm-ringing-actions button:first-child { background:#bf3f58; }
+.daysync-alarm-ringing-actions button:last-child { background:#4778e8; }
+
+@media (max-width: 700px) {
+  #app .screen > .page-header,
+  #app .screen > .daysync-common-header,
+  #app .screen > header.page-fixed-header {
+    position: sticky !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    z-index: 405 !important;
+  }
+}
