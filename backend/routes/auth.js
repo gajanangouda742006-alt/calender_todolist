@@ -82,7 +82,7 @@ function statusError(message, statusCode, code) {
 }
 
 async function issueCode(user, purpose) {
-  const key = 'passwordReset';
+  const key = purpose === 'email-verification' ? 'emailVerification' : 'passwordReset';
   const now = new Date();
   const existing = user[key] || {};
   const resendAvailableAt = existing.resendAvailableAt ? new Date(existing.resendAvailableAt) : null;
@@ -142,11 +142,11 @@ async function issueCode(user, purpose) {
 }
 
 async function verifyCode(user, purpose, suppliedCode) {
-  const key = 'passwordReset';
+  const key = purpose === 'email-verification' ? 'emailVerification' : 'passwordReset';
   const current = user[key] || {};
   const now = new Date();
   const code = typeof suppliedCode === 'string' ? suppliedCode.trim() : '';
-  const invalid = () => statusError('The password reset code is invalid or has expired.', 400, 'INVALID_CODE');
+  const invalid = () => statusError(purpose === 'email-verification' ? 'The email verification code is invalid or has expired.' : 'The password reset code is invalid or has expired.', 400, 'INVALID_CODE');
 
   if (!/^\d{6}$/.test(code) || !current.codeHash || !current.expiresAt || new Date(current.expiresAt) <= now) {
     throw invalid();
@@ -204,20 +204,23 @@ router.post('/register', authRateLimit, async (req, res) => {
       return res.status(409).json({ message: 'An account already exists for this email address.' });
     }
 
+    getEmailConfiguration();
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({
       name: cleanName,
       email: normalizedEmail,
       passwordHash,
-      emailVerified: true,
+      emailVerified: false,
       profile: { dateOfBirth: dateOfBirth || null },
       preferences: { theme: 'light', goals: [], interests: [] },
     });
 
+    const timing = await issueCode(user, 'email-verification');
     return res.status(201).json({
-      message: 'Account created successfully.',
-      token: generateToken(user),
-      user: publicUser(user),
+      message: 'Account created. Enter the six-digit code sent to your email to activate it.',
+      verificationRequired: true,
+      email: user.email,
+      ...timing,
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -226,6 +229,44 @@ router.post('/register', authRateLimit, async (req, res) => {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
     console.error('Registration failed:', error.message);
     return res.status(500).json({ message: 'Registration could not be completed.' });
+  }
+});
+
+router.post('/email-verification/resend', codeRateLimit, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!hasValidEmailShape(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
+    const user = await User.findOne({ email });
+    if (!user || user.emailVerified) {
+      return res.status(200).json({ message: 'If the account needs verification, a new code has been sent.' });
+    }
+    getEmailConfiguration();
+    const timing = await issueCode(user, 'email-verification');
+    return res.status(200).json({ message: 'A new verification code has been sent.', ...timing });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    console.error('Email verification resend failed:', error.message);
+    return res.status(500).json({ message: 'Unable to resend the verification code.' });
+  }
+});
+
+router.post('/email-verification/confirm', authRateLimit, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const code = req.body?.code;
+    if (!hasValidEmailShape(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
+    const user = await User.findOne({ email });
+    if (!user || user.emailVerified) {
+      return res.status(400).json({ message: 'The verification code is invalid or has expired.' });
+    }
+    await verifyCode(user, 'email-verification', code);
+    user.emailVerified = true;
+    await user.save();
+    return res.status(200).json({ message: 'Email verified. Your account is ready.', token: generateToken(user), user: publicUser(user) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    console.error('Email verification failed:', error.message);
+    return res.status(500).json({ message: 'Unable to verify the email address.' });
   }
 });
 
@@ -242,8 +283,10 @@ router.post('/login', authRateLimit, async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
     if (!user.emailVerified) {
-      user.emailVerified = true;
-      await user.save();
+      return res.status(403).json({
+        message: 'Please verify your email before signing in.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
     }
 
     return res.status(200).json({ message: 'Login successful.', token: generateToken(user), user: publicUser(user) });
@@ -265,7 +308,7 @@ router.post('/password-reset/request', codeRateLimit, async (req, res) => {
 
     getEmailConfiguration();
     const timing = await issueCode(user, 'password-reset');
-    return res.status(200).json({ message: 'Password reset code sent.', email: user.email, ...timing });
+    return res.status(200).json({ message: 'If an eligible account exists, a reset code has been sent.', ...timing });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
     console.error('Password reset request failed:', error.message);
@@ -291,6 +334,30 @@ router.post('/password-reset/confirm', authRateLimit, async (req, res) => {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
     console.error('Password reset confirmation failed:', error.message);
     return res.status(500).json({ message: 'Unable to reset the password.' });
+  }
+});
+
+router.post('/password/change', verifyToken, authRateLimit, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!validatePassword(newPassword) || typeof currentPassword !== 'string' || !currentPassword) {
+      return res.status(400).json({ message: 'Enter your current password and a new password of 8 to 72 bytes.' });
+    }
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      return res.status(400).json({ message: 'Your current password is incorrect.', code: 'CURRENT_PASSWORD_INVALID' });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: 'Choose a new password different from your current password.' });
+    }
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    await user.save();
+    return res.status(200).json({ message: 'Password changed successfully.' });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    console.error('Password change failed:', error.message);
+    return res.status(500).json({ message: 'Unable to change the password.' });
   }
 });
 
