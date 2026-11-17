@@ -1,0 +1,83 @@
+DaySync - Requested Calendar, Light Mode, Alarm & Focus Sound Patch
+=====================================================================
+
+This patch contains only the source files needed for the requested changes.
+
+Included changes
+----------------
+1. Calendar page:
+   - Adds the left-side Back button (uses the existing back-home action).
+   - Keeps the Calendar header sticky at the top while the calendar page scrolls.
+2. Calendar selected date:
+   - Keeps the selected date as a filled blue tile in the Calendar page and Home calendar view.
+3. Light mode:
+   - Makes the selected-day title, mood caption, and empty-state message text dark and readable.
+   - Leaves the dark mood button's white label unchanged for contrast.
+4. Weather and Reset Options:
+   - Their common back-button header markup and light-mode header styling were already present in this uploaded source, so those files/sections were not changed.
+5. Alarm Clock and Focus Timer:
+   - Both use the supplied alaramsound.mp3, normalized for stronger notification playback.
+   - Android uses android/app/src/main/res/raw/daysync_alarm.wav and new notification channel IDs so Android can register the custom sound.
+   - iOS uses assets/daysync_alarm.caf. The iOS preparation script copies it into the app bundle and registers it in Xcode's Resources phase.
+
+Files in this patch
+-------------------
+app.js
+pages/calendar.js
+style.css
+scripts/mobile-notifications.js
+scripts/prepare-ios.js
+android/app/src/main/res/raw/daysync_alarm.wav
+assets/daysync_alarm.caf
+
+Install on Windows
+------------------
+1. Back up P:\MyProjects\calender_todolist.
+2. Extract this ZIP into:
+   P:\MyProjects\calender_todolist
+3. Open PowerShell and run:
+
+   cd P:\MyProjects\calender_todolist
+   npm install
+   node --check .\app.js
+   node --check .\pages\calendar.js
+   node --check .\scripts\mobile-notifications.js
+   node --check .\scripts\prepare-ios.js
+   node .\scripts\build-web.js
+
+Android build
+-------------
+Run:
+
+   cd P:\MyProjects\calender_todolist
+   npm run mobile:stage
+
+Then:
+
+   npx cap sync android
+   cd android
+   .\gradlew.bat assembleDebug
+
+If the project requires the API URL for mobile staging, set SAHRA_API_BASE_URL to your deployed HTTPS API origin first, as required by the existing project script.
+
+iOS build
+---------
+Requires macOS and Xcode. On the Mac, set SAHRA_API_BASE_URL to the deployed HTTPS API origin, then run:
+
+   npm run ios:prepare
+   npx cap open ios
+
+The iOS preparation script adds daysync_alarm.caf to the generated app bundle's Xcode Resources phase. Build/sign/install using Xcode.
+
+Important alarm limitations
+----------------------------
+- The scheduled local notifications are designed to alert while the app is backgrounded or closed, subject to device permissions and OS delivery policies.
+- A notification is not the same as a full-screen, continuously ringing native Clock alarm.
+- No app can ring while the phone is completely powered off.
+- Android may require Notifications and Alarms & reminders permissions; the user may also need to allow the DaySync notification channel's sound in system settings.
+- iOS custom notification sounds are subject to Apple's notification sound rules and user notification settings.
+- Physical Android and iPhone testing is still required. This source patch was syntax-checked, but a full mobile build/device test was not run in this environment.
+
+Scope
+-----
+Only the requested Calendar, light-mode text, alarm/focus sound, and iOS sound-bundling changes are included. No unrelated project files are included.

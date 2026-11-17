@@ -2555,13 +2555,15 @@ async function focusScheduleNotification(seconds) {
       showToast('Enable DaySync notifications in Android Settings to receive timer alerts while the app is in the background.');
       return;
     }
+    const platform = window.Capacitor?.getPlatform?.() || 'web';
+    const alarmSound = platform === 'ios' ? 'daysync_alarm.caf' : 'daysync_alarm.wav';
     await LocalNotifications.schedule({ notifications: [{
       id: focusCompletionNotificationId,
       title: 'Focus session complete',
       body: `${state.focusLabel || 'Your focus session'} is finished. Tap Reset to start another session.`,
       schedule: { at: new Date(Date.now() + Math.max(1, seconds) * 1000), allowWhileIdle: true },
-      sound: 'daysync_alarm.wav',
-      channelId: 'daysync-focus-alarm',
+      sound: alarmSound,
+      channelId: platform === 'android' ? 'daysync-focus-alarm-v2' : undefined,
       actionTypeId: 'daysync-focus-alarm',
       autoCancel: false,
       ongoing: true,
@@ -6653,6 +6655,8 @@ async function daysyncScheduleAlarm(alarm) {
     if (requested?.display !== 'granted') throw new Error('Notifications are disabled. Enable them in device settings.');
   }
   const [hour, minute] = alarm.time.split(':').map(Number);
+  const platform = window.Capacitor?.getPlatform?.() || 'web';
+  const alarmSound = platform === 'ios' ? 'daysync_alarm.caf' : 'daysync_alarm.wav';
   const schedule = alarm.daily
     ? { on: { hour, minute }, repeats: true, allowWhileIdle: true }
     : { at: daysyncAlarmNextDate(alarm.time), allowWhileIdle: true };
@@ -6661,8 +6665,8 @@ async function daysyncScheduleAlarm(alarm) {
     title: alarm.label || 'DaySync Alarm',
     body: 'Your alarm is ringing.',
     schedule,
-    channelId: 'daysync-clock-alarm-v2',
-    sound: 'daysync_alarm.wav',
+    channelId: platform === 'android' ? 'daysync-clock-alarm-v3' : undefined,
+    sound: alarmSound,
     extra: { type: 'daysync-alarm', alarmId: String(alarm.id) },
   }] });
   return true;

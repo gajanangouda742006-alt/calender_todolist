@@ -12573,3 +12573,46 @@ body.theme-light #app .calendar-screen .calendar-day.selected {
   border: 1px solid #75aaff !important;
   box-shadow: 0 0 0 2px rgba(71,145,255,.28), 0 6px 16px rgba(25,100,230,.36) !important;
 }
+
+
+/* Requested calendar readability fixes: keep the selected-day details legible
+   in light mode without changing the dark theme or unrelated cards. */
+body.theme-light #app .calendar-screen .calendar-selected-day-header,
+body.theme-light #app .calendar-screen .calendar-selected-date-copy,
+body.theme-light #app .calendar-screen .calendar-selected-date-copy h3,
+body.theme-light #app .calendar-screen .calendar-mood-caption,
+body.theme-light #app .calendar-screen .calendar-empty-state,
+body.theme-light #app .calendar-screen .calendar-empty-state strong,
+body.theme-light #app .calendar-screen .calendar-empty-state p {
+  color: #17233d !important;
+}
+body.theme-light #app .calendar-screen .calendar-empty-state strong {
+  opacity: 1 !important;
+}
+/* Calendar page navigation stays pinned while the calendar content scrolls. */
+#app .calendar-screen > .calendar-simple-header {
+  position: sticky !important;
+  top: env(safe-area-inset-top, 0px) !important;
+  z-index: 1100 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+#app .calendar-screen > .calendar-simple-header .calendar-header-back {
+  flex: 0 0 auto !important;
+  margin-right: auto !important;
+}
+#app .calendar-screen > .calendar-simple-header .calendar-today-button {
+  margin-left: auto !important;
+}
+
+/* Selected date: filled blue tile in both calendar views and both themes. */
+#app .calendar-screen .calendar-day.selected,
+#app .home-screen .calendar-day.selected,
+body.theme-light #app .calendar-screen .calendar-day.selected,
+body.theme-light #app .home-screen .calendar-day.selected {
+  color: #fff !important;
+  background: linear-gradient(145deg, #69b4ff 0%, #3479f2 58%, #2456ca 100%) !important;
+  border: 1px solid #75aaff !important;
+  box-shadow: 0 0 0 2px rgba(71,145,255,.28), 0 6px 16px rgba(25,100,230,.36) !important;
+}

@@ -63,4 +63,43 @@ if (fs.existsSync(plistPath)) {
   console.log('Added iOS location and voice permission descriptions.');
 }
 
+
+function includeIosAlarmSound() {
+  const source = path.join(root, 'assets', 'daysync_alarm.caf');
+  const appDir = path.join(iosDir, 'App', 'App');
+  const target = path.join(appDir, 'daysync_alarm.caf');
+  const projectPath = path.join(iosDir, 'App', 'App.xcodeproj', 'project.pbxproj');
+  if (!fs.existsSync(source)) throw new Error('Missing assets/daysync_alarm.caf. Keep the supplied DaySync alarm sound asset in the project.');
+  if (!fs.existsSync(appDir) || !fs.existsSync(projectPath)) {
+    throw new Error('The generated iOS App project is incomplete; cannot add the custom alarm sound.');
+  }
+  fs.copyFileSync(source, target);
+
+  let project = fs.readFileSync(projectPath, 'utf8');
+  const fileRefId = 'D5A7A11A0000000000000001';
+  const buildFileId = 'D5A7A11A0000000000000002';
+  if (!project.includes(fileRefId)) {
+    const fileRef = `\t\t${fileRefId} /* daysync_alarm.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = daysync_alarm.caf; sourceTree = "<group>"; };\n`;
+    const buildFile = `\t\t${buildFileId} /* daysync_alarm.caf in Resources */ = {isa = PBXBuildFile; fileRef = ${fileRefId} /* daysync_alarm.caf */; };\n`;
+    project = project.replace('/* End PBXBuildFile section */', `${buildFile}/* End PBXBuildFile section */`);
+    project = project.replace('/* End PBXFileReference section */', `${fileRef}/* End PBXFileReference section */`);
+
+    const appGroupPattern = /([A-F0-9]{24} \/\* App \*\/ = \{\s*isa = PBXGroup;\s*children = \()([\s\S]*?)(\);\s*path = App;[\s\S]*?\};)/;
+    if (!appGroupPattern.test(project)) {
+      throw new Error('Could not locate the iOS App group in project.pbxproj to register the alarm sound.');
+    }
+    project = project.replace(appGroupPattern, `$1\t\t\t\t${fileRefId} /* daysync_alarm.caf */,\n$2$3`);
+
+    const resourcesPattern = /(\s+[A-F0-9]{24} \/\* Resources \*\/ = \{\s*isa = PBXResourcesBuildPhase;[\s\S]*?files = \()([\s\S]*?)(\);[\s\S]*?\};)/;
+    if (!resourcesPattern.test(project)) {
+      throw new Error('Could not locate the iOS Resources build phase in project.pbxproj.');
+    }
+    project = project.replace(resourcesPattern, `$1\t\t\t\t${buildFileId} /* daysync_alarm.caf in Resources */,\n$2$3`);
+    fs.writeFileSync(projectPath, project);
+  }
+  console.log('Added the custom DaySync alarm sound to the iOS app bundle.');
+}
+
+includeIosAlarmSound();
+
 console.log('iOS platform prepared. Open ios/App/App.xcworkspace in Xcode on a Mac to sign, build, and install on iPhone.');

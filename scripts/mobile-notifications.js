@@ -135,7 +135,7 @@ async function configureNotificationTapHandling() {
   try {
     await LocalNotifications.registerActionTypes({
       types: [{
-        id: 'daysync-focus-alarm',
+        id: 'daysync-focus-alarm-v2',
         actions: [
           { id: 'stop', title: 'Stop', destructive: true, foreground: true },
           { id: 'reset', title: 'Reset', foreground: true },
@@ -172,8 +172,8 @@ async function configureNotificationTapHandling() {
     } catch (error) { console.warn('Could not create Alarm Clock channel:', error.message); }
     try {
       await LocalNotifications.createChannel({
-        id: 'daysync-clock-alarm-v2',
-        name: 'DaySync Alarm Clock (sound)',
+        id: 'daysync-clock-alarm-v3',
+        name: 'DaySync Alarm Clock (custom sound)',
         description: 'Scheduled DaySync alarm sound and vibration',
         importance: 5,
         visibility: 1,
@@ -185,7 +185,7 @@ async function configureNotificationTapHandling() {
     try {
       await LocalNotifications.createChannel({
         id: 'daysync-focus-alarm',
-        name: 'DaySync Focus Timer',
+        name: 'DaySync Focus Timer (custom sound)',
         description: 'Focus session completion alarm',
         importance: 5,
         visibility: 1,
