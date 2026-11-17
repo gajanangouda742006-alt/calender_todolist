@@ -1,15 +1,26 @@
-DaySync Smooth Keyboard Fix
+DaySync Expense Tracker Mobile Header Fix
+=========================================
 
-Files and exact destinations:
-1. app.js -> P:\MyProjects\calender_todolist\app.js
-2. style.css -> P:\MyProjects\calender_todolist\style.css
-3. android/app/src/main/AndroidManifest.xml -> P:\MyProjects\calender_todolist\android\app\src\main\AndroidManifest.xml
+Changed file:
+- style.css
 
-This removes the focus-is-keyboard-open false positive and repeated 100/320/520ms scroll jumps. It waits for the visual viewport resize and performs at most one gentle visibility adjustment. Android uses adjustResize so the WebView receives the resized viewport.
+What changed:
+- The Expense Tracker dashboard header now uses position: sticky inside the app's
+  main scrolling area, instead of viewport-fixed positioning that could move
+  unexpectedly inside the mobile frame.
+- Removed the extra reserved top padding that was only needed for the old fixed
+  header.
+- Scoped all overrides to the Expense Tracker dashboard so other pages are untouched.
+- Added safe-area-aware top spacing for mobile devices.
 
-After extracting and overwriting these three files, run:
-  node --check .\app.js
-  node .\scripts\build-web.js
-  npx cap sync android
+Install:
+1. Back up P:\MyProjects\calender_todolist\style.css.
+2. Extract this ZIP into P:\MyProjects\calender_todolist and replace style.css.
+3. Rebuild the web bundle only if your normal build process copies CSS separately;
+   CSS itself is loaded directly from style.css by the app.
+4. Test by opening Expense Tracker and scrolling its content on a phone.
 
-Then rebuild/reinstall the Android app to apply the native manifest setting. Do not extract this ZIP into a separate nested folder. Extract its contents directly into the project root, preserving folders.
+No JavaScript, database, alarm, calendar, assistant, or other page files were changed.
+
+Note:
+This is a source-level CSS fix. It has not been tested on a physical Android or iOS device.

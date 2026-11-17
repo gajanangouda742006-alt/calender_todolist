@@ -12616,3 +12616,35 @@ body.theme-light #app .home-screen .calendar-day.selected {
   border: 1px solid #75aaff !important;
   box-shadow: 0 0 0 2px rgba(71,145,255,.28), 0 6px 16px rgba(25,100,230,.36) !important;
 }
+
+/* =========================================================
+   DAYSync MOBILE EXPENSE TRACKER HEADER FIX
+   Keep the dashboard header pinned within the app's scroll area.
+   Scoped only to the Finance / Expense Tracker dashboard.
+========================================================= */
+#app > .screen .finance-dashboard-page {
+  /* Let the app (#app) remain the scrolling container so sticky works
+     consistently in mobile browsers and Capacitor WebViews. */
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+  padding-top: 24px !important;
+}
+
+#app > .screen .finance-dashboard-page > .finance-dashboard-header {
+  position: sticky !important;
+  top: max(8px, env(safe-area-inset-top, 0px)) !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 -6px 24px !important;
+  z-index: 10000 !important;
+  box-sizing: border-box !important;
+}
+
+/* Keep the fixed header legible above scrolling finance cards. */
+#app > .screen .finance-dashboard-page > .finance-dashboard-header {
+  isolation: isolate;
+}
+
