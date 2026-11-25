@@ -29,6 +29,7 @@
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/geolocation": "^8.2.4",
     "@capacitor/ios": "^8.5.3",
     "@capacitor/keyboard": "^8.0.0",
     "@capacitor/local-notifications": "^8.3.1",
@@ -42,9 +43,7 @@
     "express-rate-limit": "^8.7.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.3",
-    "mysql2": "^3.4.1",
-    "nodemailer": "10.1.0",
-    "@capacitor/geolocation": "^8.2.4"
+    "mysql2": "^3.4.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.3",

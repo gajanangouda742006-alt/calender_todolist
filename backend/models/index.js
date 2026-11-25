@@ -30,26 +30,6 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
-    emailVerification: {
-      codeHash: { type: String, default: null },
-      expiresAt: { type: Date, default: null },
-      attempts: { type: Number, default: 0 },
-      lastSentAt: { type: Date, default: null },
-      resendAvailableAt: { type: Date, default: null },
-      windowStartedAt: { type: Date, default: null },
-      sendsInWindow: { type: Number, default: 0 },
-    },
-
-    passwordReset: {
-      codeHash: { type: String, default: null },
-      expiresAt: { type: Date, default: null },
-      attempts: { type: Number, default: 0 },
-      lastSentAt: { type: Date, default: null },
-      resendAvailableAt: { type: Date, default: null },
-      windowStartedAt: { type: Date, default: null },
-      sendsInWindow: { type: Number, default: 0 },
-    },
-
     profile: {
       dateOfBirth: {
         type: Date,
