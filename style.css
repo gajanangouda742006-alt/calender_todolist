@@ -12991,3 +12991,172 @@ body.theme-light #app .sahra-confirm-box .sahra-confirm-message {
     z-index: 405 !important;
   }
 }
+
+
+/* =========================================================
+   DAYSync targeted mobile refinements — 2026-11-26
+   Finance dashboard: separate fixed header, independently scrolling content.
+   Weather / Reset: exact equal side tracks keep headings centred.
+   Sahra: header starts flush at the top; composer meets the keyboard.
+   Progress: compact month bar.
+========================================================= */
+
+@media (max-width: 760px) {
+  /* Expense Tracker: pin only this dashboard header. The dashboard itself
+     remains in #app's normal scroll flow, with room reserved below the bar. */
+  #app > .finance-dashboard-page {
+    position: relative !important;
+    overflow: visible !important;
+    transform: none !important;
+    padding-top: calc(104px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  #app > .finance-dashboard-page > .finance-dashboard-header {
+    position: fixed !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(calc(100vw - 20px), 402px) !important;
+    max-width: 402px !important;
+    min-height: 76px !important;
+    height: auto !important;
+    margin: 0 !important;
+    z-index: 1250 !important;
+    box-sizing: border-box !important;
+    isolation: isolate;
+  }
+
+  /* Weather and Reset have the same 42px left and right tracks. The centre
+     heading therefore remains centred in the header, not just in free space. */
+  #app > .weather-page > .weather-page-header,
+  #app > .daysync-reset-screen > .daysync-reset-header {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+    align-items: center !important;
+    column-gap: 8px !important;
+    text-align: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  #app > .weather-page > .weather-page-header > .weather-back-button,
+  #app > .daysync-reset-screen > .daysync-reset-header > .daysync-page-back-button {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+    margin: 0 !important;
+  }
+
+  #app > .weather-page > .weather-page-header > .weather-page-heading,
+  #app > .daysync-reset-screen > .daysync-reset-header > .daysync-reset-header-copy {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    text-align: center !important;
+  }
+
+  #app > .weather-page > .weather-page-header > .weather-refresh-button {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    margin: 0 !important;
+  }
+
+  /* Reset has no right-side action; reserve an equal invisible 42px slot. */
+  #app > .daysync-reset-screen > .daysync-reset-header::after {
+    content: "" !important;
+    display: block !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    width: 42px !important;
+    height: 1px !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  #app > .weather-page > .weather-page-header .weather-page-heading,
+  #app > .daysync-reset-screen > .daysync-reset-header .daysync-reset-header-copy,
+  #app > .weather-page > .weather-page-header .weather-page-heading h1,
+  #app > .daysync-reset-screen > .daysync-reset-header .daysync-reset-header-copy h1,
+  #app > .weather-page > .weather-page-header .weather-page-heading p,
+  #app > .weather-page > .weather-page-header .weather-page-heading span,
+  #app > .daysync-reset-screen > .daysync-reset-header .daysync-reset-header-copy p {
+    text-align: center !important;
+  }
+
+  /* Progress: reduce the tall top bar and the gap before its first card. */
+  #app > .dashboard-screen {
+    gap: 6px !important;
+    padding-top: 0 !important;
+  }
+
+  #app > .dashboard-screen > .dashboard-topbar.page-fixed-header {
+    min-height: 48px !important;
+    height: auto !important;
+    padding: 4px 8px !important;
+    margin: 0 auto 4px !important;
+    gap: 7px !important;
+  }
+
+  #app > .dashboard-screen > .dashboard-topbar.page-fixed-header .month-picker,
+  #app > .dashboard-screen > .dashboard-topbar.page-fixed-header .back-button {
+    min-height: 36px !important;
+    height: 36px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  /* Sahra: the screen is a fixed-height shell with a separately scrolling
+     conversation. Remove the extra top padding so the header begins directly
+     below the native status-bar area reserved by Capacitor. */
+  #app:has(> .assistant-screen) {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+  }
+
+  #app > .assistant-screen {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    gap: 5px !important;
+  }
+
+  #app > .assistant-screen > .assistant-header.page-fixed-header {
+    position: relative !important;
+    top: auto !important;
+    margin: 0 auto 4px !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* Closed keyboard: composer remains above the bottom navigation. */
+  #app > .assistant-screen .assistant-fixed-composer {
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Open keyboard: Capacitor KeyboardResize.Body reduces the usable WebView
+     height. Anchor the composer to that new bottom edge, not 82px above it. */
+  html.keyboard-open #app > .assistant-screen,
+  body.keyboard-open #app > .assistant-screen {
+    padding-bottom: 0 !important;
+  }
+
+  html.keyboard-open #app > .assistant-screen .assistant-fixed-composer,
+  body.keyboard-open #app > .assistant-screen .assistant-fixed-composer {
+    bottom: 0px !important;
+    margin-bottom: 0 !important;
+  }
+
+  html.keyboard-open #app > .assistant-screen .assistant-chat,
+  body.keyboard-open #app > .assistant-screen .assistant-chat {
+    padding-bottom: calc(var(--assistant-composer-height, 60px) + 14px) !important;
+    scroll-padding-bottom: calc(var(--assistant-composer-height, 60px) + 14px) !important;
+  }
+
+  html.keyboard-open .mobile-frame:has(#app > .assistant-screen) .bottom-nav,
+  body.keyboard-open .mobile-frame:has(#app > .assistant-screen) .bottom-nav {
+    display: none !important;
+  }
+}

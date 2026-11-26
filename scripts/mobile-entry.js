@@ -85,6 +85,9 @@ async function configureNativeShell() {
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
     await Keyboard.addListener('keyboardDidShow', (info = {}) => {
       window.SAHRA_NATIVE_KEYBOARD_OPEN = true;
+      document.documentElement.classList.add('keyboard-open');
+      document.body.classList.add('keyboard-open');
+      document.querySelector('.bottom-nav')?.classList.add('keyboard-hidden');
       const height = Number(info.keyboardHeight) || 0;
       if (height > 0) document.documentElement.style.setProperty('--sahra-keyboard-height', `${height}px`);
       window.dispatchEvent(new Event('daysync:keyboard-change'));
@@ -97,6 +100,9 @@ async function configureNativeShell() {
     });
     await Keyboard.addListener('keyboardDidHide', () => {
       window.SAHRA_NATIVE_KEYBOARD_OPEN = false;
+      document.documentElement.classList.remove('keyboard-open');
+      document.body.classList.remove('keyboard-open');
+      document.querySelector('.bottom-nav')?.classList.remove('keyboard-hidden');
       document.documentElement.style.removeProperty('--sahra-keyboard-height');
       window.dispatchEvent(new Event('daysync:keyboard-change'));
     });
