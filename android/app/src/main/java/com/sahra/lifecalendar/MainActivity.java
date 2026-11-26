@@ -1,13 +1,10 @@
 package com.sahra.lifecalendar;
 
-import android.graphics.Color;
-import android.view.Window;
-import android.view.WindowManager;
-
+import com.getcapacitor.BridgeActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
-
-import com.getcapacitor.BridgeActivity;
+import android.graphics.Color;
+import android.view.Window;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -15,18 +12,18 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DaySyncSettingsPlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Keep Android's real status bar visible (time, signal, Wi-Fi and
-        // battery). The Capacitor StatusBar plugin applies the active theme
-        // color and icon contrast after the web app has initialized.
+        // Keep Android's real status bar visible outside the WebView. Start in
+        // the DaySync dark-theme state (white system icons); the existing
+        // Capacitor StatusBar integration switches icon contrast at runtime
+        // when the user selects Light mode.
         Window window = getWindow();
-        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
         WindowCompat.setDecorFitsSystemWindows(window, true);
         window.setStatusBarColor(Color.rgb(7, 17, 38));
-
-        // Match the dark launch background until DaySync's theme-aware
-        // Capacitor StatusBar configuration applies light/dark preferences.
         WindowInsetsControllerCompat insetsController =
-                WindowCompat.getInsetsController(window, window.getDecorView());
-        insetsController.setAppearanceLightStatusBars(false);
+            WindowCompat.getInsetsController(window, window.getDecorView());
+        if (insetsController != null) {
+            insetsController.setAppearanceLightStatusBars(false);
+        }
     }
 }
